@@ -1,5 +1,9 @@
 import nodemailer from 'nodemailer';
-import {WELCOME_EMAIL_TEMPLATE, NEWS_SUMMARY_EMAIL_TEMPLATE} from "@/lib/nodemailer/templates";
+import {
+    WELCOME_EMAIL_TEMPLATE, 
+    NEWS_SUMMARY_EMAIL_TEMPLATE, 
+    DAILY_SCREENER_EMAIL_TEMPLATE
+} from "./templates";
 
 // Verify transporter configuration
 if (!process.env.NODEMAILER_EMAIL || !process.env.NODEMAILER_PASSWORD) {
@@ -27,6 +31,12 @@ transporter.verify((error, success) => {
     }
 });
 
+interface WelcomeEmailData {
+    email: string;
+    name: string;
+    intro: string;
+}
+
 export const sendWelcomeEmail = async ({ email, name, intro }: WelcomeEmailData) => {
     try {
         if (!process.env.NODEMAILER_EMAIL || !process.env.NODEMAILER_PASSWORD) {
@@ -38,10 +48,10 @@ export const sendWelcomeEmail = async ({ email, name, intro }: WelcomeEmailData)
             .replace('{{intro}}', intro);
 
         const mailOptions = {
-            from: `"Openstock" <${process.env.NODEMAILER_EMAIL}>`,
+            from: `"OpenStock" <${process.env.NODEMAILER_EMAIL}>`,
             to: email,
-            subject: `Welcome to Openstock - your open-source stock market toolkit!`,
-            text: 'Thanks for joining Openstock, an initiative by open dev society',
+            subject: `Welcome to OpenStock - your open-source stock market toolkit!`,
+            text: 'Thanks for joining OpenStock, an initiative by open dev society',
             html: htmlTemplate,
         }
 
@@ -67,10 +77,10 @@ export const sendNewsSummaryEmail = async (
             .replace('{{newsContent}}', newsContent);
 
         const mailOptions = {
-            from: `"Openstock" <${process.env.NODEMAILER_EMAIL}>`,
+            from: `"OpenStock" <${process.env.NODEMAILER_EMAIL}>`,
             to: email,
             subject: `📈 Market News Summary Today - ${date}`,
-            text: `Today's market news summary from Openstock`,
+            text: `Today's market news summary from OpenStock`,
             html: htmlTemplate,
         };
 
@@ -79,6 +89,35 @@ export const sendNewsSummaryEmail = async (
         return info;
     } catch (error) {
         console.error('❌ Failed to send news summary email:', error);
+        throw error;
+    }
+};
+
+export const sendDailyScreenerEmail = async (
+    { email, date, tableRows }: { email: string; date: string; tableRows: string }
+) => {
+    try {
+        if (!process.env.NODEMAILER_EMAIL || !process.env.NODEMAILER_PASSWORD) {
+            throw new Error('Email credentials not configured');
+        }
+
+        const htmlTemplate = DAILY_SCREENER_EMAIL_TEMPLATE
+            .replace('{{date}}', date)
+            .replace('{{tableRows}}', tableRows);
+
+        const mailOptions = {
+            from: `"OpenStock Screener" <${process.env.NODEMAILER_EMAIL}>`,
+            to: email,
+            subject: `🚀 Daily Strong Stocks Report - ${date}`,
+            text: `Daily strong stocks report for ${date}. Check HTML content for details.`,
+            html: htmlTemplate,
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log('✅ Daily screener email sent successfully:', info.messageId);
+        return info;
+    } catch (error) {
+        console.error('❌ Failed to send daily screener email:', error);
         throw error;
     }
 };

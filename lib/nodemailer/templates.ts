@@ -421,7 +421,7 @@ export const STOCK_ALERT_UPPER_EMAIL_TEMPLATE = `<!DOCTYPE html>
                                 <tr>
                                     <td align="center">
                                         <h1 class="mobile-title" style="margin: 0 0 10px 0; font-size: 24px; font-weight: 700; color: #ffffff; line-height: 1.2;">
-                                            📈 Price Above Reached
+                                            📉 Price Above Reached
                                         </h1>
                                         <p style="margin: 0; font-size: 16px; color: #ffffff; opacity: 0.9;">
                                             {{timestamp}}
@@ -1101,6 +1101,73 @@ export const INACTIVE_USER_REMINDER_EMAIL_TEMPLATE = `<!DOCTYPE html>
                         </td>
                     </tr>
 
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+
+export const DAILY_SCREENER_EMAIL_TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Market Screener</title>
+    <style type="text/css">
+        @media (prefers-color-scheme: dark) {
+            .email-container { background-color: #141414 !important; border: 1px solid #30333A !important; }
+            .dark-text { color: #ffffff !important; }
+            .dark-text-secondary { color: #9ca3af !important; }
+        }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #30333A; }
+        th { color: #FDD458; }
+        td { color: #CCDADC; }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #050505; font-family: sans-serif;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #050505;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-container" style="max-width: 800px; background-color: #141414; border-radius: 8px; border: 1px solid #30333A;">
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h1 class="dark-text" style="margin: 0 0 20px 0; font-size: 24px; color: #FDD458;">
+                                Daily Strong Stocks Report
+                            </h1>
+                            <p class="dark-text-secondary" style="margin: 0 0 20px 0; font-size: 16px; color: #9ca3af;">
+                                Date: {{date}}
+                            </p>
+                            <p class="dark-text-secondary" style="margin: 0 0 30px 0; font-size: 16px; color: #9ca3af;">
+                                The following stocks have Market Cap > $10B, Turnover > $500M, and hit a new All-Time High (or 52-week high if data limited) today.
+                            </p>
+                            
+                            <div style="overflow-x: auto;">
+                                <table cellspacing="0" cellpadding="0" border="0" width="100%">
+                                    <thead>
+                                        <tr>
+                                            <th>Symbol</th>
+                                            <th>Name</th>
+                                            <th>Price</th>
+                                            <th>Market Cap</th>
+                                            <th>Turnover</th>
+                                            <th>High</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {{tableRows}}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style="text-align: center; margin: 40px 0 0 0;">
+                                <p style="font-size: 14px; color: #CCDADC;">
+                                    © 2025 OpenStock
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
                 </table>
             </td>
         </tr>

@@ -1,10 +1,6 @@
 import { inngest } from "@/lib/inngest/client";
 import { NEWS_SUMMARY_EMAIL_PROMPT, PERSONALIZED_WELCOME_EMAIL_PROMPT } from "@/lib/inngest/prompts";
-import { sendNewsSummaryEmail, sendWelcomeEmail } from "@/lib/nodemailer";
-import { getAllUsersForNewsEmail } from "@/lib/actions/user.actions";
-import { getWatchlistSymbolsByEmail } from "@/lib/actions/watchlist.actions";
-import { getNews } from "@/lib/actions/finnhub.actions";
-import { getFormattedTodayDate } from "@/lib/utils";
+import { sendWelcomeEmail } from "@/lib/nodemailer";
 
 export const sendSignUpEmail = inngest.createFunction(
     { id: 'sign-up-email' },
@@ -534,5 +530,59 @@ export const checkInactiveUsers = inngest.createFunction(
         });
 
         return { processed: inactiveUsers.length, sent: results };
+    }
+);
+
+export const dailyScreener = inngest.createFunction(
+    { id: 'daily-screener' },
+    { cron: '0 21 * * 1-5' }, // 5 PM ET (UTC 21:00 or 22:00 depending on DST, assuming standard UTC)
+    async ({ step }) => {
+        // Step 1: Run Screener
+        const screenerResults = await step.run('run-screener', async () => {
+            const { runScreener } = await import("@/lib/screener");
+            return await runScreener();
+        });
+
+        if (!screenerResults || screenerResults.length === 0) {
+            return { message: 'No stocks matched criteria today.' };
+        }
+
+        // Step 2: Format Email
+        const { getFormattedTodayDate } = await import("@/lib/utils");
+        const date = getFormattedTodayDate();
+        
+        // Generate HTML rows
+        const tableRows = screenerResults.map((stock: any) => `
+            <tr>
+                <td>${stock.symbol}</td>
+                <td>${stock.companyName || stock.symbol}</td>
+                <td>$${stock.price.toFixed(2)}</td>
+                <td>$${(stock.marketCap / 1e9).toFixed(2)}B</td>
+                <td>$${(stock.turnover / 1e6).toFixed(2)}M</td>
+                <td>$${stock.dayHigh.toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        // Step 3: Send Email
+        await step.run('send-screener-email', async () => {
+            const { sendDailyScreenerEmail } = await import("@/lib/nodemailer");
+            const recipient = process.env.SCREENER_EMAIL || process.env.NODEMAILER_EMAIL;
+            
+            if (!recipient) {
+                console.error("No recipient configured for screener email.");
+                return;
+            }
+
+            await sendDailyScreenerEmail({
+                email: recipient,
+                date,
+                tableRows
+            });
+        });
+
+        return { 
+            count: screenerResults.length, 
+            message: 'Screener report sent successfully.' 
+        };
     }
 );
