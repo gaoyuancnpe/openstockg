@@ -73,7 +73,9 @@ const el = {
   btnRunOnce: $("btnRunOnce"),
   btnStart: $("btnStart"),
   btnStop: $("btnStop"),
+  btnResetTestData: $("btnResetTestData"),
   log: $("log"),
+  devModeInfo: $("devModeInfo"),
   paths: $("paths"),
   btnOpenSourceRepo: $("btnOpenSourceRepo"),
   btnOpenUpstreamRepo: $("btnOpenUpstreamRepo"),
@@ -126,6 +128,15 @@ function appendLog(line) {
   const ts = new Date().toISOString().replace("T", " ").replace("Z", "");
   el.log.textContent += `[${ts}] ${String(line)}\n`;
   el.log.scrollTop = el.log.scrollHeight;
+}
+
+function formatDevModeInfo(paths) {
+  if (!paths) return "";
+  const usingCustom = Boolean(paths.usingCustomDataDir);
+  if (usingCustom) {
+    return `当前为开发测试模式：已使用独立测试数据目录。\n测试目录：${paths.base}\n建议：继续联调时保持这个目录，避免旧配置污染结果。`;
+  }
+  return `当前为默认数据目录模式：${paths.base}\n建议开发联调时使用 OPENSTOCK_USER_DATA_DIR 指向独立测试目录，避免影响正式配置。`;
 }
 
 function safeParseJSON(text) {
@@ -689,7 +700,10 @@ function closeRuleModal() {
 
 async function loadAll() {
   const paths = await window.api.getPaths();
-  el.paths.textContent = `数据目录：${paths.base}\nconfig.json：${paths.config}\nrules.json：${paths.rules}\nstate.json：${paths.state}\nevents.jsonl：${paths.events}`;
+  if (el.devModeInfo) {
+    el.devModeInfo.textContent = formatDevModeInfo(paths);
+  }
+  el.paths.textContent = `数据目录：${paths.base}\nconfig.json：${paths.config}\nrules.json：${paths.rules}\nstate.json：${paths.state}\nevents.jsonl：${paths.events}\nuniverse_us_symbols.json：${paths.universeUS}`;
 
   state.config = await window.api.loadConfig();
   setInputsFromConfig(state.config);
@@ -712,13 +726,13 @@ async function loadAll() {
       el.legalNoticeText.textContent = legalInfo.noticeText || "未找到本地版权说明。";
     }
     if (el.btnOpenSourceRepo) {
-      el.btnOpenSourceRepo.addEventListener("click", () => window.api.openExternal(legalInfo.sourceRepoUrl));
+      el.btnOpenSourceRepo.onclick = () => window.api.openExternal(legalInfo.sourceRepoUrl);
     }
     if (el.btnOpenUpstreamRepo) {
-      el.btnOpenUpstreamRepo.addEventListener("click", () => window.api.openExternal(legalInfo.upstreamRepoUrl));
+      el.btnOpenUpstreamRepo.onclick = () => window.api.openExternal(legalInfo.upstreamRepoUrl);
     }
     if (el.btnOpenLicenseUrl) {
-      el.btnOpenLicenseUrl.addEventListener("click", () => window.api.openExternal(legalInfo.licenseUrl));
+      el.btnOpenLicenseUrl.onclick = () => window.api.openExternal(legalInfo.licenseUrl);
     }
   }
 }
@@ -1117,6 +1131,20 @@ el.btnStart.addEventListener("click", async () => {
 el.btnStop.addEventListener("click", async () => {
   await window.api.stop();
   appendLog("已停止");
+});
+
+el.btnResetTestData.addEventListener("click", async () => {
+  const ok = confirm("将删除当前数据目录中的配置、规则、状态和事件文件，用于重新做一轮干净测试。是否继续？");
+  if (!ok) return;
+  try {
+    const res = await window.api.resetTestData();
+    appendLog(`测试数据已重置：${res?.base || "当前目录"}`);
+    el.log.textContent = "";
+    appendLog("已清空测试数据并重新加载默认状态。");
+    await loadAll();
+  } catch (e) {
+    appendLog(`重置测试数据失败：${e instanceof Error ? e.message : String(e)}`);
+  }
 });
 
 window.api.onLog(({ line }) => appendLog(line));

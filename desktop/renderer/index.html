@@ -181,6 +181,7 @@
 
         <section class="card">
           <div class="cardTitle">运行</div>
+          <div class="hint">开发联调建议直接运行开发版，而不是每次重新打包。后端日志会同时输出到本窗口和启动终端。</div>
           <div class="actions">
             <button id="btnDryRunOnce">模拟运行一次</button>
             <button id="btnRunOnce" class="primary">真实跑一次</button>
@@ -188,7 +189,9 @@
           <div class="actions">
             <button id="btnStart" class="primary">启动常驻</button>
             <button id="btnStop">停止</button>
+            <button id="btnResetTestData">重置测试数据</button>
           </div>
+          <div class="meta" id="devModeInfo"></div>
           <div class="meta" id="paths"></div>
         </section>
 

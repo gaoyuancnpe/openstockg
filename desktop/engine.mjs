@@ -1,4 +1,3 @@
-import path from "node:path";
 import { appendFile, readFile, writeFile } from "node:fs/promises";
 import nodemailer from "nodemailer";
 
@@ -38,21 +37,34 @@ async function writeJSON(filePath, data) {
 }
 
 async function fetchJSON(url) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 25000);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { Accept: "application/json", "User-Agent": "OpenStock-AlertsDesktop/1.0" }
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`HTTP ${res.status} ${text}`);
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 25000);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { Accept: "application/json", "User-Agent": "OpenStock-AlertsDesktop/1.0" }
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status} ${text}`);
+      }
+      return await res.json();
+    } catch (error) {
+      lastError = error;
+      const code = String(error?.cause?.code || "");
+      const transient =
+        error?.name === "AbortError" ||
+        String(error?.message || "").includes("fetch failed") ||
+        code.startsWith("UND_ERR_") ||
+        code === "ETIMEDOUT";
+      if (!transient || attempt === 1) throw error;
+    } finally {
+      clearTimeout(id);
     }
-    return await res.json();
-  } finally {
-    clearTimeout(id);
   }
+  throw lastError || new Error("fetch failed");
 }
 
 function appendQuery(url, params) {
@@ -69,16 +81,23 @@ function normalizeHttpBaseUrl(url, fallback) {
   return raw.replace(/\/+$/, "");
 }
 
-function isoDateDaysAgo(days) {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
-}
-
 function isoDateToday() {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+function isoDateShiftDays(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function isoDateShiftYears(iso, years) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  d.setUTCFullYear(d.getUTCFullYear() + years);
   return d.toISOString().slice(0, 10);
 }
 
@@ -104,37 +123,37 @@ async function fmpCompanyScreener({ baseUrl, apiKey, params }) {
   return Array.isArray(data) ? data : [];
 }
 
-async function fmpHistoricalPriceFull({ baseUrl, apiKey, symbol, from, to }) {
+async function fmpProfile({ baseUrl, apiKey, symbol }) {
   const data = await fmpFetchJSON({
     baseUrl,
-    pathName: `/api/v3/historical-price-full/${encodeURIComponent(symbol)}`,
+    pathName: "/stable/profile",
     apiKey,
-    params: { from, to }
+    params: { symbol }
   });
-  const rows = Array.isArray(data?.historical) ? data.historical : [];
-  return rows
-    .map((row) => ({
-      date: String(row?.date || ""),
-      close: toNumber(row?.close),
-      volume: toNumber(row?.volume)
-    }))
-    .filter((row) => row.date && row.close !== null);
+  const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+  return {
+    symbol: String(row?.symbol || symbol || "").toUpperCase(),
+    marketCapM: row?.marketCap !== null && row?.marketCap !== undefined ? Number(row.marketCap) / 1e6 : null,
+    ipoDate: String(row?.ipoDate || "")
+  };
 }
 
-async function fmpHistoricalMarketCap({ baseUrl, apiKey, symbol, from, to, limit }) {
+async function fmpHistoricalPriceEodLight({ baseUrl, apiKey, symbol, from, to }) {
   const data = await fmpFetchJSON({
     baseUrl,
-    pathName: `/api/v3/historical-market-capitalization/${encodeURIComponent(symbol)}`,
+    pathName: "/stable/historical-price-eod/light",
     apiKey,
-    params: { from, to, limit }
+    params: { symbol, from, to }
   });
   const rows = Array.isArray(data) ? data : [];
   return rows
     .map((row) => ({
       date: String(row?.date || ""),
-      marketCap: toNumber(row?.marketCap)
+      close: toNumber(row?.price),
+      volume: toNumber(row?.volume)
     }))
-    .filter((row) => row.date && row.marketCap !== null);
+    .filter((row) => row.date && row.close !== null)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 async function finnhubQuote({ baseUrl, apiKey, symbol }) {
@@ -481,39 +500,62 @@ async function computeHistoryStats({ baseUrl, apiKey, symbol, state }) {
 
 async function computeFmpDefaultStats({ baseUrl, apiKey, symbol, state }) {
   state.fmpHistoryStats = state.fmpHistoryStats && typeof state.fmpHistoryStats === "object" ? state.fmpHistoryStats : {};
-  state.fmpMarketCapStats = state.fmpMarketCapStats && typeof state.fmpMarketCapStats === "object" ? state.fmpMarketCapStats : {};
-
-  const cachedHist = state.fmpHistoryStats[symbol] || null;
-  if (cachedHist && isRecentIsoTime(cachedHist.updatedAt, 20 * 3600 * 1000)) {
-    const cachedCap = state.fmpMarketCapStats[symbol] || null;
-    if (cachedCap && isRecentIsoTime(cachedCap.updatedAt, 20 * 3600 * 1000)) {
-      return {
-        price: toNumber(cachedHist.latestClose),
-        marketCap: toNumber(cachedCap.marketCapM),
-        turnoverM: toNumber(cachedHist.turnoverM),
-        recent5dCloseAth: toNumber(cachedHist.recent5dCloseAth)
-      };
-    }
+  const cached = state.fmpHistoryStats[symbol] || null;
+  if (cached && isRecentIsoTime(cached.updatedAt, 20 * 3600 * 1000)) {
+    return {
+      price: toNumber(cached.latestClose),
+      marketCap: toNumber(cached.marketCapM),
+      turnoverM: toNumber(cached.turnoverM),
+      recent5dCloseAth: toNumber(cached.recent5dCloseAth)
+    };
   }
 
-  const history = await fmpHistoricalPriceFull({
+  const profile = await fmpProfile({ baseUrl, apiKey, symbol });
+  const today = isoDateToday();
+  const floorDate = /^\d{4}-\d{2}-\d{2}$/.test(profile.ipoDate) ? profile.ipoDate : "1980-01-01";
+  const recentWindowFrom = floorDate > isoDateShiftYears(today, -5) ? floorDate : isoDateShiftYears(today, -5);
+
+  const recentHistory = await fmpHistoricalPriceEodLight({
     baseUrl,
     apiKey,
     symbol,
-    from: "1970-01-01",
-    to: isoDateToday()
+    from: recentWindowFrom,
+    to: today
   });
-  if (!Array.isArray(history) || history.length === 0) {
+  if (!Array.isArray(recentHistory) || recentHistory.length === 0) {
     return { price: null, marketCap: null, turnoverM: null, recent5dCloseAth: null };
   }
 
-  const closes = history.map((row) => row.close).filter((v) => v !== null);
-  const last = history[history.length - 1];
-  const recent5 = history.slice(-5);
-  const allTimeHighClose = closes.length > 0 ? Math.max(...closes) : null;
+  const last = recentHistory[recentHistory.length - 1];
+  const recent5 = recentHistory.slice(-5);
   const recent5MaxClose = recent5.length > 0 ? Math.max(...recent5.map((row) => row.close).filter((v) => v !== null)) : null;
   const turnoverM = last?.close !== null && last?.volume !== null ? (last.close * last.volume) / 1e6 : null;
-  const recent5dCloseAth = recent5MaxClose !== null && allTimeHighClose !== null && recent5MaxClose >= allTimeHighClose ? 1 : 0;
+
+  const recentChunkMax =
+    recentHistory.length > 0 ? Math.max(...recentHistory.map((row) => row.close).filter((v) => v !== null)) : null;
+  let recent5dCloseAth = recent5MaxClose !== null && recentChunkMax !== null && recent5MaxClose >= recentChunkMax ? 1 : 0;
+  let olderWindowEnd = isoDateShiftDays(recentWindowFrom, -1);
+
+  while (recent5dCloseAth && olderWindowEnd >= floorDate) {
+    const olderWindowStartCandidate = isoDateShiftYears(olderWindowEnd, -5);
+    const olderWindowStart = olderWindowStartCandidate < floorDate ? floorDate : olderWindowStartCandidate;
+    const olderRows = await fmpHistoricalPriceEodLight({
+      baseUrl,
+      apiKey,
+      symbol,
+      from: olderWindowStart,
+      to: olderWindowEnd
+    }).catch(() => []);
+    if (Array.isArray(olderRows) && olderRows.length > 0) {
+      const olderMax = Math.max(...olderRows.map((row) => row.close).filter((v) => v !== null));
+      if (recent5MaxClose !== null && olderMax > recent5MaxClose) {
+        recent5dCloseAth = 0;
+        break;
+      }
+    }
+    if (olderWindowStart === floorDate) break;
+    olderWindowEnd = isoDateShiftDays(olderWindowStart, -1);
+  }
 
   state.fmpHistoryStats[symbol] = {
     updatedAt: new Date().toISOString(),
@@ -521,30 +563,13 @@ async function computeFmpDefaultStats({ baseUrl, apiKey, symbol, state }) {
     latestClose: last?.close ?? null,
     latestVolume: last?.volume ?? null,
     turnoverM,
-    allTimeHighClose,
+    marketCapM: profile.marketCapM,
     recent5dCloseAth
-  };
-
-  const marketCaps = await fmpHistoricalMarketCap({
-    baseUrl,
-    apiKey,
-    symbol,
-    from: isoDateDaysAgo(14),
-    to: isoDateToday(),
-    limit: 30
-  }).catch(() => []);
-  const latestMarketCap = Array.isArray(marketCaps) && marketCaps.length > 0 ? marketCaps[marketCaps.length - 1] : null;
-  const marketCapM = latestMarketCap?.marketCap !== null && latestMarketCap?.marketCap !== undefined ? latestMarketCap.marketCap / 1e6 : null;
-
-  state.fmpMarketCapStats[symbol] = {
-    updatedAt: new Date().toISOString(),
-    latestDate: latestMarketCap?.date || "",
-    marketCapM
   };
 
   return {
     price: last?.close ?? null,
-    marketCap: marketCapM,
+    marketCap: profile.marketCapM,
     turnoverM,
     recent5dCloseAth
   };
@@ -849,7 +874,7 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
           }
 
           let processedFmp = 0;
-          for (const rowsBatch of chunk(fmpRows, 6)) {
+          for (const rowsBatch of chunk(fmpRows, 2)) {
             const batchResults = await Promise.all(rowsBatch.map(async (row) => {
               const symbol = String(row?.symbol || "").toUpperCase();
               if (!symbol) return null;
@@ -1130,7 +1155,7 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
       const end = useUniverse ? Math.min(list.length, start + scanCount) : Math.min(list.length, scanCount);
       const slice = list.slice(start, end);
 
-      for (const batch of chunk(slice, dataProvider === "fmp" ? 6 : 1)) {
+      for (const batch of chunk(slice, dataProvider === "fmp" ? 2 : 1)) {
         const rowsBatch = dataProvider === "fmp"
           ? (await Promise.all(batch.map(async (item) => {
             try {

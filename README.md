@@ -110,6 +110,9 @@ NEXT_PUBLIC_FINNHUB_API_KEY=replace_me
 FINNHUB_API_KEY=replace_me
 FINNHUB_BASE_URL=https://finnhub.io/api/v1
 
+FMP_API_KEY=replace_me
+FMP_BASE_URL=https://financialmodelingprep.com
+
 NODEMAILER_EMAIL=your@gmail.com
 NODEMAILER_PASSWORD=your_gmail_app_password
 
@@ -124,6 +127,7 @@ ALERTS_MAX_SYMBOLS_PER_BATCH=25
 - `MONGODB_URI`：命令行提醒脚本和 Web 站点都会用到
 - `NEXT_PUBLIC_FINNHUB_API_KEY`：原 Web 站点里部分接口仍在使用
 - `FINNHUB_API_KEY`：命令行提醒脚本推荐使用
+- `FMP_API_KEY`：纯后端 FMP 默认规则测试脚本使用
 - `NODEMAILER_EMAIL` / `NODEMAILER_PASSWORD`：邮件通知使用
 - `ALERTS_DEFAULT_EMAIL_TO`：未在单条规则内指定邮箱时的默认收件人
 
@@ -221,6 +225,44 @@ node scripts/alerts-worker.mjs --once --dry-run
 - `ALERTS_POLL_INTERVAL_SEC`
 - `ALERTS_DEFAULT_COOLDOWN_SEC`
 - `ALERTS_MAX_SYMBOLS_PER_BATCH`
+
+### 6. 纯后端测试 FMP 默认规则
+
+先在根目录 `.env.local` 里填写：
+
+```env
+FMP_API_KEY=你的_fmp_key
+FMP_BASE_URL=https://financialmodelingprep.com
+```
+
+然后执行：
+
+```bash
+npm run fmp:test
+```
+
+常用变体：
+
+```bash
+npm run fmp:test -- --limit=100
+npm run fmp:test -- --limit=300 --concurrency=6
+```
+
+这条命令默认验证的就是当前主规则：
+
+- 最近一个成交日收盘市值超过 `100 亿美元`
+- 最近一个成交日成交额超过 `5 亿美元`
+- `5` 个交易日内收盘价创历史新高
+
+输出会直接告诉你：
+
+- FMP Key 是否可用
+- 候选池是否能拉到
+- 小样本是否能跑通
+- 哪些股票命中
+- 大致耗时和失败样本
+
+建议先从 `50` 或 `100` 支样本开始，不要一上来就全量扫描。这样更适合先判断“接口能不能用、默认规则能不能跑”，再决定是否付费升级套餐。
 
 ## 桌面端
 

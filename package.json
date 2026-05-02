@@ -11,7 +11,8 @@
     "test:db": "node scripts/test-db.mjs",
     "alerts:seed": "node scripts/alerts-seed.mjs",
     "alerts:worker": "node scripts/alerts-worker.mjs --once",
-    "alerts:worker:dry": "node scripts/alerts-worker.mjs --once --dry-run"
+    "alerts:worker:dry": "node scripts/alerts-worker.mjs --once --dry-run",
+    "fmp:test": "node scripts/fmp-default-rule-test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createAlertsEngine } from "./engine.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -48,6 +48,16 @@ function getDataPaths() {
   };
 }
 
+async function resetTestDataFiles(paths) {
+  const files = [paths.config, paths.rules, paths.state, paths.events, paths.universeUS];
+  const removed = [];
+  for (const filePath of files) {
+    await rm(filePath, { force: true }).catch(() => {});
+    removed.push(filePath);
+  }
+  return removed;
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1040,
@@ -63,6 +73,99 @@ function createWindow() {
   return win;
 }
 
+function installAppMenu(win) {
+  const isMac = process.platform === "darwin";
+  const template = [
+    ...(isMac
+      ? [{
+        label: "应用",
+        submenu: [
+          { role: "about", label: "关于" },
+          { type: "separator" },
+          { role: "services", label: "服务" },
+          { type: "separator" },
+          { role: "hide", label: "隐藏" },
+          { role: "hideOthers", label: "隐藏其他" },
+          { role: "unhide", label: "显示全部" },
+          { type: "separator" },
+          { role: "quit", label: "退出" }
+        ]
+      }]
+      : []),
+    {
+      label: "文件",
+      submenu: isMac
+        ? [
+          { role: "close", label: "关闭窗口" }
+        ]
+        : [
+          { role: "quit", label: "退出" }
+        ]
+    },
+    {
+      label: "编辑",
+      submenu: [
+        { role: "undo", label: "撤销" },
+        { role: "redo", label: "重做" },
+        { type: "separator" },
+        { role: "cut", label: "剪切" },
+        { role: "copy", label: "复制" },
+        { role: "paste", label: "粘贴" },
+        { role: "selectAll", label: "全选" }
+      ]
+    },
+    {
+      label: "视图",
+      submenu: [
+        { role: "reload", label: "重新加载" },
+        { role: "forceReload", label: "强制重新加载" },
+        { type: "separator" },
+        { role: "toggleDevTools", label: "切换开发者工具" },
+        { type: "separator" },
+        { role: "resetZoom", label: "实际大小" },
+        { role: "zoomIn", label: "放大" },
+        { role: "zoomOut", label: "缩小" },
+        { type: "separator" },
+        { role: "togglefullscreen", label: "切换全屏" }
+      ]
+    },
+    {
+      label: "窗口",
+      submenu: [
+        { role: "minimize", label: "最小化" },
+        { role: "zoom", label: "缩放" },
+        ...(isMac ? [
+          { type: "separator" },
+          { role: "front", label: "置于最前" }
+        ] : [
+          { type: "separator" },
+          { role: "close", label: "关闭窗口" }
+        ])
+      ]
+    },
+    {
+      label: "帮助",
+      submenu: [
+        {
+          label: "打开当前源码仓库",
+          click: () => shell.openExternal(SOURCE_REPO_URL)
+        },
+        {
+          label: "打开上游仓库",
+          click: () => shell.openExternal(UPSTREAM_REPO_URL)
+        },
+        {
+          label: "查看 AGPL 许可证",
+          click: () => shell.openExternal(LICENSE_URL)
+        }
+      ]
+    }
+  ];
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+  if (win) win.setMenu(menu);
+}
+
 let engine = null;
 let engineRunning = false;
 
@@ -75,20 +178,31 @@ async function main() {
   await app.whenReady();
 
   const win = createWindow();
+  installAppMenu(win);
   const paths = getDataPaths();
   await ensureDir(paths.base);
+  const usingCustomDataDir = Boolean(forcedUserDataDir);
+
+  console.log(`[desktop] userData=${paths.base}`);
+  console.log(`[desktop] customUserDataDir=${usingCustomDataDir ? "yes" : "no"}`);
 
   engine = createAlertsEngine({
     dataPaths: paths,
     onLog: (line) => {
+      console.log(`[engine] ${line}`);
       win.webContents.send("log", { line });
     },
     onEvent: (event) => {
+      console.log(`[event] ${event?.symbol || "-"} ${event?.conditionText || ""}`.trim());
       win.webContents.send("event", event);
     }
   });
 
-  ipcMain.handle("paths:get", async () => paths);
+  ipcMain.handle("paths:get", async () => ({
+    ...paths,
+    usingCustomDataDir,
+    forcedUserDataDir: forcedUserDataDir || ""
+  }));
 
   ipcMain.handle("config:load", async () => {
     const cfg = await readJSON(paths.config, {
@@ -143,6 +257,16 @@ async function main() {
     engine.stop();
     engineRunning = false;
     return { ok: true };
+  });
+
+  ipcMain.handle("dev:resetTestData", async () => {
+    if (engineRunning) {
+      engine.stop();
+      engineRunning = false;
+    }
+    const removedFiles = await resetTestDataFiles(paths);
+    console.log(`[desktop] reset test data in ${paths.base}`);
+    return { ok: true, removedFiles, base: paths.base };
   });
 
   ipcMain.handle("legal:get", async () => {
