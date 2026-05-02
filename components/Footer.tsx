@@ -19,7 +19,7 @@ const Footer = () => {
                             />
                         </Link>
                         <p className="text-gray-400 mb-6 max-w-md">
-                            OpenStock is an open-source alternative to expensive market platforms. Track real-time prices, set personalized alerts, and explore detailed company insights — built openly, for everyone, forever free.
+                            OpenStock is an open-source stock project. This repository contains the current modified version and remains distributed under AGPL-3.0-or-later.
                         </p>
                         <div className="mb-8">
                             <Link href="/about" className="text-teal-400 hover:text-teal-300 font-medium inline-flex items-center gap-1 group">
@@ -29,13 +29,24 @@ const Footer = () => {
                         </div>
                         <div className="flex space-x-6">
                             <Link
+                                href="https://github.com/gaoyuancnpe/openstockg"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-400 hover:text-white transition-colors duration-200 relative group"
+                            >
+                                <span className="relative">
+                                    Current Source
+                                    <span className="absolute left-0 bottom-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
+                                </span>
+                            </Link>
+                            <Link
                                 href="https://github.com/Open-Dev-Society/OpenStock"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-gray-400 hover:text-white transition-colors duration-200 relative group"
                             >
                                 <span className="relative">
-                                    GitHub
+                                    Upstream Source
                                     <span className="absolute left-0 bottom-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
                                 </span>
                             </Link>
@@ -92,6 +103,14 @@ const Footer = () => {
                                     </span>
                                 </Link>
                             </li>
+                            <li>
+                                <Link href="/legal" className="text-gray-400 hover:text-white transition-colors duration-200 relative group">
+                                    <span className="relative">
+                                        License & Source
+                                        <span className="absolute left-0 bottom-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
+                                    </span>
+                                </Link>
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -101,7 +120,7 @@ const Footer = () => {
                     <div className="flex flex-col md:flex-row justify-between items-center">
                         {/* Copyright */}
                         <div className="text-gray-400 text-sm mb-4 md:mb-0">
-                            © {new Date().getFullYear()} Open Dev Society. All rights reserved.
+                            © {new Date().getFullYear()} Open Dev Society and contributors. Distributed under AGPL-3.0-or-later.
                         </div>
 
                         {/* Open Dev Society Branding */}

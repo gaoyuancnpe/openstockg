@@ -133,6 +133,7 @@ const SignUp = () => {
                 </Button>
 
                 <FooterLink text="Already have an account?" linkText="Sign in" href="/sign-in" />
+                <FooterLink text="Need license and source information?" linkText="View legal notice" href="/legal" />
 
                 <OpenDevSocietyBranding outerClassName="mt-10 flex justify-center" />
                 <div className="mt-5 flex justify-center">

@@ -75,6 +75,11 @@ const el = {
   btnStop: $("btnStop"),
   log: $("log"),
   paths: $("paths"),
+  btnOpenSourceRepo: $("btnOpenSourceRepo"),
+  btnOpenUpstreamRepo: $("btnOpenUpstreamRepo"),
+  btnOpenLicenseUrl: $("btnOpenLicenseUrl"),
+  legalSummary: $("legalSummary"),
+  legalNoticeText: $("legalNoticeText"),
 
   modal: $("modal"),
   modalTitle: $("modalTitle"),
@@ -113,7 +118,8 @@ const state = {
   screenerSelected: [],
   modalForceFmp: false,
   editingIndex: null,
-  modalConditions: []
+  modalConditions: [],
+  runBusy: false
 };
 
 function appendLog(line) {
@@ -695,6 +701,26 @@ async function loadAll() {
   syncAdvancedJSON();
   renderRulesList();
   updateScreenerUI();
+
+  const legalInfo = await window.api.getLegalInfo();
+  if (legalInfo) {
+    if (el.legalSummary) {
+      el.legalSummary.textContent =
+        `当前仓库源码：${legalInfo.sourceRepoUrl}\n上游仓库：${legalInfo.upstreamRepoUrl}\n许可证：${legalInfo.licenseUrl}`;
+    }
+    if (el.legalNoticeText) {
+      el.legalNoticeText.textContent = legalInfo.noticeText || "未找到本地版权说明。";
+    }
+    if (el.btnOpenSourceRepo) {
+      el.btnOpenSourceRepo.addEventListener("click", () => window.api.openExternal(legalInfo.sourceRepoUrl));
+    }
+    if (el.btnOpenUpstreamRepo) {
+      el.btnOpenUpstreamRepo.addEventListener("click", () => window.api.openExternal(legalInfo.upstreamRepoUrl));
+    }
+    if (el.btnOpenLicenseUrl) {
+      el.btnOpenLicenseUrl.addEventListener("click", () => window.api.openExternal(legalInfo.licenseUrl));
+    }
+  }
 }
 
 el.tabRules.addEventListener("click", () => showTab("rules"));
@@ -1043,21 +1069,47 @@ el.btnScreenerToRule.addEventListener("click", () => {
 });
 
 el.btnDryRunOnce.addEventListener("click", async () => {
+  if (state.runBusy) {
+    appendLog("当前已有运行任务进行中，请稍候。");
+    return;
+  }
+  setRunButtonsBusy(true);
   appendLog("开始模拟运行...");
   if (String(el.dataProvider.value || "finnhub") === "fmp") {
-    appendLog("当前为 FMP 模式：先验证默认规则是否可跑通。");
+    appendLog("当前为 FMP 模式：首次冷启动可能需要数分钟，日志会持续刷新进度。");
   }
-  await window.api.runOnce({ dryRun: true });
-  appendLog("模拟运行完成");
+  try {
+    await window.api.runOnce({ dryRun: true });
+    appendLog("模拟运行完成");
+  } catch (e) {
+    appendLog(`模拟运行失败：${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    setRunButtonsBusy(false);
+  }
 });
 
 el.btnRunOnce.addEventListener("click", async () => {
+  if (state.runBusy) {
+    appendLog("当前已有运行任务进行中，请稍候。");
+    return;
+  }
+  setRunButtonsBusy(true);
   appendLog("开始真实跑一次...");
-  await window.api.runOnce({ dryRun: false });
-  appendLog("执行完成");
+  try {
+    await window.api.runOnce({ dryRun: false });
+    appendLog("执行完成");
+  } catch (e) {
+    appendLog(`执行失败：${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    setRunButtonsBusy(false);
+  }
 });
 
 el.btnStart.addEventListener("click", async () => {
+  if (state.runBusy) {
+    appendLog("当前已有运行任务进行中，请稍候。");
+    return;
+  }
   await window.api.start();
   appendLog("已启动常驻");
 });

@@ -78,6 +78,7 @@ const SignIn = () => {
                 </Button>
 
                 <FooterLink text="Don't have an account?" linkText="Create an account" href="/sign-up" />
+                <FooterLink text="Need license and source information?" linkText="View legal notice" href="/legal" />
                 <OpenDevSocietyBranding outerClassName="mt-10 flex justify-center" />
                 <div className="mt-5 flex justify-center">
                     <a href="https://peerlist.io/ravixalgorithm/project/openstock" target="_blank" rel="noreferrer">

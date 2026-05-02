@@ -778,12 +778,17 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
   }
 
   async function tick({ dryRun }) {
-    if (busy) return;
+    if (busy) {
+      log("已有任务在运行，已忽略本次请求");
+      return;
+    }
     busy = true;
     try {
+      log(`开始${dryRun ? "dry-run" : "执行"}...`);
       const cfg = await loadConfig();
       const rules = (await loadRules()).filter((r) => r && r.enabled);
       const state = await loadState();
+      log(`本轮启用规则 ${rules.length} 条，数据源=${String(cfg.dataProvider || "finnhub").toUpperCase()}`);
 
       const dataProvider = String(cfg.dataProvider || "finnhub").toLowerCase();
       const finnhubBaseUrl = normalizeHttpBaseUrl(cfg.finnhubBaseUrl, "https://finnhub.io/api/v1");
@@ -817,6 +822,7 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
           let fmpRows = [];
           if (useUniverse) {
             const minMarketCap = toNumber(universe.minMarketCap) ?? 10000;
+            log(`规则 ${rule.name || "未命名规则"}：准备加载 FMP 候选池...`);
             const meta = await loadFmpDefaultUniverse({
               dataPaths,
               baseUrl: fmpBaseUrl,
@@ -836,10 +842,13 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
             const end = Math.min(list.length, start + scanCount);
             fmpRows = list.slice(start, end);
             state.universeCursor[cursorKey] = end >= list.length ? 0 : end;
+            log(`规则 ${rule.name || "未命名规则"}：FMP 候选池 ${list.length} 支，本轮扫描 ${fmpRows.length} 支（${start + 1}-${end}）`);
           } else {
             fmpRows = manualSymbols.map((symbol) => ({ symbol, marketCap: null }));
+            log(`规则 ${rule.name || "未命名规则"}：手动标的 ${fmpRows.length} 支`);
           }
 
+          let processedFmp = 0;
           for (const rowsBatch of chunk(fmpRows, 6)) {
             const batchResults = await Promise.all(rowsBatch.map(async (row) => {
               const symbol = String(row?.symbol || "").toUpperCase();
@@ -851,6 +860,8 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
               return stats ? { row, symbol, stats } : null;
             }));
 
+            processedFmp += rowsBatch.length;
+            log(`规则 ${rule.name || "未命名规则"}：FMP 进度 ${Math.min(processedFmp, fmpRows.length)}/${fmpRows.length}`);
             for (const result of batchResults) {
               if (!result) continue;
               const { row, symbol, stats } = result;
@@ -894,6 +905,7 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
 
         let symbols = manualSymbols;
         if (useUniverse) {
+          log(`规则 ${rule.name || "未命名规则"}：准备加载 Finnhub 标的池...`);
           const universeMeta = await loadUniverseUS({
             dataPaths,
             baseUrl: finnhubBaseUrl,
@@ -915,12 +927,18 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
           const end = Math.min(list.length, start + scanCount);
           symbols = list.slice(start, end);
           state.universeCursor[cursorKey] = end >= list.length ? 0 : end;
+          log(`规则 ${rule.name || "未命名规则"}：Finnhub 标的池 ${list.length} 支，本轮扫描 ${symbols.length} 支（${start + 1}-${end}）`);
+        } else {
+          log(`规则 ${rule.name || "未命名规则"}：手动标的 ${symbols.length} 支`);
         }
 
         if (!symbols || symbols.length === 0) continue;
 
+        let processedFinnhub = 0;
         for (const symbolsBatch of chunk(symbols, 25)) {
           const quotes = await Promise.all(symbolsBatch.map(async (symbol) => ({ symbol, quote: await finnhubQuote({ baseUrl: finnhubBaseUrl, apiKey: finnhubApiKey, symbol }) })));
+          processedFinnhub += symbolsBatch.length;
+          log(`规则 ${rule.name || "未命名规则"}：Finnhub 进度 ${Math.min(processedFinnhub, symbols.length)}/${symbols.length}`);
 
           for (const { symbol, quote } of quotes) {
             if (!quote || quote.price === null) continue;
@@ -988,8 +1006,10 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
       }
 
       await saveState(state);
+      log(`${dryRun ? "dry-run" : "执行"}完成`);
     } catch (e) {
       log(e instanceof Error ? e.message : String(e));
+      throw e;
     } finally {
       busy = false;
     }

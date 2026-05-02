@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("api", {
   runOnce: ({ dryRun }) => ipcRenderer.invoke("engine:runOnce", { dryRun }),
   start: () => ipcRenderer.invoke("engine:start"),
   stop: () => ipcRenderer.invoke("engine:stop"),
+  getLegalInfo: () => ipcRenderer.invoke("legal:get"),
+  openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   onLog: (cb) => ipcRenderer.on("log", (_evt, payload) => cb(payload)),
   onEvent: (cb) => ipcRenderer.on("event", (_evt, payload) => cb(payload))
 });

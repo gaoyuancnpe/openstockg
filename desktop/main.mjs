@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -6,6 +6,9 @@ import { createAlertsEngine } from "./engine.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const SOURCE_REPO_URL = "https://github.com/gaoyuancnpe/openstockg";
+const UPSTREAM_REPO_URL = "https://github.com/Open-Dev-Society/OpenStock";
+const LICENSE_URL = "https://www.gnu.org/licenses/agpl-3.0.html";
 
 function safeParseJSON(text, fallback) {
   try {
@@ -139,6 +142,23 @@ async function main() {
     if (!engineRunning) return { ok: true };
     engine.stop();
     engineRunning = false;
+    return { ok: true };
+  });
+
+  ipcMain.handle("legal:get", async () => {
+    const legalNoticePath = path.join(__dirname, "LEGAL_NOTICE.md");
+    const noticeText = await readFile(legalNoticePath, "utf-8").catch(() => "");
+    return {
+      sourceRepoUrl: SOURCE_REPO_URL,
+      upstreamRepoUrl: UPSTREAM_REPO_URL,
+      licenseUrl: LICENSE_URL,
+      noticeText
+    };
+  });
+
+  ipcMain.handle("shell:openExternal", async (_evt, url) => {
+    if (!url || typeof url !== "string") return { ok: false };
+    await shell.openExternal(url);
     return { ok: true };
   });
 
