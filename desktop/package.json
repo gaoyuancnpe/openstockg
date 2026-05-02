@@ -1,0 +1,36 @@
+{
+  "name": "openstock-alerts-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "dev": "electron .",
+    "dist:win": "electron-builder --win nsis",
+    "dist:win:f": "electron-builder --win nsis --config ./electron-builder.win-f.json",
+    "dist:win:f:zip": "electron-builder --win --config ./electron-builder.win-f-zip.json",
+    "dist:win:zip": "electron-builder --win --config ./electron-builder.win-zip.json",
+    "dist:win:zip:toF": "npm run dist:win:zip && node ./copy-artifacts-to-f.mjs"
+  },
+  "dependencies": {
+    "nodemailer": "^7.0.6"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.openstock.alerts",
+    "productName": "OpenStock Alerts",
+    "asar": true,
+    "files": [
+      "**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

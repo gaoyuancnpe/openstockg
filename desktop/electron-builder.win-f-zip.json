@@ -1,0 +1,10 @@
+{
+  "directories": {
+    "output": "/mnt/f/OpenStockAlerts/dist"
+  },
+  "win": {
+    "target": "zip",
+    "signAndEditExecutable": false
+  }
+}
+
