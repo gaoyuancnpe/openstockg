@@ -19,6 +19,7 @@
           <div class="tabs">
             <button id="tabRules" class="tab active">规则</button>
             <button id="tabScreener" class="tab">筛选</button>
+            <button id="tabFinancial" class="tab">财报</button>
             <button id="tabSchedule" class="tab">定时</button>
             <button id="tabConfig" class="tab">配置</button>
           </div>
@@ -45,11 +46,11 @@
 
           <div id="panelScreener" class="panel">
             <div class="cardTitle">美股候选筛选</div>
-            <div id="scrModeHint" class="hint">默认使用“全量美股标的列表”（自动维护），你只需要设置筛选条件即可。也支持手动导入或粘贴股票代码。</div>
+            <div id="scrModeHint" class="hint">默认使用“全量美股标的列表”（按市值从高到低固定排序，每次固定扫描前 N 支），你只需要设置筛选条件即可。也支持手动导入或粘贴股票代码。</div>
             <div class="row">
               <label>标的来源</label>
               <select id="scrUniverse">
-                <option value="us_all">全量美股（默认）</option>
+                <option value="us_all">全量美股（按市值从高到低，固定前N）</option>
                 <option value="manual">手动列表</option>
               </select>
             </div>
@@ -78,7 +79,7 @@
               <input id="scrMinTurnoverM" type="number" step="0.01" placeholder="单位：百万美元，例如 500" />
             </div>
             <div class="row hidden" id="rowScrRecent5dCloseAth">
-              <label>五日收盘新高</label>
+              <label>五日股价新高</label>
               <select id="scrRecent5dCloseAth">
                 <option value="true">必须满足</option>
                 <option value="false">不限制</option>
@@ -89,7 +90,7 @@
               <input id="scrMinVolumeRatio" type="number" step="0.01" placeholder="例如 2 表示当日成交量 >= 20日均量*2" />
             </div>
             <div class="actions">
-              <button id="btnApplyDefaultScreener">套用默认门槛（百亿/五亿/5日新高）</button>
+              <button id="btnApplyDefaultScreener">套用默认门槛（百亿/五亿/5日股价新高）</button>
               <button id="btnRunScreener" class="primary">运行筛选</button>
               <button id="btnScreenerAddSelected">加入提醒池（选中）</button>
               <button id="btnScreenerToRule">用结果创建规则</button>
@@ -98,6 +99,80 @@
             <div id="scrEstimate" class="meta"></div>
             <div id="screenerSummary" class="hint"></div>
             <div id="screenerTable" class="tableWrap"></div>
+          </div>
+
+          <div id="panelFinancial" class="panel">
+            <div class="cardTitle">财报筛选（FMP Premium）</div>
+            <div class="hint">这页专门使用 FMP Premium 可拿到的财报数据做筛选，当前支持最近季度营收增速、毛利率、EBITDA、EBITDA同比、EBITDA利润率、经营利润率、经营现金流、自由现金流和负债约束。</div>
+            <div class="row">
+              <label>标的来源</label>
+              <select id="finUniverse">
+                <option value="us_all">全量美股（按市值从高到低，固定前N）</option>
+                <option value="manual">手动列表</option>
+              </select>
+            </div>
+            <div class="row hidden" id="rowFinSymbols">
+              <label>股票代码列表</label>
+              <textarea id="financialSymbols" spellcheck="false" placeholder="AAPL&#10;MSFT&#10;NVDA"></textarea>
+            </div>
+            <div class="row">
+              <label>本次扫描数量</label>
+              <input id="finMaxScan" type="number" min="20" step="20" value="100" />
+            </div>
+            <div class="row">
+              <label>市值下限</label>
+              <input id="finMinMarketCap" type="number" step="0.01" placeholder="单位：百万美元，例如 1000" />
+            </div>
+            <div class="row">
+              <label>最近季度营收同比下限</label>
+              <input id="finMinRevenueGrowthYoY" type="number" step="0.1" placeholder="单位：%，例如 15" />
+            </div>
+            <div class="row">
+              <label>最近季度毛利率下限</label>
+              <input id="finMinGrossMargin" type="number" step="0.1" placeholder="单位：%，例如 40" />
+            </div>
+            <div class="row">
+              <label>最近季度 EBITDA 同比下限</label>
+              <input id="finMinEbitdaGrowthYoY" type="number" step="0.1" placeholder="单位：%，留空表示不限制" />
+            </div>
+            <div class="row">
+              <label>最近季度 EBITDA 利润率下限</label>
+              <input id="finMinEbitdaMargin" type="number" step="0.1" placeholder="单位：%，留空表示不限制" />
+            </div>
+            <div class="row">
+              <label>最近季度经营利润率下限</label>
+              <input id="finMinOperatingMargin" type="number" step="0.1" placeholder="单位：%，例如 10" />
+            </div>
+            <div class="row">
+              <label>经营现金流</label>
+              <select id="finPositiveOperatingCashFlow">
+                <option value="true">必须为正</option>
+                <option value="false">不限制</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>自由现金流</label>
+              <select id="finPositiveFreeCashFlow">
+                <option value="true">必须为正</option>
+                <option value="false">不限制</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>负债权益比上限</label>
+              <input id="finMaxDebtToEquity" type="number" step="0.01" placeholder="例如 2 表示负债不超过净资产 2 倍" />
+            </div>
+            <div class="actions">
+              <button id="btnApplyFinancialPreset">套用成长财报模板</button>
+              <button id="btnRunFinancialScreener" class="primary">运行财报筛选</button>
+              <button id="btnFinancialAddToPool">将结果加入提醒池</button>
+              <button id="btnClearFinancialAi">清空AI解读</button>
+            </div>
+            <div id="financialEstimate" class="meta"></div>
+            <div id="financialSummary" class="hint"></div>
+            <div id="financialTable" class="tableWrap"></div>
+            <div class="hint">AI 解读只负责解释命中结果，不替代筛选规则。当前使用 DeepSeek v4 的 OpenAI 兼容接口。</div>
+            <div id="financialAiStatus" class="meta"></div>
+            <pre id="financialAiOutput"></pre>
           </div>
 
           <div id="panelSchedule" class="panel">
@@ -155,6 +230,36 @@
             <div class="row">
               <label>FMP 接口地址</label>
               <input id="fmpBaseUrl" type="text" placeholder="https://financialmodelingprep.com" />
+            </div>
+            <div class="hint">财报页 AI 解读当前接 DeepSeek v4，可在这里切换 `flash/pro`、是否开启思考模式和思考强度。</div>
+            <div class="row">
+              <label>DeepSeek API Key</label>
+              <input id="deepseekApiKey" type="password" placeholder="DEEPSEEK_API_KEY" />
+            </div>
+            <div class="row">
+              <label>DeepSeek Base URL</label>
+              <input id="deepseekBaseUrl" type="text" placeholder="https://api.deepseek.com" />
+            </div>
+            <div class="row">
+              <label>DeepSeek 模型</label>
+              <select id="aiModel">
+                <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+                <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>思考模式</label>
+              <select id="aiThinkingEnabled">
+                <option value="false">关闭</option>
+                <option value="true">开启</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>思考强度</label>
+              <select id="aiReasoningEffort">
+                <option value="high">high</option>
+                <option value="max">max</option>
+              </select>
             </div>
             <div class="row">
               <label>默认收件人</label>
@@ -239,7 +344,7 @@
               <label>标的范围</label>
               <select id="ruleUniverse">
                 <option value="manual">手动填写</option>
-                <option value="us_all">全量美股（按筛选条件）</option>
+                <option value="us_all">全量美股（按市值从高到低，固定前N）</option>
               </select>
             </div>
             <div class="row" id="rowRuleSymbols">
@@ -263,7 +368,7 @@
               <input id="ruleUniverseMinTurnoverM" type="number" step="0.01" placeholder="单位：百万美元，例如 500" />
             </div>
             <div class="row hidden" id="rowRuleUniverseRecent5dCloseAth">
-              <label>五日收盘新高</label>
+              <label>五日股价新高</label>
               <select id="ruleUniverseRecent5dCloseAth">
                 <option value="true">必须满足</option>
                 <option value="false">不限制</option>

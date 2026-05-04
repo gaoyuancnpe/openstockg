@@ -3,10 +3,12 @@ const $ = (id) => document.getElementById(id);
 const el = {
   tabRules: $("tabRules"),
   tabScreener: $("tabScreener"),
+  tabFinancial: $("tabFinancial"),
   tabSchedule: $("tabSchedule"),
   tabConfig: $("tabConfig"),
   panelRules: $("panelRules"),
   panelScreener: $("panelScreener"),
+  panelFinancial: $("panelFinancial"),
   panelSchedule: $("panelSchedule"),
   panelConfig: $("panelConfig"),
 
@@ -15,6 +17,11 @@ const el = {
   finnhubBaseUrl: $("finnhubBaseUrl"),
   fmpApiKey: $("fmpApiKey"),
   fmpBaseUrl: $("fmpBaseUrl"),
+  deepseekApiKey: $("deepseekApiKey"),
+  deepseekBaseUrl: $("deepseekBaseUrl"),
+  aiModel: $("aiModel"),
+  aiThinkingEnabled: $("aiThinkingEnabled"),
+  aiReasoningEffort: $("aiReasoningEffort"),
   defaultEmailTo: $("defaultEmailTo"),
   defaultWebhookUrl: $("defaultWebhookUrl"),
   gmailUser: $("gmailUser"),
@@ -69,6 +76,29 @@ const el = {
   screenerSummary: $("screenerSummary"),
   screenerTable: $("screenerTable"),
 
+  finUniverse: $("finUniverse"),
+  rowFinSymbols: $("rowFinSymbols"),
+  financialSymbols: $("financialSymbols"),
+  finMaxScan: $("finMaxScan"),
+  finMinMarketCap: $("finMinMarketCap"),
+  finMinRevenueGrowthYoY: $("finMinRevenueGrowthYoY"),
+  finMinGrossMargin: $("finMinGrossMargin"),
+  finMinEbitdaGrowthYoY: $("finMinEbitdaGrowthYoY"),
+  finMinEbitdaMargin: $("finMinEbitdaMargin"),
+  finMinOperatingMargin: $("finMinOperatingMargin"),
+  finPositiveOperatingCashFlow: $("finPositiveOperatingCashFlow"),
+  finPositiveFreeCashFlow: $("finPositiveFreeCashFlow"),
+  finMaxDebtToEquity: $("finMaxDebtToEquity"),
+  btnApplyFinancialPreset: $("btnApplyFinancialPreset"),
+  btnRunFinancialScreener: $("btnRunFinancialScreener"),
+  btnFinancialAddToPool: $("btnFinancialAddToPool"),
+  btnClearFinancialAi: $("btnClearFinancialAi"),
+  financialEstimate: $("financialEstimate"),
+  financialSummary: $("financialSummary"),
+  financialTable: $("financialTable"),
+  financialAiStatus: $("financialAiStatus"),
+  financialAiOutput: $("financialAiOutput"),
+
   btnDryRunOnce: $("btnDryRunOnce"),
   btnRunOnce: $("btnRunOnce"),
   btnStart: $("btnStart"),
@@ -118,6 +148,8 @@ const state = {
   rules: [],
   screenerResults: [],
   screenerSelected: [],
+  financialResults: [],
+  financialAiBusy: false,
   modalForceFmp: false,
   editingIndex: null,
   modalConditions: [],
@@ -128,6 +160,15 @@ function appendLog(line) {
   const ts = new Date().toISOString().replace("T", " ").replace("Z", "");
   el.log.textContent += `[${ts}] ${String(line)}\n`;
   el.log.scrollTop = el.log.scrollHeight;
+}
+
+function setRunButtonsBusy(busy) {
+  state.runBusy = Boolean(busy);
+  const disabled = state.runBusy;
+  for (const button of [el.btnDryRunOnce, el.btnRunOnce, el.btnStart]) {
+    if (!button) continue;
+    button.disabled = disabled;
+  }
 }
 
 function formatDevModeInfo(paths) {
@@ -178,8 +219,8 @@ function updateScreenerUI() {
   const isManual = universe === "manual";
 
   el.scrModeHint.textContent = isFmp
-    ? "FMP 模式下，筛选页已针对默认规则优化：重点看市值、最近成交日成交额，以及 5 个交易日内收盘是否创历史新高。"
-    : "默认使用“全量美股标的列表”（自动维护），你只需要设置筛选条件即可。也支持手动导入或粘贴股票代码。";
+    ? "FMP 模式下，筛选页已针对默认规则优化：候选池按市值从高到低固定排序，每次固定扫描前 N 支，重点看市值、最近成交日成交额，以及 5 个交易日内股价是否创历史新高。"
+    : "默认使用“全量美股标的列表”（按市值从高到低固定排序，每次固定扫描前 N 支），你只需要设置筛选条件即可。也支持手动导入或粘贴股票代码。";
 
   el.rowCsvFile.classList.toggle("hidden", !isManual);
   el.rowScreenerSymbols.classList.toggle("hidden", !isManual);
@@ -193,6 +234,61 @@ function updateScreenerUI() {
   updateScreenerEstimate();
 }
 
+function updateFinancialUI() {
+  const universe = String(el.finUniverse?.value || "us_all");
+  const isManual = universe === "manual";
+  if (el.rowFinSymbols) {
+    el.rowFinSymbols.classList.toggle("hidden", !isManual);
+  }
+  updateFinancialEstimate();
+}
+
+function updateAiConfigUI() {
+  const thinkingEnabled = String(el.aiThinkingEnabled?.value || "false") === "true";
+  if (el.aiReasoningEffort) {
+    el.aiReasoningEffort.disabled = !thinkingEnabled;
+  }
+}
+
+function clearFinancialAiOutput() {
+  if (el.financialAiStatus) el.financialAiStatus.textContent = "";
+  if (el.financialAiOutput) el.financialAiOutput.textContent = "";
+  state.financialAiBusy = false;
+}
+
+async function explainFinancialRow(row) {
+  if (!row || !row.symbol) return;
+  state.financialAiBusy = true;
+  if (el.financialAiStatus) {
+    el.financialAiStatus.textContent = `AI 解读中：${row.symbol}...`;
+  }
+  if (el.financialAiOutput) {
+    el.financialAiOutput.textContent = "";
+  }
+  try {
+    const res = await window.api.explainFinancialRow({ row });
+    const meta = res?.meta || {};
+    const thinkingText = meta.thinkingEnabled ? `思考=${meta.reasoningEffort || "high"}` : "思考=关闭";
+    if (el.financialAiStatus) {
+      el.financialAiStatus.textContent = `AI 解读完成：${row.symbol} · ${meta.provider || "deepseek"} · ${meta.model || "-"} · ${thinkingText}`;
+    }
+    if (el.financialAiOutput) {
+      el.financialAiOutput.textContent = String(res?.text || "未返回内容");
+    }
+    appendLog(`AI 解读完成：${row.symbol}`);
+  } catch (e) {
+    if (el.financialAiStatus) {
+      el.financialAiStatus.textContent = `AI 解读失败：${row.symbol}`;
+    }
+    if (el.financialAiOutput) {
+      el.financialAiOutput.textContent = e instanceof Error ? e.message : String(e);
+    }
+    appendLog(`AI 解读失败：${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    state.financialAiBusy = false;
+  }
+}
+
 function applyDefaultFmpScreenerPreset() {
   el.scrUniverse.value = "us_all";
   el.scrMaxScan.value = "2000";
@@ -202,6 +298,21 @@ function applyDefaultFmpScreenerPreset() {
   if (el.scrMinPrice) el.scrMinPrice.value = "";
   if (el.scrMinVolumeRatio) el.scrMinVolumeRatio.value = "";
   updateScreenerUI();
+}
+
+function applyFinancialPreset() {
+  el.finUniverse.value = "us_all";
+  el.finMaxScan.value = "100";
+  el.finMinMarketCap.value = "1000";
+  el.finMinRevenueGrowthYoY.value = "15";
+  el.finMinGrossMargin.value = "40";
+  el.finMinEbitdaGrowthYoY.value = "";
+  el.finMinEbitdaMargin.value = "";
+  el.finMinOperatingMargin.value = "10";
+  el.finPositiveOperatingCashFlow.value = "true";
+  el.finPositiveFreeCashFlow.value = "true";
+  el.finMaxDebtToEquity.value = "2";
+  updateFinancialUI();
 }
 
 function getEstimatedFmpWorkload() {
@@ -224,6 +335,17 @@ function updateScreenerEstimate() {
   const { scanCount, firstRunRequests, warmRunRequests, lowMinutes, highMinutes } = getEstimatedFmpWorkload();
   el.scrEstimate.textContent =
     `默认规则估算：本次扫描 ${scanCount} 支。首次冷启动约 ${firstRunRequests} 次请求，预计 ${lowMinutes}-${highMinutes} 分钟；当天已有缓存时，常见复跑约 ${warmRunRequests} 次请求。`;
+}
+
+function updateFinancialEstimate() {
+  if (!el.financialEstimate) return;
+  const scanCount = Number.parseInt(String(el.finMaxScan?.value || "100"), 10);
+  const count = Number.isFinite(scanCount) ? scanCount : 100;
+  const requests = count * 4;
+  const lowMinutes = Math.max(1, Math.round((count / 100) * 4));
+  const highMinutes = Math.max(lowMinutes + 1, Math.round((count / 100) * 9));
+  el.financialEstimate.textContent =
+    `财报筛选估算：本次扫描 ${count} 支，冷启动常见约 ${requests} 次请求（profile + 三张财报表），预计 ${lowMinutes}-${highMinutes} 分钟。财报更新频率较低，重复扫描会明显更快。`;
 }
 
 function buildFmpCandidatePoolRule(symbols) {
@@ -256,7 +378,7 @@ function buildFmpCandidatePoolRule(symbols) {
 function buildFmpDefaultRuleSeed() {
   return {
     enabled: true,
-    name: "强势突破候选：百亿市值 + 5亿成交额 + 5日收盘新高",
+    name: "强势突破候选：百亿市值 + 5亿成交额 + 5日股价新高",
     symbols: [],
     universe: {
       type: "us_all",
@@ -288,14 +410,14 @@ function buildFmpDefaultRuleSeed() {
   };
 }
 
-async function addSymbolsToAlertPool(symbols) {
+async function addSymbolsToAlertPool(symbols, options = {}) {
   const incoming = Array.from(new Set((symbols || []).map((s) => String(s || "").trim().toUpperCase()).filter(Boolean)));
   if (incoming.length === 0) {
     appendLog("没有可加入提醒池的标的");
     return;
   }
 
-  const isFmp = String(el.dataProvider.value || "fmp").toLowerCase() === "fmp";
+  const isFmp = Boolean(options.forceFmp) || String(el.dataProvider.value || "fmp").toLowerCase() === "fmp";
   const poolName = isFmp ? "默认规则候选股票池" : "候选股票池";
   const idx = state.rules.findIndex((rule) => String(rule?.name || "") === poolName);
   const nextRule = idx >= 0
@@ -400,7 +522,7 @@ function summarizeConditionItem(item) {
   if (type === "volume_ratio_above") return `成交量放大 ≥ ${value} 倍`;
   if (type === "market_cap_above") return `市值 ≥ ${value} 百万美元`;
   if (type === "turnover_m_above") return `最近成交日成交额 ≥ ${value} 百万美元`;
-  if (type === "recent_5d_close_ath") return "5个交易日内收盘价创历史新高";
+  if (type === "recent_5d_close_ath") return "5个交易日内股价创历史新高";
   return "自定义条件";
 }
 
@@ -445,7 +567,7 @@ function renderRulesList() {
     meta.className = "listMeta";
     const symbols = Array.isArray(rule.symbols) ? rule.symbols.join(", ") : "";
     const universeText = rule?.universe?.type === "us_all"
-      ? `标的范围: 全量美股（最多 ${rule?.universe?.maxScan ?? 2000}）`
+      ? `标的范围: 全量美股（按市值从高到低，固定前 ${rule?.universe?.maxScan ?? 2000}）`
       : `股票代码: ${symbols}`;
     meta.textContent = `${summarizeRule(rule)} · ${universeText}`;
 
@@ -510,6 +632,7 @@ function showTab(tab) {
   const tabs = [
     { btn: el.tabRules, panel: el.panelRules, key: "rules" },
     { btn: el.tabScreener, panel: el.panelScreener, key: "screener" },
+    { btn: el.tabFinancial, panel: el.panelFinancial, key: "financial" },
     { btn: el.tabSchedule, panel: el.panelSchedule, key: "schedule" },
     { btn: el.tabConfig, panel: el.panelConfig, key: "config" }
   ];
@@ -540,6 +663,14 @@ function getConfigFromInputs() {
     finnhubApiKey: String(el.finnhubApiKey.value || ""),
     fmpBaseUrl: String(el.fmpBaseUrl.value || "https://financialmodelingprep.com"),
     fmpApiKey: String(el.fmpApiKey.value || ""),
+    ai: {
+      provider: "deepseek",
+      baseUrl: String(el.deepseekBaseUrl.value || "https://api.deepseek.com"),
+      apiKey: String(el.deepseekApiKey.value || ""),
+      model: String(el.aiModel.value || "deepseek-v4-flash"),
+      thinkingEnabled: String(el.aiThinkingEnabled.value || "false") === "true",
+      reasoningEffort: String(el.aiReasoningEffort.value || "high")
+    },
     pollIntervalSec: Number.isFinite(intervalSec) ? intervalSec : 60,
     scheduler: {
       mode: schedulerMode,
@@ -563,6 +694,11 @@ function setInputsFromConfig(cfg) {
   el.finnhubApiKey.value = cfg.finnhubApiKey || "";
   el.fmpBaseUrl.value = cfg.fmpBaseUrl || "https://financialmodelingprep.com";
   el.fmpApiKey.value = cfg.fmpApiKey || "";
+  el.deepseekBaseUrl.value = cfg.ai?.baseUrl || "https://api.deepseek.com";
+  el.deepseekApiKey.value = cfg.ai?.apiKey || "";
+  el.aiModel.value = cfg.ai?.model || "deepseek-v4-flash";
+  el.aiThinkingEnabled.value = String(Boolean(cfg.ai?.thinkingEnabled));
+  el.aiReasoningEffort.value = cfg.ai?.reasoningEffort || "high";
   el.defaultEmailTo.value = cfg.defaultEmailTo || "";
   el.defaultWebhookUrl.value = cfg.defaultWebhookUrl || "";
   el.gmailUser.value = cfg.email?.user || "";
@@ -574,6 +710,7 @@ function setInputsFromConfig(cfg) {
   el.scheduleDailyTime.value = String(scheduler.dailyTime || "09:30");
   el.scheduleWeekdaysOnly.value = String(Boolean(scheduler.weekdaysOnly));
   updateScheduleUI();
+  updateAiConfigUI();
 }
 
 const CONDITION_TYPE_OPTIONS = [
@@ -588,7 +725,7 @@ const CONDITION_TYPE_OPTIONS = [
   { value: "volume_ratio_above", label: "成交量放大 ≥ (倍)" },
   { value: "market_cap_above", label: "市值 ≥ (百万美元)" },
   { value: "turnover_m_above", label: "最近成交日成交额 ≥ (百万美元)" },
-  { value: "recent_5d_close_ath", label: "5个交易日内收盘创历史新高" }
+  { value: "recent_5d_close_ath", label: "5个交易日内股价创历史新高" }
 ];
 
 function defaultConditionItem() {
@@ -703,7 +840,7 @@ async function loadAll() {
   if (el.devModeInfo) {
     el.devModeInfo.textContent = formatDevModeInfo(paths);
   }
-  el.paths.textContent = `数据目录：${paths.base}\nconfig.json：${paths.config}\nrules.json：${paths.rules}\nstate.json：${paths.state}\nevents.jsonl：${paths.events}\nuniverse_us_symbols.json：${paths.universeUS}`;
+  el.paths.textContent = `数据目录：${paths.base}\nconfig.json：${paths.config}\nrules.json：${paths.rules}\nstate.json：${paths.state}\nevents.jsonl：${paths.events}\nuniverse_us_symbols.json：${paths.universeUS}\nuniverse_fmp_default.json：${paths.universeFmpDefault || "-"}\nuniverse_fmp_financial.json：${paths.universeFmpFinancial || "-"}`;
 
   state.config = await window.api.loadConfig();
   setInputsFromConfig(state.config);
@@ -715,6 +852,7 @@ async function loadAll() {
   syncAdvancedJSON();
   renderRulesList();
   updateScreenerUI();
+  updateFinancialUI();
 
   const legalInfo = await window.api.getLegalInfo();
   if (legalInfo) {
@@ -739,16 +877,20 @@ async function loadAll() {
 
 el.tabRules.addEventListener("click", () => showTab("rules"));
 el.tabScreener.addEventListener("click", () => showTab("screener"));
+el.tabFinancial.addEventListener("click", () => showTab("financial"));
 el.tabSchedule.addEventListener("click", () => showTab("schedule"));
 el.tabConfig.addEventListener("click", () => showTab("config"));
 
 el.scheduleMode.addEventListener("change", updateScheduleUI);
+el.aiThinkingEnabled.addEventListener("change", updateAiConfigUI);
 el.dataProvider.addEventListener("change", () => {
   updateScreenerUI();
   updateUniverseUI();
 });
 el.scrUniverse.addEventListener("change", updateScreenerUI);
 el.scrMaxScan.addEventListener("input", updateScreenerEstimate);
+el.finUniverse.addEventListener("change", updateFinancialUI);
+el.finMaxScan.addEventListener("input", updateFinancialEstimate);
 el.ruleUniverse.addEventListener("change", updateUniverseUI);
 el.btnAddCondition.addEventListener("click", () => {
   state.modalConditions.push(defaultConditionItem());
@@ -756,10 +898,21 @@ el.btnAddCondition.addEventListener("click", () => {
 });
 el.btnApplyDefaultScreener.addEventListener("click", () => {
   applyDefaultFmpScreenerPreset();
-  appendLog("已套用默认规则门槛：100亿市值 + 5亿成交额 + 5日收盘新高");
+  appendLog("已套用默认规则门槛：100亿市值 + 5亿成交额 + 5日股价新高");
 });
 el.btnScreenerAddSelected.addEventListener("click", async () => {
   await addSymbolsToAlertPool(state.screenerSelected);
+});
+el.btnApplyFinancialPreset.addEventListener("click", () => {
+  applyFinancialPreset();
+  appendLog("已套用成长财报模板：营收增速 + 毛利率 + EBITDA同比/利润率 + 经营利润率 + 正现金流 + 负债约束");
+});
+el.btnFinancialAddToPool.addEventListener("click", async () => {
+  await addSymbolsToAlertPool((state.financialResults || []).map((row) => row.symbol).filter(Boolean), { forceFmp: true });
+});
+el.btnClearFinancialAi.addEventListener("click", () => {
+  clearFinancialAiOutput();
+  appendLog("已清空 AI 解读");
 });
 
 el.btnLoadConfig.addEventListener("click", async () => {
@@ -802,7 +955,7 @@ el.btnModalSave.addEventListener("click", () => {
   const notifyWebhook = String(el.ruleWebhookUrl.value || "").trim();
 
   if (universeType === "manual" && symbols.length === 0) {
-    alert("请至少填写一个股票代码，或将标的范围切换为“全量美股”");
+    alert("请至少填写一个股票代码，或将标的范围切换为“全量美股（按市值从高到低，固定前N）”");
     return;
   }
 
@@ -918,7 +1071,7 @@ function renderScreenerTable(rows) {
   const trh = document.createElement("tr");
   const isFmp = String(el.dataProvider.value || "fmp").toLowerCase() === "fmp";
   const headers = isFmp
-    ? ["选择", "代码", "价格", "收盘市值（百万美元）", "成交额（百万美元）", "5日收盘新高", "操作"]
+    ? ["选择", "代码", "价格", "收盘市值（百万美元）", "成交额（百万美元）", "5日股价新高", "操作"]
     : ["代码", "价格", "涨跌幅", "市值", "市盈率", "量比"];
   headers.forEach((h) => {
     const th = document.createElement("th");
@@ -991,16 +1144,131 @@ function renderScreenerTable(rows) {
   el.screenerTable.appendChild(table);
 }
 
+function renderFinancialTable(rows) {
+  el.financialTable.innerHTML = "";
+  if (!Array.isArray(rows) || rows.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "暂无命中结果。可先降低门槛，或减少扫描范围后再试。";
+    el.financialTable.appendChild(empty);
+    return;
+  }
+
+  const fmtNum = (value, digits = 1) => (value === null || value === undefined || Number.isNaN(Number(value)) ? "-" : Number(value).toFixed(digits));
+  const table = document.createElement("table");
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>股票</th>
+        <th>公司</th>
+        <th>报告期</th>
+        <th>营收同比</th>
+        <th>毛利率</th>
+        <th>EBITDA</th>
+        <th>EBITDA同比</th>
+        <th>EBITDA利润率</th>
+        <th>经营利润率</th>
+        <th>经营现金流</th>
+        <th>自由现金流</th>
+        <th>负债权益比</th>
+        <th>命中原因</th>
+        <th>AI</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector("tbody");
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${row.symbol || "-"}</td>
+      <td>${row.companyName || "-"}</td>
+      <td>${row.reportDate || "-"}</td>
+      <td>${fmtNum(row.revenueGrowthYoY)}%</td>
+      <td>${fmtNum(row.grossMargin)}%</td>
+      <td>${fmtNum(row.ebitdaM, 0)}M</td>
+      <td>${fmtNum(row.ebitdaGrowthYoY)}%</td>
+      <td>${fmtNum(row.ebitdaMargin)}%</td>
+      <td>${fmtNum(row.operatingMargin)}%</td>
+      <td>${fmtNum(row.operatingCashFlowM, 0)}M</td>
+      <td>${fmtNum(row.freeCashFlowM, 0)}M</td>
+      <td>${fmtNum(row.debtToEquity, 2)}x</td>
+      <td>${Array.isArray(row.reasons) ? row.reasons.join("；") : "-"}</td>
+    `;
+    const actionTd = document.createElement("td");
+    const explainBtn = document.createElement("button");
+    explainBtn.textContent = "AI解读";
+    explainBtn.disabled = state.financialAiBusy;
+    explainBtn.addEventListener("click", async () => {
+      await explainFinancialRow(row);
+      renderFinancialTable(rows);
+    });
+    actionTd.appendChild(explainBtn);
+    tr.appendChild(actionTd);
+    tbody.appendChild(tr);
+  }
+  el.financialTable.appendChild(table);
+}
+
+el.btnRunFinancialScreener.addEventListener("click", async () => {
+  const universe = String(el.finUniverse.value || "us_all");
+  const useUniverse = universe === "us_all";
+  const symbols = useUniverse ? [] : parseSymbols(el.financialSymbols.value);
+  if (!useUniverse && symbols.length === 0) {
+    appendLog("财报筛选：股票代码为空（或切换到全量美股（按市值从高到低，固定前N））");
+    return;
+  }
+
+  const maxScan = Number.parseInt(String(el.finMaxScan.value || "100"), 10);
+  appendLog(`财报筛选：开始执行（来源=${useUniverse ? "全量美股（按市值从高到低，固定前N）" : "手动列表"}，本次扫描=${Number.isFinite(maxScan) ? maxScan : 100}）...`);
+  const criteria = {
+    universe: useUniverse ? "us_all" : "manual",
+    maxScan: Number.isFinite(maxScan) ? maxScan : 100,
+    minMarketCap: el.finMinMarketCap.value === "" ? null : Number(el.finMinMarketCap.value),
+    minRevenueGrowthYoY: el.finMinRevenueGrowthYoY.value === "" ? null : Number(el.finMinRevenueGrowthYoY.value),
+    minGrossMargin: el.finMinGrossMargin.value === "" ? null : Number(el.finMinGrossMargin.value),
+    minEbitdaGrowthYoY: el.finMinEbitdaGrowthYoY.value === "" ? null : Number(el.finMinEbitdaGrowthYoY.value),
+    minEbitdaMargin: el.finMinEbitdaMargin.value === "" ? null : Number(el.finMinEbitdaMargin.value),
+    minOperatingMargin: el.finMinOperatingMargin.value === "" ? null : Number(el.finMinOperatingMargin.value),
+    requirePositiveOperatingCashFlow: String(el.finPositiveOperatingCashFlow.value || "true") === "true",
+    requirePositiveFreeCashFlow: String(el.finPositiveFreeCashFlow.value || "true") === "true",
+    maxDebtToEquity: el.finMaxDebtToEquity.value === "" ? null : Number(el.finMaxDebtToEquity.value)
+  };
+
+  try {
+    clearFinancialAiOutput();
+    const res = await window.api.runFinancialScreener({ symbols, criteria });
+    const rows = res && typeof res === "object" ? res.rows : res;
+    const meta = res && typeof res === "object" ? res.meta : null;
+    state.financialResults = Array.isArray(rows) ? rows : [];
+    if (meta) {
+      const updated = meta.universeUpdatedAt ? `（列表更新：${meta.universeUpdatedAt}）` : "";
+      const orderText = meta.order === "marketCap_desc" ? "，顺序=市值从高到低" : "";
+      const sourceText = meta.universeSource ? `，候选池=${meta.universeSource}` : "";
+      el.financialSummary.textContent = `本次扫描 ${meta.scannedCount ?? 0} 支，命中 ${state.financialResults.length} 支${orderText}${sourceText} ${updated}`;
+    } else {
+      el.financialSummary.textContent = `财报筛选结果：${state.financialResults.length}`;
+    }
+    renderFinancialTable(state.financialResults);
+    appendLog("财报筛选：执行完成");
+  } catch (e) {
+    state.financialResults = [];
+    renderFinancialTable([]);
+    el.financialSummary.textContent = "";
+    appendLog(`财报筛选失败：${e instanceof Error ? e.message : String(e)}`);
+  }
+});
+
 el.btnRunScreener.addEventListener("click", async () => {
   const universe = String(el.scrUniverse.value || "us_all");
   const useUniverse = universe === "us_all";
   const symbols = useUniverse ? [] : parseSymbols(el.screenerSymbols.value);
   if (!useUniverse && symbols.length === 0) {
-    appendLog("筛选：股票代码为空（或切换到全量美股）");
+    appendLog("筛选：股票代码为空（或切换到全量美股（按市值从高到低，固定前N））");
     return;
   }
   const maxScan = Number.parseInt(String(el.scrMaxScan.value || "500"), 10);
-  appendLog(`筛选：开始执行（来源=${useUniverse ? "全量美股" : "手动列表"}，本次扫描=${Number.isFinite(maxScan) ? maxScan : 500}）...`);
+  appendLog(`筛选：开始执行（来源=${useUniverse ? "全量美股（按市值从高到低，固定前N）" : "手动列表"}，本次扫描=${Number.isFinite(maxScan) ? maxScan : 500}）...`);
   const criteria = {
     minPrice: el.scrMinPrice.value === "" ? null : Number(el.scrMinPrice.value),
     minMarketCap: el.scrMinMarketCap.value === "" ? null : Number(el.scrMinMarketCap.value),
@@ -1018,10 +1286,10 @@ el.btnRunScreener.addEventListener("click", async () => {
   state.screenerSelected = [];
   if (meta) {
     const total = meta.totalSymbols ?? 0;
-    const scannedFrom = meta.scannedFrom ?? 0;
-    const scannedTo = meta.scannedTo ?? 0;
     const updated = meta.universeUpdatedAt ? `（列表更新：${meta.universeUpdatedAt}）` : "";
-    el.screenerSummary.textContent = `本次扫描：${scannedFrom}-${Math.max(scannedTo - 1, scannedFrom)} / 总计 ${total}，命中 ${state.screenerResults.length} ${updated}`;
+    const orderText = meta.order === "marketCap_desc" ? "，顺序=市值从高到低" : "";
+    const sourceText = meta.universeSource ? `，候选池=${meta.universeSource}` : "";
+    el.screenerSummary.textContent = `本次固定扫描前 ${meta.scannedCount ?? 0} 支 / 总计 ${total}，命中 ${state.screenerResults.length}${orderText}${sourceText} ${updated}`;
   } else {
     el.screenerSummary.textContent = `筛选结果：${state.screenerResults.length}`;
   }

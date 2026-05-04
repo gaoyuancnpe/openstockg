@@ -44,12 +44,22 @@ function getDataPaths() {
     rules: path.join(base, "rules.json"),
     state: path.join(base, "state.json"),
     events: path.join(base, "events.jsonl"),
-    universeUS: path.join(base, "universe_us_symbols.json")
+    universeUS: path.join(base, "universe_us_symbols.json"),
+    universeFmpDefault: path.join(base, "universe_fmp_default.json"),
+    universeFmpFinancial: path.join(base, "universe_fmp_financial.json")
   };
 }
 
 async function resetTestDataFiles(paths) {
-  const files = [paths.config, paths.rules, paths.state, paths.events, paths.universeUS];
+  const files = [
+    paths.config,
+    paths.rules,
+    paths.state,
+    paths.events,
+    paths.universeUS,
+    paths.universeFmpDefault,
+    paths.universeFmpFinancial
+  ];
   const removed = [];
   for (const filePath of files) {
     await rm(filePath, { force: true }).catch(() => {});
@@ -211,6 +221,14 @@ async function main() {
       finnhubApiKey: "",
       fmpBaseUrl: "https://financialmodelingprep.com",
       fmpApiKey: "",
+      ai: {
+        provider: "deepseek",
+        baseUrl: "https://api.deepseek.com",
+        apiKey: "",
+        model: "deepseek-v4-flash",
+        thinkingEnabled: false,
+        reasoningEffort: "high"
+      },
       pollIntervalSec: 60,
       scheduler: { mode: "interval", intervalSec: 60, dailyTime: "09:30", weekdaysOnly: true },
       defaultEmailTo: "",
@@ -242,6 +260,16 @@ async function main() {
 
   ipcMain.handle("engine:screener", async (_evt, payload) => {
     const res = await engine.runScreener(payload || {});
+    return res;
+  });
+
+  ipcMain.handle("engine:financialScreener", async (_evt, payload) => {
+    const res = await engine.runFinancialScreener(payload || {});
+    return res;
+  });
+
+  ipcMain.handle("engine:financialExplain", async (_evt, payload) => {
+    const res = await engine.explainFinancialRow(payload || {});
     return res;
   });
 

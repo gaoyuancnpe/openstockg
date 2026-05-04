@@ -38,6 +38,16 @@ function normalizeHttpBaseUrl(url, fallback) {
   return String(url || fallback || "").trim().replace(/\/+$/, "");
 }
 
+function describeError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = String(error?.cause?.code || "");
+  const causeMessage = String(error?.cause?.message || "");
+  const details = [message];
+  if (code) details.push(`code=${code}`);
+  if (causeMessage && causeMessage !== message) details.push(`cause=${causeMessage}`);
+  return details.join(" | ");
+}
+
 function isoDateToday() {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
@@ -89,7 +99,7 @@ function printHelp() {
 默认规则：
   1. 最近一个成交日收盘市值 >= 10000 百万美元
   2. 最近一个成交日成交额 >= 500 百万美元
-  3. 5 个交易日内收盘价创历史新高
+  3. 5 个交易日内股价创历史新高
 
 说明：
   - 默认只做小样本扫描，用来验证 Key、接口和默认规则链路是否可跑。
@@ -123,12 +133,14 @@ async function fetchJSON(url) {
         String(error?.message || "").includes("fetch failed") ||
         code.startsWith("UND_ERR_") ||
         code === "ETIMEDOUT";
-      if (!transient || attempt === 1) throw error;
+      if (!transient || attempt === 1) {
+        throw new Error(`请求失败：${url} | ${describeError(error)}`);
+      }
     } finally {
       clearTimeout(id);
     }
   }
-  throw lastError || new Error("fetch failed");
+  throw new Error(`请求失败：${url} | ${describeError(lastError)}`);
 }
 
 async function fmpFetchJSON({ baseUrl, pathName, apiKey, params }) {
@@ -165,21 +177,24 @@ async function fmpProfile({ baseUrl, apiKey, symbol }) {
   };
 }
 
-async function fmpHistoricalPriceEodLight({ baseUrl, apiKey, symbol, from, to }) {
+async function fmpHistoricalPriceEodFull({ baseUrl, apiKey, symbol, from, to }) {
   const data = await fmpFetchJSON({
     baseUrl,
-    pathName: "/stable/historical-price-eod/light",
+    pathName: "/stable/historical-price-eod/full",
     apiKey,
     params: { symbol, from, to }
   });
-  const rows = Array.isArray(data) ? data : [];
+  const rows = Array.isArray(data)
+    ? data
+    : (Array.isArray(data?.historical) ? data.historical : []);
   return rows
     .map((row) => ({
       date: String(row?.date || ""),
-      close: toNumber(row?.price),
+      high: toNumber(row?.high),
+      close: toNumber(row?.close ?? row?.price),
       volume: toNumber(row?.volume)
     }))
-    .filter((row) => row.date && row.close !== null)
+    .filter((row) => row.date && (row.high !== null || row.close !== null))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
@@ -189,7 +204,7 @@ async function computeFmpDefaultStats({ baseUrl, apiKey, symbol }) {
   const floorDate = /^\d{4}-\d{2}-\d{2}$/.test(profile.ipoDate) ? profile.ipoDate : "1980-01-01";
   const recentWindowFrom = floorDate > isoDateShiftYears(today, -5) ? floorDate : isoDateShiftYears(today, -5);
 
-  const recentHistory = await fmpHistoricalPriceEodLight({
+  const recentHistory = await fmpHistoricalPriceEodFull({
     baseUrl,
     apiKey,
     symbol,
@@ -202,18 +217,19 @@ async function computeFmpDefaultStats({ baseUrl, apiKey, symbol }) {
 
   const last = recentHistory[recentHistory.length - 1];
   const recent5 = recentHistory.slice(-5);
-  const recent5MaxClose =
-    recent5.length > 0 ? Math.max(...recent5.map((row) => row.close).filter((v) => v !== null)) : null;
+  const recent5MaxHigh =
+    recent5.length > 0 ? Math.max(...recent5.map((row) => row.high ?? row.close).filter((v) => v !== null)) : null;
   const turnoverM = last?.close !== null && last?.volume !== null ? (last.close * last.volume) / 1e6 : null;
-  const recentChunkMax = recentHistory.length > 0 ? Math.max(...recentHistory.map((row) => row.close).filter((v) => v !== null)) : null;
+  const recentChunkMax =
+    recentHistory.length > 0 ? Math.max(...recentHistory.map((row) => row.high ?? row.close).filter((v) => v !== null)) : null;
 
-  let recent5dCloseAth = recent5MaxClose !== null && recentChunkMax !== null && recent5MaxClose >= recentChunkMax ? 1 : 0;
+  let recent5dCloseAth = recent5MaxHigh !== null && recentChunkMax !== null && recent5MaxHigh >= recentChunkMax ? 1 : 0;
   let olderWindowEnd = isoDateShiftDays(recentWindowFrom, -1);
 
   while (recent5dCloseAth && olderWindowEnd >= floorDate) {
     const olderWindowStartCandidate = isoDateShiftYears(olderWindowEnd, -5);
     const olderWindowStart = olderWindowStartCandidate < floorDate ? floorDate : olderWindowStartCandidate;
-    const olderRows = await fmpHistoricalPriceEodLight({
+    const olderRows = await fmpHistoricalPriceEodFull({
       baseUrl,
       apiKey,
       symbol,
@@ -221,8 +237,8 @@ async function computeFmpDefaultStats({ baseUrl, apiKey, symbol }) {
       to: olderWindowEnd
     }).catch(() => []);
     if (Array.isArray(olderRows) && olderRows.length > 0) {
-      const olderMax = Math.max(...olderRows.map((row) => row.close).filter((v) => v !== null));
-      if (recent5MaxClose !== null && olderMax > recent5MaxClose) {
+      const olderMax = Math.max(...olderRows.map((row) => row.high ?? row.close).filter((v) => v !== null));
+      if (recent5MaxHigh !== null && olderMax > recent5MaxHigh) {
         recent5dCloseAth = 0;
         break;
       }
@@ -258,7 +274,7 @@ async function main() {
   console.log(`数据源：${normalizeHttpBaseUrl(baseUrl, DEFAULT_BASE_URL)}`);
   console.log(`扫描数量：${limit}`);
   console.log(`并发数：${concurrency}`);
-  console.log(`规则门槛：市值 >= ${minMarketCapM} 百万美元，成交额 >= ${minTurnoverM} 百万美元，5 日收盘新高`);
+  console.log(`规则门槛：市值 >= ${minMarketCapM} 百万美元，成交额 >= ${minTurnoverM} 百万美元，5 日股价新高`);
 
   const poolStartedAt = nowMs();
   const rows = await fmpCompanyScreener({

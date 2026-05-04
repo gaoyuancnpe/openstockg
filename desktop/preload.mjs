@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("api", {
   loadRules: () => ipcRenderer.invoke("rules:load"),
   saveRules: (rules) => ipcRenderer.invoke("rules:save", rules),
   runScreener: (payload) => ipcRenderer.invoke("engine:screener", payload),
+  runFinancialScreener: (payload) => ipcRenderer.invoke("engine:financialScreener", payload),
+  explainFinancialRow: (payload) => ipcRenderer.invoke("engine:financialExplain", payload),
   runOnce: ({ dryRun }) => ipcRenderer.invoke("engine:runOnce", { dryRun }),
   start: () => ipcRenderer.invoke("engine:start"),
   stop: () => ipcRenderer.invoke("engine:stop"),
