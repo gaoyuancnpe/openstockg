@@ -1,19 +1,27 @@
 {
   "name": "Openstock",
+  "description": "OpenStock root entry only retains the Web and CLI lanes in maintenance mode; default daily development belongs in desktop/.",
   "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "scripts": {
+    "desktop:dev": "npm --prefix desktop run dev",
+    "desktop:dist:win:check-env": "npm --prefix desktop run dist:win:check-env",
+    "desktop:dist:win": "npm --prefix desktop run dist:win",
+    "desktop:dist:win:zip:check-env": "npm --prefix desktop run dist:win:zip:check-env",
+    "desktop:dist:win:zip": "npm --prefix desktop run dist:win:zip",
+    "desktop:check-boundaries": "npm --prefix desktop run check:boundaries",
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test:db": "node scripts/test-db.mjs",
-    "alerts:seed": "node scripts/alerts-seed.mjs",
-    "alerts:worker": "node scripts/alerts-worker.mjs --once",
-    "alerts:worker:dry": "node scripts/alerts-worker.mjs --once --dry-run",
-    "fmp:test": "node scripts/fmp-default-rule-test.mjs",
-    "fmp:financial:test": "node scripts/fmp-financial-screener-test.mjs"
+    "lint:desktop-boundaries": "node scripts/desktop/check-desktop-boundaries.mjs",
+    "test:db": "node scripts/shared/test-db.mjs",
+    "alerts:seed": "node scripts/legacy-cli/alerts-seed.mjs",
+    "alerts:worker": "node scripts/legacy-cli/alerts-worker.mjs --once",
+    "alerts:worker:dry": "node scripts/legacy-cli/alerts-worker.mjs --once --dry-run",
+    "fmp:test": "node scripts/shared/fmp-default-rule-test.mjs",
+    "fmp:financial:test": "node scripts/shared/fmp-financial-screener-test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

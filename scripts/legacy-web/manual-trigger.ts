@@ -8,13 +8,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 console.log('Loading environment variables...');
-dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+ dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
+ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Dynamic imports to ensure env vars are loaded first
-const { screenStocks } = await import('../lib/screener');
-const { sendDailyScreenerEmail } = await import('../lib/nodemailer/index');
-const { formatMarketCapValue } = await import('../lib/utils');
+ const { screenStocks } = await import('../../lib/screener');
+ const { sendDailyScreenerEmail } = await import('../../lib/nodemailer/index');
+ const { formatMarketCapValue } = await import('../../lib/utils');
 
 async function main() {
   console.log('Starting manual trigger...');

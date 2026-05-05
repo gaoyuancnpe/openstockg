@@ -38,7 +38,7 @@ async function main() {
       }
     };
     process.stdout.write("Usage:\n");
-    process.stdout.write("  node scripts/alerts-seed.mjs --rule '<json>'\n\n");
+    process.stdout.write("  node scripts/legacy-cli/alerts-seed.mjs --rule '<json>'\n\n");
     process.stdout.write("Example:\n");
     process.stdout.write(JSON.stringify(example, null, 2) + "\n");
     process.exit(1);
@@ -56,4 +56,3 @@ main().catch((e) => {
   process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`);
   process.exit(1);
 });
-

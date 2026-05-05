@@ -1,5 +1,6 @@
 {
   "name": "openstock-alerts-desktop",
+  "description": "Primary OpenStock Electron desktop app; the Web and CLI lanes are retained separately in the repository root.",
   "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
@@ -7,10 +8,13 @@
   "main": "main.mjs",
   "scripts": {
     "dev": "electron .",
-    "dist:win": "electron-builder --win nsis",
-    "dist:win:f": "electron-builder --win nsis --config ./electron-builder.win-f.json",
-    "dist:win:f:zip": "electron-builder --win --config ./electron-builder.win-f-zip.json",
-    "dist:win:zip": "electron-builder --win --config ./electron-builder.win-zip.json",
+    "check:boundaries": "node ../scripts/desktop/check-desktop-boundaries.mjs",
+    "dist:win:check-env": "node ../scripts/desktop/run-desktop-windows-build.mjs --check dist:win",
+    "dist:win": "node ../scripts/desktop/run-desktop-windows-build.mjs dist:win",
+    "dist:win:f": "node ../scripts/desktop/run-desktop-windows-build.mjs dist:win:f",
+    "dist:win:f:zip": "node ../scripts/desktop/run-desktop-windows-build.mjs dist:win:f:zip",
+    "dist:win:zip:check-env": "node ../scripts/desktop/run-desktop-windows-build.mjs --check dist:win:zip",
+    "dist:win:zip": "node ../scripts/desktop/run-desktop-windows-build.mjs dist:win:zip",
     "dist:win:zip:toF": "npm run dist:win:zip && node ./copy-artifacts-to-f.mjs"
   },
   "dependencies": {

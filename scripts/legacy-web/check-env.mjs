@@ -2,7 +2,7 @@
 
 /**
  * Environment Variables Checker
- * Run: node scripts/check-env.mjs
+ * Run: node scripts/legacy-web/check-env.mjs
  */
 
 const requiredVars = {
@@ -109,4 +109,3 @@ function maskValue(value) {
     }
     return value.substring(0, 4) + '***' + value.substring(value.length - 4);
 }
-

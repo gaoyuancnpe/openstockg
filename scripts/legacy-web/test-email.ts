@@ -7,8 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 console.log('Loading environment variables...');
-dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+ dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
+ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 async function main() {
   console.log('Testing email configuration...');
@@ -22,7 +22,7 @@ async function main() {
   console.log(`Using email: ${email}`);
 
   // Dynamically import transporter AFTER env vars are loaded
-  const { transporter } = await import('../lib/nodemailer/index');
+  const { transporter } = await import('../../lib/nodemailer/index');
 
   const mailOptions = {
     from: `"OpenStock Test" <${email}>`,

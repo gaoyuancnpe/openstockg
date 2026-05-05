@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
-import { addToWatchlist, removeFromWatchlist, getUserWatchlist, isStockInWatchlist } from '../lib/actions/watchlist.actions.js';
-import { createAlert, getUserAlerts } from '../lib/actions/alert.actions.js';
-import { getWatchlistData } from '../lib/actions/finnhub.actions.js';
+ import { addToWatchlist, removeFromWatchlist, getUserWatchlist, isStockInWatchlist } from '../../lib/actions/watchlist.actions.js';
+ import { createAlert, getUserAlerts } from '../../lib/actions/alert.actions.js';
+ import { getWatchlistData } from '../../lib/actions/finnhub.actions.js';
 
 // Mock data
 const MOCK_USER_ID = 'verify-user-' + Date.now();

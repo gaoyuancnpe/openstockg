@@ -1,72 +1,15 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, Menu, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createAlertsEngine } from "./engine.mjs";
+import { ensureDir, getDataPaths, initializeDesktopStorage } from "./main/data-store.mjs";
+import { registerDesktopIpc } from "./main/ipc.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const SOURCE_REPO_URL = "https://github.com/gaoyuancnpe/openstockg";
 const UPSTREAM_REPO_URL = "https://github.com/Open-Dev-Society/OpenStock";
 const LICENSE_URL = "https://www.gnu.org/licenses/agpl-3.0.html";
-
-function safeParseJSON(text, fallback) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return fallback;
-  }
-}
-
-async function ensureDir(dir) {
-  await mkdir(dir, { recursive: true });
-}
-
-async function readJSON(filePath, fallback) {
-  try {
-    const txt = await readFile(filePath, "utf-8");
-    return safeParseJSON(txt, fallback);
-  } catch {
-    return fallback;
-  }
-}
-
-async function writeJSON(filePath, data) {
-  await ensureDir(path.dirname(filePath));
-  await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
-}
-
-function getDataPaths() {
-  const base = app.getPath("userData");
-  return {
-    base,
-    config: path.join(base, "config.json"),
-    rules: path.join(base, "rules.json"),
-    state: path.join(base, "state.json"),
-    events: path.join(base, "events.jsonl"),
-    universeUS: path.join(base, "universe_us_symbols.json"),
-    universeFmpDefault: path.join(base, "universe_fmp_default.json"),
-    universeFmpFinancial: path.join(base, "universe_fmp_financial.json")
-  };
-}
-
-async function resetTestDataFiles(paths) {
-  const files = [
-    paths.config,
-    paths.rules,
-    paths.state,
-    paths.events,
-    paths.universeUS,
-    paths.universeFmpDefault,
-    paths.universeFmpFinancial
-  ];
-  const removed = [];
-  for (const filePath of files) {
-    await rm(filePath, { force: true }).catch(() => {});
-    removed.push(filePath);
-  }
-  return removed;
-}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -176,9 +119,6 @@ function installAppMenu(win) {
   if (win) win.setMenu(menu);
 }
 
-let engine = null;
-let engineRunning = false;
-
 async function main() {
   const forcedUserDataDir = process.env.OPENSTOCK_USER_DATA_DIR;
   if (forcedUserDataDir) {
@@ -189,14 +129,18 @@ async function main() {
 
   const win = createWindow();
   installAppMenu(win);
-  const paths = getDataPaths();
+  const paths = getDataPaths(app);
   await ensureDir(paths.base);
-  const usingCustomDataDir = Boolean(forcedUserDataDir);
+  const storageInit = await initializeDesktopStorage(paths);
 
   console.log(`[desktop] userData=${paths.base}`);
-  console.log(`[desktop] customUserDataDir=${usingCustomDataDir ? "yes" : "no"}`);
+  console.log(`[desktop] customUserDataDir=${forcedUserDataDir ? "yes" : "no"}`);
+  for (const report of storageInit.reports) {
+    if (!Array.isArray(report.actions) || report.actions.length === 0) continue;
+    console.log(`[desktop] storage ${report.key}: ${report.actions.join("，")}`);
+  }
 
-  engine = createAlertsEngine({
+  const engine = createAlertsEngine({
     dataPaths: paths,
     onLog: (line) => {
       console.log(`[engine] ${line}`);
@@ -208,110 +152,14 @@ async function main() {
     }
   });
 
-  ipcMain.handle("paths:get", async () => ({
-    ...paths,
-    usingCustomDataDir,
-    forcedUserDataDir: forcedUserDataDir || ""
-  }));
-
-  ipcMain.handle("config:load", async () => {
-    const cfg = await readJSON(paths.config, {
-      dataProvider: "fmp",
-      finnhubBaseUrl: "https://finnhub.io/api/v1",
-      finnhubApiKey: "",
-      fmpBaseUrl: "https://financialmodelingprep.com",
-      fmpApiKey: "",
-      ai: {
-        provider: "deepseek",
-        baseUrl: "https://api.deepseek.com",
-        apiKey: "",
-        model: "deepseek-v4-flash",
-        thinkingEnabled: false,
-        reasoningEffort: "high"
-      },
-      pollIntervalSec: 60,
-      scheduler: { mode: "interval", intervalSec: 60, dailyTime: "09:30", weekdaysOnly: true },
-      defaultEmailTo: "",
-      email: { provider: "gmail", user: "", pass: "" },
-      defaultWebhookUrl: ""
-    });
-    return cfg;
-  });
-
-  ipcMain.handle("config:save", async (_evt, cfg) => {
-    await writeJSON(paths.config, cfg);
-    return { ok: true };
-  });
-
-  ipcMain.handle("rules:load", async () => {
-    const rules = await readJSON(paths.rules, []);
-    return Array.isArray(rules) ? rules : [];
-  });
-
-  ipcMain.handle("rules:save", async (_evt, rules) => {
-    await writeJSON(paths.rules, rules);
-    return { ok: true };
-  });
-
-  ipcMain.handle("engine:runOnce", async (_evt, { dryRun }) => {
-    await engine.runOnce({ dryRun: Boolean(dryRun) });
-    return { ok: true };
-  });
-
-  ipcMain.handle("engine:screener", async (_evt, payload) => {
-    const res = await engine.runScreener(payload || {});
-    return res;
-  });
-
-  ipcMain.handle("engine:financialScreener", async (_evt, payload) => {
-    const res = await engine.runFinancialScreener(payload || {});
-    return res;
-  });
-
-  ipcMain.handle("engine:financialExplain", async (_evt, payload) => {
-    const res = await engine.explainFinancialRow(payload || {});
-    return res;
-  });
-
-  ipcMain.handle("engine:start", async () => {
-    if (engineRunning) return { ok: true };
-    engine.start();
-    engineRunning = true;
-    return { ok: true };
-  });
-
-  ipcMain.handle("engine:stop", async () => {
-    if (!engineRunning) return { ok: true };
-    engine.stop();
-    engineRunning = false;
-    return { ok: true };
-  });
-
-  ipcMain.handle("dev:resetTestData", async () => {
-    if (engineRunning) {
-      engine.stop();
-      engineRunning = false;
-    }
-    const removedFiles = await resetTestDataFiles(paths);
-    console.log(`[desktop] reset test data in ${paths.base}`);
-    return { ok: true, removedFiles, base: paths.base };
-  });
-
-  ipcMain.handle("legal:get", async () => {
-    const legalNoticePath = path.join(__dirname, "LEGAL_NOTICE.md");
-    const noticeText = await readFile(legalNoticePath, "utf-8").catch(() => "");
-    return {
-      sourceRepoUrl: SOURCE_REPO_URL,
-      upstreamRepoUrl: UPSTREAM_REPO_URL,
-      licenseUrl: LICENSE_URL,
-      noticeText
-    };
-  });
-
-  ipcMain.handle("shell:openExternal", async (_evt, url) => {
-    if (!url || typeof url !== "string") return { ok: false };
-    await shell.openExternal(url);
-    return { ok: true };
+  registerDesktopIpc({
+    desktopDir: __dirname,
+    engine,
+    forcedUserDataDir,
+    paths,
+    sourceRepoUrl: SOURCE_REPO_URL,
+    upstreamRepoUrl: UPSTREAM_REPO_URL,
+    licenseUrl: LICENSE_URL
   });
 
   app.on("activate", () => {

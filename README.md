@@ -8,13 +8,52 @@
 - 如果你将 Web 版本对外提供网络服务，还需要按 `AGPL` 的要求向用户提供对应源码获取方式
 - 本项目与输出结果不提供任何担保，也不构成投资建议
 
-`OpenStock` 目前同时包含三条能力线：
+`OpenStock` 当前以 `desktop/` 下的 Electron 桌面端为主力产品形态。  
+根目录中的 `Web` 与 `CLI` 链路继续保留，但默认按兼容/维护用途理解，不再作为日常开发与交付的第一入口。
 
-- `Web 站点`：原始的 Next.js 股票网站代码，含登录、详情页、Watchlist、Inngest 等。
-- `命令行提醒脚本`：基于 MongoDB + Finnhub 的后端提醒 worker，适合服务器或本地定时跑。
-- `桌面端提醒工具`：基于 Electron 的 Windows 桌面应用，适合直接图形化配置规则、数据源和通知。
+当前仓库包含三条能力线：
 
-如果你只是想快速用起来，当前推荐优先走 `桌面端`。
+- `桌面端提醒工具`：主力链路，基于 Electron 的 Windows 桌面应用，适合直接图形化配置规则、数据源和通知。
+- `Web 站点`：保留链路，原始的 Next.js 股票网站代码，含登录、详情页、Watchlist、Inngest 等。
+- `命令行提醒脚本`：保留链路，基于 MongoDB + Finnhub 的后端提醒 worker，适合服务器或本地定时跑。
+
+如果你只是想快速用起来，直接进入 `desktop/`。
+
+## 维护模式约定
+
+- `desktop/` 是当前唯一默认主力链路；日常开发、联调、验证、打包与新增功能默认都落在这里
+- 根目录 `Web` 工程与 `scripts/legacy-cli/`、`scripts/legacy-web/` 目录属于保留链路，按 `legacy / 保留 / 维护模式` 理解
+- 除非需求明确写的是“维护旧 Web/CLI 链路”或“兼容历史部署”，否则不要把新页面、新脚本、新提醒能力继续放到保留链路
+- 在仓库根目录看到 `npm run dev`、`npm run build`、`npm start` 时，应默认理解为旧 Web 链路的维护入口，不是当前产品主入口
+
+## 默认入口
+
+日常开发、验证和打包默认优先走桌面端：
+
+```bash
+cd desktop
+npm install
+npm run dev
+```
+
+常用打包入口：
+
+```bash
+npm run dist:win:check-env
+npm run dist:win
+npm run dist:win:zip:check-env
+npm run dist:win:zip
+```
+
+如果你希望从仓库根目录直接进入桌面端，也可以执行：
+
+```bash
+npm run desktop:dev
+npm run desktop:dist:win:check-env
+npm run desktop:dist:win
+npm run desktop:dist:win:zip:check-env
+npm run desktop:dist:win:zip
+```
 
 ## 当前推荐路线
 
@@ -28,27 +67,34 @@
 - 可视化配置数据源、规则、定时和通知
 - 可直接打包成 Windows 可执行文件
 
-### 2. 想在服务器或命令行里自动跑
+### 2. 想在服务器或命令行里自动跑（保留链路）
 
-用根目录下的 `scripts/alerts-worker.mjs` 和 `scripts/alerts-seed.mjs`。
+用根目录下的 `scripts/legacy-cli/alerts-worker.mjs` 和 `scripts/legacy-cli/alerts-seed.mjs`。
 
 适合：
 - 云服务器
 - 定时任务
 - 本地脚本自动执行
 
-### 3. 想继续维护原网站
+维护约定：
+- 这条链路继续可用，但当前按维护模式保留
+- 新增提醒产品能力时，默认先评估桌面端是否已经有承载位置
+- 只有明确要兼容历史自动化脚本时，才继续修改这里
+
+### 3. 想继续维护原网站（保留链路）
 
 用根目录的 Next.js 工程。
 
 注意：
-- 这部分仍然保留，但当前提醒业务的主路径已经更偏向脚本和桌面端
+- 这部分仍然保留，但当前提醒业务的主路径已经切到桌面端
 - 部分历史功能还依赖 Better Auth、MongoDB、Inngest、Finnhub 等原有配置
+- 新需求若不是明确要求维护旧站点，请不要默认继续落到 `app/`、`components/`、`lib/` 这条链路
 
 ## 环境要求
 
 - Node.js `20+`
 - npm `10+`
+- 如果你要在 Linux / WSL 下打 Windows `nsis` 安装包，还需要 `wine` / `wine64`
 - MongoDB
 - 至少一种行情数据源 Key
   - `FMP`：桌面端默认推荐
@@ -65,7 +111,7 @@ OpenStock/
 ├── components/             # Web UI 组件
 ├── database/               # MongoDB / Mongoose
 ├── lib/                    # Web 侧业务逻辑、Inngest、邮件等
-├── scripts/                # 命令行提醒脚本与调试脚本
+├── scripts/                # 桌面治理脚本、共享校验脚本与保留链路 legacy 脚本
 ├── desktop/                # Electron 桌面端
 │   ├── renderer/           # 桌面端界面
 │   ├── main.mjs            # Electron 主进程
@@ -76,20 +122,31 @@ OpenStock/
 
 ## 安装依赖
 
-### 根目录依赖
-
-```bash
-npm install
-```
-
-### 桌面端依赖
+### 桌面端依赖（默认）
 
 ```bash
 cd desktop
 npm install
 ```
 
+### 根目录依赖（Web/CLI 保留链路）
+
+```bash
+npm install
+```
+
 如果你在国内网络环境下安装 Electron 依赖较慢，建议先切镜像后再装。
+
+## Scripts 归属
+
+为降低历史脚本误用概率，根目录 `scripts/` 已按归属拆分：
+
+- `scripts/desktop/`：桌面端治理脚本，例如 `check-desktop-boundaries.mjs`
+- `scripts/shared/`：共享校验脚本，例如 `test-db.mjs`、`fmp-default-rule-test.mjs`
+- `scripts/legacy-cli/`：保留中的命令行提醒脚本
+- `scripts/legacy-web/`：历史 Web、Kit、调试与迁移脚本
+
+完整清单见 [scripts/README.md](file:///home/gaoyuan/openstock-g/OpenStock/scripts/README.md)。
 
 ## 环境变量
 
@@ -142,7 +199,184 @@ ALERTS_MAX_SYMBOLS_PER_BATCH=25
 
 ## 常见操作
 
-## Web 站点
+## 桌面端（主力链路）
+
+当前推荐优先使用桌面端进行配置、验证和打包。
+
+### 1. 启动桌面端开发版
+
+```bash
+cd desktop
+npm install
+npm run dev
+```
+
+如果你更习惯在仓库根目录操作，也可以执行：
+
+```bash
+npm run desktop:dev
+```
+
+### 2. 桌面端首次使用建议顺序
+
+启动后建议按这个顺序操作：
+
+1. 进入 `配置`
+2. 选择数据源
+3. 填写 `FMP API Key` 或 `Finnhub API Key`
+4. 填写默认收件人和 Gmail 配置
+5. 保存配置
+6. 进入 `规则`
+7. 点击 `添加规则`
+8. 先用默认规则验证
+9. 进入 `运行`
+10. 先点 `模拟运行一次`
+
+### 3. 默认规则
+
+当前桌面端默认重点支持这条规则：
+
+- 最近一个成交日收盘市值超过 `100 亿美元`
+- 最近一个成交日成交额超过 `5 亿美元`
+- `5` 个交易日内股价创历史新高
+
+### 3.1 财报筛选（Premium）
+
+桌面端新增了 `财报` 页，专门对应 FMP `Premium` 套餐可拿到的完整 fundamentals。
+
+当前支持：
+
+- 最近季度营收同比下限
+- 最近季度毛利率下限
+- 最近季度 EBITDA 利润率下限
+- 最近季度 EBITDA 同比下限
+- 最近季度经营利润率下限
+- 经营现金流必须为正
+- 自由现金流必须为正
+- 负债权益比上限
+
+推荐使用顺序：
+
+1. 在 `配置` 页填好 `FMP API Key`
+2. 进入 `财报` 页，先点 `套用成长财报模板`
+3. 先把扫描数量控制在 `50-100`
+4. 点击 `运行财报筛选`
+5. 如果命中结果合理，再点 `将结果加入提醒池`
+
+提示：
+
+- 财报筛选当前只走 `FMP`，不依赖 `Finnhub`
+- 结果表会同时展示最近季度 `EBITDA`、`EBITDA 同比` 和 `EBITDA 利润率`
+- 首次冷启动常见会比价格筛选慢，因为每支股票需要拉 `profile + 三张财报表`
+- 财报更新频率比行情低，所以重复扫描通常会更快
+- 全量美股候选池会按市值从高到低固定排序后写入本地缓存；后续默认直接复用缓存，只有手动刷新/重建缓存时才会重排
+
+### 3.2 统一 AI 解读区（DeepSeek v4）
+
+桌面端右侧现已提供统一 `AI 解读` 区，不再只绑定财报页。
+
+配置入口在桌面端 `配置` 页，可设置：
+
+- `DeepSeek API Key`
+- `DeepSeek Base URL`，默认 `https://api.deepseek.com`
+- 模型：`deepseek-v4-flash` / `deepseek-v4-pro`
+- 是否开启思考模式
+- 思考强度：`high` / `max`
+
+当前已支持从这几个入口触发：
+
+- 财报结果
+- 筛选结果
+- 规则卡片
+
+当前调用方式使用 DeepSeek 的 OpenAI 兼容 `chat/completions`，AI 只负责解释结构化结果与规则配置，不直接替代筛选是否通过。
+
+### 4. 打包 Windows 安装包
+
+支持环境：
+
+- 原生 Windows：`dist:win` 与 `dist:win:zip` 都是默认支持入口
+- Linux / WSL：`dist:win` 需要先安装 `wine`，可先跑 `npm run dist:win:check-env`
+- Linux / WSL：`dist:win:zip` 当前不作为支持环境，请改在 Windows PowerShell / CMD 中执行
+
+在 `desktop/` 目录执行：
+
+```bash
+npm run dist:win:check-env
+npm run dist:win
+```
+
+或在仓库根目录执行：
+
+```bash
+npm run desktop:dist:win:check-env
+npm run desktop:dist:win
+```
+
+注意：
+
+- 在 Linux / WSL 下直接打 `nsis` 包需要 `wine`
+- 如果预检提示缺少 `wine`，请先补依赖，或切回 Windows 原生环境执行
+- 新入口会先输出环境原因和下一步建议，再决定是否继续调用 `electron-builder`
+
+### 5. 打包 Windows Zip
+
+```bash
+npm run dist:win:zip:check-env
+npm run dist:win:zip
+```
+
+或在仓库根目录执行：
+
+```bash
+npm run desktop:dist:win:zip:check-env
+npm run desktop:dist:win:zip
+```
+
+产物默认在：
+
+- `desktop/dist/`
+
+说明：
+
+- `dist:win:zip` 当前只验证原生 Windows 环境
+- 如果你在 Linux / WSL 下执行，这个入口会直接失败并提示改到 Windows PowerShell / CMD 中运行，避免继续进入误导性的 `electron-builder` 报错
+
+### 6. 直接复制到 F 盘
+
+如果你在 WSL 中开发，且 Windows 已挂载到 `/mnt/f`，可以直接执行：
+
+```bash
+npm run dist:win:zip:toF
+```
+
+该命令会：
+
+1. 先构建 Windows zip 包
+2. 再复制到 `F:\OpenStockAlerts\dist\`
+
+### 7. 桌面端本地数据文件
+
+桌面端会把本地数据保存到用户目录下，主要包括：
+
+- `config.json`
+- `rules.json`
+- `state.json`
+- `events.jsonl`
+- `universe_us_symbols.json`
+
+应用内“运行”区域会显示这些路径。
+
+如需强制使用自定义数据目录，可设置：
+
+```bash
+OPENSTOCK_USER_DATA_DIR=/your/path npm run dev
+```
+
+## Web 站点（保留链路 / 维护模式）
+
+这部分仅用于维护旧网站、兼容历史部署或排查旧链路问题。  
+如果你是在做日常开发或新增提醒功能，请优先回到 `desktop/`。
 
 ### 本地启动开发环境
 
@@ -171,11 +405,16 @@ npm run test:db
 
 ```bash
 npm run lint
+npm run lint:desktop-boundaries
 ```
 
-## 命令行提醒脚本
+`desktop` 当前只允许引用 `desktop/` 内部模块，或后续显式沉淀到 `shared/`、`packages/shared/` 的共享能力。
+检查脚本会直接拦截 `desktop` 对根级 `app/`、`components/`、`lib/actions/`、`scripts/` 的 import，并把其他未声明共享边界的跨目录引用也视为失败。
+
+## 命令行提醒脚本（保留链路 / 维护模式）
 
 这部分适合“不需要前端界面，只要自动运行提醒”的场景。
+如果你是在做新的提醒交互、配置流或默认能力设计，默认应先在桌面端实现，而不是继续把能力放进旧 worker。
 
 ### 1. 先写入一条规则
 
@@ -207,13 +446,13 @@ npm run alerts:worker
 ### 4. 直接用原始命令
 
 ```bash
-node scripts/alerts-worker.mjs --once
-node scripts/alerts-worker.mjs --once --dry-run
+node scripts/legacy-cli/alerts-worker.mjs --once
+node scripts/legacy-cli/alerts-worker.mjs --once --dry-run
 ```
 
 ### 5. 脚本依赖的环境变量
 
-`scripts/alerts-worker.mjs` 主要依赖：
+`scripts/legacy-cli/alerts-worker.mjs` 主要依赖：
 
 - `MONGODB_URI`
 - `MONGODB_DB`
@@ -298,143 +537,33 @@ npm run fmp:financial:test -- --min-revenue-growth-yoy=20 --min-gross-margin=45
 - 更适合先在终端里验证财报筛选逻辑，再决定是否放大到桌面端批量扫描
 - 若你只想验证当前默认价格规则，请继续使用 `npm run fmp:test`
 
-## 桌面端
+## 常用命令速查
 
-当前推荐优先使用桌面端进行配置和验证。
-
-### 1. 启动桌面端开发版
+### 桌面端目录（主力链路）
 
 ```bash
 cd desktop
 npm install
+npm run dist:win:check-env
 npm run dev
-```
-
-### 2. 桌面端首次使用建议顺序
-
-启动后建议按这个顺序操作：
-
-1. 进入 `配置`
-2. 选择数据源
-3. 填写 `FMP API Key` 或 `Finnhub API Key`
-4. 填写默认收件人和 Gmail 配置
-5. 保存配置
-6. 进入 `规则`
-7. 点击 `添加规则`
-8. 先用默认规则验证
-9. 进入 `运行`
-10. 先点 `模拟运行一次`
-
-### 3. 默认规则
-
-当前桌面端默认重点支持这条规则：
-
-- 最近一个成交日收盘市值超过 `100 亿美元`
-- 最近一个成交日成交额超过 `5 亿美元`
-- `5` 个交易日内股价创历史新高
-
-### 3.1 财报筛选（Premium）
-
-桌面端新增了 `财报` 页，专门对应 FMP `Premium` 套餐可拿到的完整 fundamentals。
-
-当前支持：
-
-- 最近季度营收同比下限
-- 最近季度毛利率下限
-- 最近季度 EBITDA 利润率下限
-- 最近季度 EBITDA 同比下限
-- 最近季度经营利润率下限
-- 经营现金流必须为正
-- 自由现金流必须为正
-- 负债权益比上限
-
-推荐使用顺序：
-
-1. 在 `配置` 页填好 `FMP API Key`
-2. 进入 `财报` 页，先点 `套用成长财报模板`
-3. 先把扫描数量控制在 `50-100`
-4. 点击 `运行财报筛选`
-5. 如果命中结果合理，再点 `将结果加入提醒池`
-
-提示：
-
-- 财报筛选当前只走 `FMP`，不依赖 `Finnhub`
-- 结果表会同时展示最近季度 `EBITDA`、`EBITDA 同比` 和 `EBITDA 利润率`
-- 首次冷启动常见会比价格筛选慢，因为每支股票需要拉 `profile + 三张财报表`
-- 财报更新频率比行情低，所以重复扫描通常会更快
-- 全量美股候选池会按市值从高到低固定排序后写入本地缓存；后续默认直接复用缓存，只有手动刷新/重建缓存时才会重排
-
-### 3.2 财报 AI 解读（DeepSeek v4）
-
-桌面端当前已把财报结果的 `AI 解读` 接到 `DeepSeek v4`。
-
-配置入口在桌面端 `配置` 页，可设置：
-
-- `DeepSeek API Key`
-- `DeepSeek Base URL`，默认 `https://api.deepseek.com`
-- 模型：`deepseek-v4-flash` / `deepseek-v4-pro`
-- 是否开启思考模式
-- 思考强度：`high` / `max`
-
-当前调用方式使用 DeepSeek 的 OpenAI 兼容 `chat/completions`，AI 只负责解释财报命中结果，不参与筛选是否通过。
-
-### 4. 打包 Windows 安装包
-
-在 `desktop/` 目录执行：
-
-```bash
 npm run dist:win
-```
-
-注意：
-
-- 在 Linux / WSL 下直接打 `nsis` 包通常需要 `wine`
-- 如果你只是要一个可解压运行的 Windows 包，更推荐用 zip 方案
-
-### 5. 打包 Windows Zip
-
-```bash
+npm run dist:win:zip:check-env
 npm run dist:win:zip
-```
-
-产物默认在：
-
-- `desktop/dist/`
-
-### 6. 直接复制到 F 盘
-
-如果你在 WSL 中开发，且 Windows 已挂载到 `/mnt/f`，可以直接执行：
-
-```bash
 npm run dist:win:zip:toF
 ```
 
-该命令会：
-
-1. 先构建 Windows zip 包
-2. 再复制到 `F:\OpenStockAlerts\dist\`
-
-### 7. 桌面端本地数据文件
-
-桌面端会把本地数据保存到用户目录下，主要包括：
-
-- `config.json`
-- `rules.json`
-- `state.json`
-- `events.jsonl`
-- `universe_us_symbols.json`
-
-应用内“运行”区域会显示这些路径。
-
-如需强制使用自定义数据目录，可设置：
+### 仓库根目录（桌面端快捷入口）
 
 ```bash
-OPENSTOCK_USER_DATA_DIR=/your/path npm run dev
+npm run desktop:dev
+npm run desktop:dist:win:check-env
+npm run desktop:dist:win
+npm run desktop:dist:win:zip:check-env
+npm run desktop:dist:win:zip
+npm run desktop:check-boundaries
 ```
 
-## 常用命令速查
-
-### 根目录
+### 根目录（Web/CLI 保留链路，仅维护）
 
 ```bash
 npm install
@@ -446,17 +575,6 @@ npm run test:db
 npm run alerts:seed -- --rule '<json>'
 npm run alerts:worker:dry
 npm run alerts:worker
-```
-
-### 桌面端目录
-
-```bash
-cd desktop
-npm install
-npm run dev
-npm run dist:win
-npm run dist:win:zip
-npm run dist:win:zip:toF
 ```
 
 ## 常见问题
@@ -492,8 +610,25 @@ npm run dist:win:zip:toF
 
 ### 4. Linux / WSL 打 Windows 包失败
 
-如果报 `wine is required`，说明当前不能直接打 `nsis`。  
-此时优先改用：
+先执行预检：
+
+```bash
+npm run dist:win:check-env
+npm run dist:win:zip:check-env
+```
+
+常见情况：
+
+- `dist:win` 提示缺少 `wine`：安装 `wine` / `wine64` 后再试，或改到 Windows 原生环境
+- `dist:win:zip` 提示当前环境不支持：请直接切到 Windows PowerShell / CMD 执行
+
+如果你已经补齐 `wine`，再执行：
+
+```bash
+npm run dist:win
+```
+
+如果你要打 zip 包，请改在 Windows 环境执行：
 
 ```bash
 npm run dist:win:zip
@@ -519,7 +654,7 @@ npm run dist:win:zip
 ## 开发建议
 
 - 做桌面端改动时，优先验证 `desktop/renderer/index.html`、`desktop/renderer/renderer.mjs`、`desktop/renderer/styles.css`
-- 做提醒逻辑改动时，优先验证 `desktop/engine.mjs` 与 `scripts/alerts-worker.mjs`
+- 做提醒逻辑改动时，优先验证 `desktop/engine.mjs` 与 `scripts/legacy-cli/alerts-worker.mjs`
 - 推送 GitHub 前，避免把 `desktop/node_modules`、`desktop/dist` 一并提交
 
 ## 许可证

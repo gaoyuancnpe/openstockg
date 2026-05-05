@@ -14,8 +14,9 @@
         <div class="sub">本地运行 · 规则驱动 · 邮件/回调通知</div>
       </header>
 
-      <main class="grid">
-        <section class="card">
+      <main class="workspace">
+        <section class="mainColumn">
+          <section class="card">
           <div class="tabs">
             <button id="tabRules" class="tab active">规则</button>
             <button id="tabScreener" class="tab">筛选</button>
@@ -165,14 +166,10 @@
               <button id="btnApplyFinancialPreset">套用成长财报模板</button>
               <button id="btnRunFinancialScreener" class="primary">运行财报筛选</button>
               <button id="btnFinancialAddToPool">将结果加入提醒池</button>
-              <button id="btnClearFinancialAi">清空AI解读</button>
             </div>
             <div id="financialEstimate" class="meta"></div>
             <div id="financialSummary" class="hint"></div>
             <div id="financialTable" class="tableWrap"></div>
-            <div class="hint">AI 解读只负责解释命中结果，不替代筛选规则。当前使用 DeepSeek v4 的 OpenAI 兼容接口。</div>
-            <div id="financialAiStatus" class="meta"></div>
-            <pre id="financialAiOutput"></pre>
           </div>
 
           <div id="panelSchedule" class="panel">
@@ -282,48 +279,62 @@
               <button id="btnLoadConfig2">重新加载</button>
             </div>
           </div>
+          </section>
+
+          <section class="card">
+            <div class="cardTitle">日志</div>
+            <pre id="log"></pre>
+          </section>
+
+          <section class="card">
+            <div class="cardTitle">版权与许可证</div>
+            <div class="hint">
+              本程序按 AGPL-3.0-or-later 分发，基于上游 OpenStock 项目继续修改。本程序按现状提供，不提供任何明示或暗示担保。
+            </div>
+            <div class="hint">
+              如你继续分发、修改或通过网络对外提供相关版本，请同时保留许可证、来源说明，并提供对应源码获取方式。
+            </div>
+            <div class="actions">
+              <button id="btnOpenSourceRepo">打开当前源码仓库</button>
+              <button id="btnOpenUpstreamRepo">打开上游仓库</button>
+              <button id="btnOpenLicenseUrl">查看 AGPL 许可证</button>
+            </div>
+            <div id="legalSummary" class="meta"></div>
+            <details class="meta">
+              <summary>查看本地版权说明</summary>
+              <pre id="legalNoticeText"></pre>
+            </details>
+          </section>
         </section>
 
-        <section class="card">
-          <div class="cardTitle">运行</div>
-          <div class="hint">开发联调建议直接运行开发版，而不是每次重新打包。后端日志会同时输出到本窗口和启动终端。</div>
-          <div class="actions">
-            <button id="btnDryRunOnce">模拟运行一次</button>
-            <button id="btnRunOnce" class="primary">真实跑一次</button>
-          </div>
-          <div class="actions">
-            <button id="btnStart" class="primary">启动常驻</button>
-            <button id="btnStop">停止</button>
-            <button id="btnResetTestData">重置测试数据</button>
-          </div>
-          <div class="meta" id="devModeInfo"></div>
-          <div class="meta" id="paths"></div>
-        </section>
+        <aside class="sideColumn">
+          <section class="card aiWorkspaceCard">
+          <div class="cardTitle">AI 工作区</div>
+          <div class="hint">右侧统一承接聊天解读与结构化生成。`AI聊天` 用于解释，`生成模板/生成草案` 仅在你明确需要时请求结构化结果。</div>
+            <div id="aiPanelMeta" class="meta">暂未选择解读对象。</div>
+            <div id="aiPanelStatus" class="meta"></div>
+            <div class="actions">
+              <button id="btnClearAiPanel">清空AI解读</button>
+            </div>
+            <pre id="aiPanelOutput"></pre>
+          </section>
 
-        <section class="card">
-          <div class="cardTitle">日志</div>
-          <pre id="log"></pre>
-        </section>
-
-        <section class="card">
-          <div class="cardTitle">版权与许可证</div>
-          <div class="hint">
-            本程序按 AGPL-3.0-or-later 分发，基于上游 OpenStock 项目继续修改。本程序按现状提供，不提供任何明示或暗示担保。
-          </div>
-          <div class="hint">
-            如你继续分发、修改或通过网络对外提供相关版本，请同时保留许可证、来源说明，并提供对应源码获取方式。
-          </div>
-          <div class="actions">
-            <button id="btnOpenSourceRepo">打开当前源码仓库</button>
-            <button id="btnOpenUpstreamRepo">打开上游仓库</button>
-            <button id="btnOpenLicenseUrl">查看 AGPL 许可证</button>
-          </div>
-          <div id="legalSummary" class="meta"></div>
-          <details class="meta">
-            <summary>查看本地版权说明</summary>
-            <pre id="legalNoticeText"></pre>
-          </details>
-        </section>
+          <section class="card">
+            <div class="cardTitle">运行</div>
+            <div class="hint">开发联调建议直接运行开发版，而不是每次重新打包。后端日志会同时输出到本窗口和启动终端。</div>
+            <div class="actions">
+              <button id="btnDryRunOnce">模拟运行一次</button>
+              <button id="btnRunOnce" class="primary">真实跑一次</button>
+            </div>
+            <div class="actions">
+              <button id="btnStart" class="primary">启动常驻</button>
+              <button id="btnStop">停止</button>
+              <button id="btnResetTestData">重置测试数据</button>
+            </div>
+            <div class="meta" id="devModeInfo"></div>
+            <div class="meta" id="paths"></div>
+          </section>
+        </aside>
 
         <section id="modal" class="modal hidden">
           <div class="modalCard">
