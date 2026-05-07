@@ -1,8 +1,8 @@
 import { normalizeHttpBaseUrl, toNumber } from "../shared-runtime.mjs";
 import { chunk, appendJsonLine } from "./shared.mjs";
 import { computeIndicators, buildEvalContext, quoteToEvalContext } from "./indicator-domain.mjs";
-import { computeFmpDefaultStats, loadFmpDefaultUniverse, loadUniverseUS } from "./fmp-domain.mjs";
-import { buildTransport, notifyAlert } from "./notification-domain.mjs";
+import { computeFmpRuleStats, loadFmpDefaultUniverse, loadUniverseUS } from "./fmp-domain.mjs";
+import { buildTransport, flushQueuedRuleEmail, notifyAlert } from "./notification-domain.mjs";
 import {
   buildRuleKey,
   fireRuleAlert,
@@ -24,6 +24,15 @@ export function createAlertsRunner({
 
   const appendEventLine = async (event) => appendJsonLine(dataPaths.events, event);
 
+  function describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookUrl }) {
+    const emailTarget = String(rule?.notify?.email || defaultEmailTo || "");
+    const webhookTarget = String(rule?.notify?.webhookUrl || defaultWebhookUrl || "");
+    const parts = [];
+    if (emailTarget) parts.push(`邮件=${emailTarget}`);
+    if (webhookTarget) parts.push(`回调=${webhookTarget}`);
+    return parts.length > 0 ? parts.join("，") : "无通知目标";
+  }
+
   async function runFmpRule({
     rule,
     universe,
@@ -41,6 +50,8 @@ export function createAlertsRunner({
     const ruleKey = buildRuleKey(rule);
     const ruleCooldownSec = Number.parseInt(String(rule.cooldownSec || ""), 10);
     const cooldownSec = Number.isFinite(ruleCooldownSec) ? ruleCooldownSec : 900;
+    let firedCount = 0;
+    const queuedEmailNotifications = [];
 
     let fmpRows = [];
     if (useUniverse) {
@@ -70,7 +81,7 @@ export function createAlertsRunner({
       const batchResults = await Promise.all(rowsBatch.map(async (row) => {
         const symbol = String(row?.symbol || "").toUpperCase();
         if (!symbol) return null;
-        const stats = await computeFmpDefaultStats({ baseUrl: fmpBaseUrl, apiKey: fmpApiKey, symbol, state }).catch((error) => {
+        const stats = await computeFmpRuleStats({ baseUrl: fmpBaseUrl, apiKey: fmpApiKey, symbol, state }).catch((error) => {
           log(`FMP error ${symbol} ${error instanceof Error ? error.message : String(error)}`);
           return null;
         });
@@ -93,15 +104,33 @@ export function createAlertsRunner({
           marketCap: stats.marketCap ?? toNumber(row?.marketCap),
           turnoverM: stats.turnoverM,
           recent5dCloseAth: stats.recent5dCloseAth,
+          closeAth250d: stats.closeAth250d,
+          closeChangePercent1d: stats.closeChangePercent1d,
+          earningsWithin1TradingDay: stats.earningsWithin1TradingDay,
+          revenueGrowthYoY: stats.revenueGrowthYoY,
+          revenueGrowthYoYPrevQuarter: stats.revenueGrowthYoYPrevQuarter,
+          revenueGrowthYoYDeltaVsPrevQuarter: stats.revenueGrowthYoYDeltaVsPrevQuarter,
+          grossMargin: stats.grossMargin,
+          grossMarginYoYDelta: stats.grossMarginYoYDelta,
+          grossMarginQoQDelta: stats.grossMarginQoQDelta,
+          ebitda: stats.ebitda,
+          ebitdaM: stats.ebitdaM,
+          ebitdaGrowthYoY: stats.ebitdaGrowthYoY,
+          operatingIncome: stats.operatingIncome,
+          operatingIncomeGrowthYoY: stats.operatingIncomeGrowthYoY,
+          netIncome: stats.netIncome,
+          netIncomeGrowthYoY: stats.netIncomeGrowthYoY,
           changePercent: null,
           change: null,
           prevClose: null,
           open: null,
           high: null,
-          low: null
+          low: null,
+          fieldMeta: stats.fieldMeta || {},
+          missingFields: Array.isArray(stats.missingFields) ? stats.missingFields : []
         };
 
-        await fireRuleAlert({
+        const fired = await fireRuleAlert({
           rule,
           symbol,
           ctx,
@@ -117,13 +146,28 @@ export function createAlertsRunner({
             ...payload,
             notifyEmailTo,
             notifyWebhookUrl,
+            queuedEmailNotifications,
             transport,
             fromUser,
             log
           })
         });
+        if (fired) firedCount += 1;
       }
     }
+
+    await flushQueuedRuleEmail({
+      rule,
+      conditionText,
+      entries: queuedEmailNotifications,
+      notifyEmailTo,
+      transport,
+      fromUser,
+      log
+    });
+
+    log(`规则 ${ruleName}：本轮扫描 ${fmpRows.length} 支，命中 ${firedCount} 次，通知=${describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookUrl })}`);
+    return { scannedCount: fmpRows.length, firedCount };
   }
 
   async function runFinnhubRule({
@@ -143,6 +187,8 @@ export function createAlertsRunner({
     const ruleKey = buildRuleKey(rule);
     const ruleCooldownSec = Number.parseInt(String(rule.cooldownSec || ""), 10);
     const cooldownSec = Number.isFinite(ruleCooldownSec) ? ruleCooldownSec : 900;
+    let firedCount = 0;
+    const queuedEmailNotifications = [];
 
     let symbols = manualSymbols;
     if (useUniverse) {
@@ -208,7 +254,7 @@ export function createAlertsRunner({
 
           const indicators = await computeIndicators({ baseUrl: finnhubBaseUrl, apiKey: finnhubApiKey, symbol, condition: rule.condition, state });
           const ctx = quoteToEvalContext({ symbol, quote, extra: { ...extra, ...indicators } });
-          await fireRuleAlert({
+          const fired = await fireRuleAlert({
             rule,
             symbol,
             ctx,
@@ -224,17 +270,19 @@ export function createAlertsRunner({
               ...payload,
               notifyEmailTo,
               notifyWebhookUrl,
+              queuedEmailNotifications,
               transport,
               fromUser,
               log
             })
           });
+          if (fired) firedCount += 1;
           continue;
         }
 
         const indicators = await computeIndicators({ baseUrl: finnhubBaseUrl, apiKey: finnhubApiKey, symbol, condition: rule.condition, state });
         const ctx = buildEvalContext({ symbol, quote, indicators });
-        await fireRuleAlert({
+        const fired = await fireRuleAlert({
           rule,
           symbol,
           ctx,
@@ -250,13 +298,28 @@ export function createAlertsRunner({
             ...payload,
             notifyEmailTo,
             notifyWebhookUrl,
+            queuedEmailNotifications,
             transport,
             fromUser,
             log
           })
         });
+        if (fired) firedCount += 1;
       }
     }
+
+    await flushQueuedRuleEmail({
+      rule,
+      conditionText,
+      entries: queuedEmailNotifications,
+      notifyEmailTo,
+      transport,
+      fromUser,
+      log
+    });
+
+    log(`规则 ${ruleName}：本轮扫描 ${symbols.length} 支，命中 ${firedCount} 次，通知=${describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookUrl })}`);
+    return { scannedCount: symbols.length, firedCount };
   }
 
   async function tick({ dryRun }) {
@@ -271,6 +334,9 @@ export function createAlertsRunner({
       const rules = (await loadRules()).filter((rule) => rule && rule.enabled);
       const state = await loadState();
       log(`本轮启用规则 ${rules.length} 条，数据源=${String(cfg.dataProvider || "finnhub").toUpperCase()}`);
+      if (rules.length === 0) {
+        log("没有启用规则：请先在规则页至少保存一条“启用”规则");
+      }
 
       const runtime = {
         dataProvider: String(cfg.dataProvider || "finnhub").toLowerCase(),
@@ -288,6 +354,7 @@ export function createAlertsRunner({
         const universe = rule.universe || { type: "manual" };
         const manualSymbols = Array.isArray(rule.symbols) ? rule.symbols.map((symbol) => String(symbol).toUpperCase()).filter(Boolean) : [];
         const useUniverse = String(universe.type || "manual") === "us_all";
+        log(`开始检查规则：${rule.name || "未命名规则"}（范围=${useUniverse ? "全量美股" : `${manualSymbols.length} 个手动标的`}）`);
 
         if (runtime.dataProvider === "fmp") {
           if (!isFmpDefaultRuleCompatible(rule)) {
@@ -313,4 +380,3 @@ export function createAlertsRunner({
 
   return { tick };
 }
-

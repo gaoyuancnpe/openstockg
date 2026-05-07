@@ -45,6 +45,7 @@ export async function fmpIncomeStatements({ baseUrl, apiKey, symbol, period, lim
     .map((row) => ({
       date: String(row?.date || ""),
       filingDate: String(row?.filingDate || ""),
+      acceptedDate: String(row?.acceptedDate || ""),
       revenue: toNumber(row?.revenue),
       grossProfit: toNumber(row?.grossProfit),
       ebitda: toNumber(row?.ebitda),
@@ -164,4 +165,3 @@ export async function finnhubUSSymbols({ baseUrl, apiKey }) {
   }
   return Array.from(new Set(symbols));
 }
-
