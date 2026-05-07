@@ -77,6 +77,7 @@ export function createWorkspaceBindingsController({
   openRuleModal,
   closeRuleModal,
   saveRuleFromModal,
+  handleRuleTemplateChange,
   addCondition,
   renderRulesList,
   syncAdvancedJSON,
@@ -267,6 +268,9 @@ export function createWorkspaceBindingsController({
     el.finUniverse.addEventListener("change", updateFinancialUI);
     el.finMaxScan.addEventListener("input", updateFinancialEstimate);
     el.ruleUniverse.addEventListener("change", updateUniverseUI);
+    if (el.ruleTemplate) {
+      el.ruleTemplate.addEventListener("change", handleRuleTemplateChange);
+    }
     el.btnAddCondition.addEventListener("click", addCondition);
   }
 
@@ -338,7 +342,7 @@ export function createWorkspaceBindingsController({
       state.rules = buildTemplateRules();
       syncAdvancedJSON();
       renderRulesList();
-      appendLog("已插入模板规则（未自动保存）");
+      appendLog(`已插入 ${state.rules.length} 条模板规则（未自动保存）`);
     });
 
     el.btnSaveRulesFromJson.addEventListener("click", saveRulesFromJsonEditor);

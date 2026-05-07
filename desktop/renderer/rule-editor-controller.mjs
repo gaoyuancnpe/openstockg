@@ -1,9 +1,11 @@
 import {
   CONDITION_TYPE_OPTIONS,
   buildFmpDefaultRuleSeed,
+  buildRuleSeedFromTemplate,
   conditionFromUI,
   conditionTypeNeedsValue,
   defaultConditionItem,
+  getRuleTemplatePresentation,
   uiGroupFromConditionTree,
   usesFmpRuleFields
 } from "./rule-condition-mapper.mjs";
@@ -22,9 +24,24 @@ export function createRuleEditorController({
   parseSymbols,
   getIsFmpProvider,
   updateUniverseUI,
+  appendLog,
   syncAdvancedJSON,
   renderRulesList
 }) {
+  function syncTemplateHints(rule) {
+    const presentation = getRuleTemplatePresentation(rule);
+    state.modalTemplateKey = presentation.templateKey;
+    if (el.ruleTemplate) {
+      el.ruleTemplate.value = presentation.templateKey;
+    }
+    if (el.rulePresetHint) {
+      el.rulePresetHint.textContent = presentation.presetHint;
+    }
+    if (el.ruleFieldHint) {
+      el.ruleFieldHint.textContent = presentation.fieldHint;
+    }
+  }
+
   function ensureModalConditions() {
     if (!Array.isArray(state.modalConditions) || state.modalConditions.length === 0) {
       state.modalConditions = [getFallbackConditionItem(getIsFmpProvider)];
@@ -88,6 +105,7 @@ export function createRuleEditorController({
     const fallbackSeed = indexOrNull === null ? buildFmpDefaultRuleSeed() : null;
     const rule = seed || (indexOrNull !== null ? state.rules[indexOrNull] : null) || fallbackSeed;
     state.modalForceFmp = usesFmpRuleFields(rule);
+    syncTemplateHints(rule);
 
     el.modalTitle.textContent = indexOrNull === null ? "添加规则" : "编辑规则";
     el.ruleEnabled.value = rule ? String(Boolean(rule.enabled)) : "true";
@@ -120,10 +138,35 @@ export function createRuleEditorController({
     el.modal.classList.remove("hidden");
   }
 
+  function applyTemplateToModal(templateKey) {
+    const nextSeed = buildRuleSeedFromTemplate(templateKey);
+    openRuleModal(state.editingIndex, nextSeed);
+  }
+
+  function handleRuleTemplateChange() {
+    if (!el.ruleTemplate) return;
+    const nextTemplateKey = String(el.ruleTemplate.value || "custom");
+    if (nextTemplateKey === state.modalTemplateKey) return;
+
+    if (nextTemplateKey === "custom") {
+      state.modalTemplateKey = "custom";
+      syncTemplateHints({ templateKey: "custom" });
+      return;
+    }
+
+    if (state.modalConditions.length > 0 && !window.confirm("切换模板会重置当前规则条件和默认阈值，是否继续？")) {
+      el.ruleTemplate.value = state.modalTemplateKey || "custom";
+      return;
+    }
+
+    applyTemplateToModal(nextTemplateKey);
+  }
+
   function closeRuleModal() {
     el.modal.classList.add("hidden");
     state.editingIndex = null;
     state.modalForceFmp = false;
+    state.modalTemplateKey = "custom";
     state.modalConditions = [];
   }
 
@@ -132,7 +175,7 @@ export function createRuleEditorController({
     renderModalConditions();
   }
 
-  function saveRuleFromModal() {
+  async function saveRuleFromModal() {
     const enabled = el.ruleEnabled.value === "true";
     const name = String(el.ruleName.value || "").trim() || "未命名规则";
     const universeType = String(el.ruleUniverse.value || "manual");
@@ -141,6 +184,7 @@ export function createRuleEditorController({
     const cooldownSec = Number.parseInt(String(el.ruleCooldownSec.value || "0"), 10);
     const notifyEmail = String(el.ruleEmailTo.value || "").trim();
     const notifyWebhook = String(el.ruleWebhookUrl.value || "").trim();
+    const templateKey = String(state.modalTemplateKey || "custom");
 
     if (universeType === "manual" && symbols.length === 0) {
       alert("请至少填写一个股票代码，或将标的范围切换为“全量美股（按市值从高到低，固定前N）”");
@@ -181,6 +225,7 @@ export function createRuleEditorController({
       }
       : { type: "manual" };
     const next = {
+      ...(templateKey !== "custom" ? { templateKey } : {}),
       enabled,
       name,
       symbols,
@@ -197,15 +242,26 @@ export function createRuleEditorController({
     if (state.editingIndex === null) state.rules.unshift(next);
     else state.rules[state.editingIndex] = next;
 
-    syncAdvancedJSON();
-    renderRulesList();
-    closeRuleModal();
-    return true;
+    try {
+      await window.api.saveRules(state.rules);
+      syncAdvancedJSON();
+      renderRulesList();
+      closeRuleModal();
+      if (typeof appendLog === "function") appendLog("规则已保存");
+      return true;
+    } catch (error) {
+      if (typeof appendLog === "function") {
+        appendLog(`规则保存失败：${error instanceof Error ? error.message : String(error)}`);
+      }
+      alert(`规则保存失败：${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
   }
 
   return {
     addCondition,
     closeRuleModal,
+    handleRuleTemplateChange,
     openRuleModal,
     renderModalConditions,
     saveRuleFromModal

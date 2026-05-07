@@ -4,7 +4,7 @@ import { parseSymbols } from "./common.mjs";
 import { createConfigController } from "./config-controller.mjs";
 import { createRendererBootstrapController } from "./renderer-bootstrap-controller.mjs";
 import { createResultsController } from "./results-controller.mjs";
-import { buildFmpDefaultRuleSeed } from "./rule-condition-mapper.mjs";
+import { buildTemplateRules } from "./rule-condition-mapper.mjs";
 import { createRuleEditorController } from "./rule-editor-controller.mjs";
 import { createRulesListController } from "./rules-list-controller.mjs";
 import { createRunController } from "./run-controller.mjs";
@@ -130,6 +130,7 @@ const el = {
   modal: $("modal"),
   modalTitle: $("modalTitle"),
   rulePresetHint: $("rulePresetHint"),
+  ruleTemplate: $("ruleTemplate"),
   ruleEnabled: $("ruleEnabled"),
   ruleName: $("ruleName"),
   ruleUniverse: $("ruleUniverse"),
@@ -150,6 +151,7 @@ const el = {
   ruleGroupOp: $("ruleGroupOp"),
   btnAddCondition: $("btnAddCondition"),
   conditionsList: $("conditionsList"),
+  ruleFieldHint: $("ruleFieldHint"),
   ruleCooldownSec: $("ruleCooldownSec"),
   ruleEmailTo: $("ruleEmailTo"),
   ruleWebhookUrl: $("ruleWebhookUrl"),
@@ -166,6 +168,7 @@ const state = {
   aiPanelResult: null,
   aiPanelBusy: false,
   modalForceFmp: false,
+  modalTemplateKey: "custom",
   editingIndex: null,
   modalConditions: [],
   runBusy: false
@@ -208,10 +211,6 @@ function syncAdvancedJSON() {
   el.rulesJson.value = JSON.stringify(state.rules, null, 2);
 }
 
-function buildTemplateRules() {
-  return [buildFmpDefaultRuleSeed()];
-}
-
 let renderRulesList = () => {};
 let renderScreenerTable = () => {};
 let renderFinancialTable = () => {};
@@ -243,15 +242,17 @@ const {
 const { runOnce, start, stop } = createRunController({
   el,
   state,
-  appendLog
+  appendLog,
+  getConfigFromInputs
 });
 
-const { addCondition, closeRuleModal, openRuleModal, saveRuleFromModal } = createRuleEditorController({
+const { addCondition, closeRuleModal, handleRuleTemplateChange, openRuleModal, saveRuleFromModal } = createRuleEditorController({
   el,
   state,
   parseSymbols,
   getIsFmpProvider,
   updateUniverseUI,
+  appendLog,
   syncAdvancedJSON,
   renderRulesList: () => renderRulesList()
 });
@@ -284,6 +285,7 @@ renderFinancialTable = resultsController.renderFinancialTable;
 const rulesListController = createRulesListController({
   el,
   state,
+  appendLog,
   syncAdvancedJSON,
   openRuleModal,
   explainAiTarget,
@@ -322,6 +324,7 @@ const { bind } = createWorkspaceBindingsController({
   openRuleModal,
   closeRuleModal,
   saveRuleFromModal,
+  handleRuleTemplateChange,
   addCondition,
   renderRulesList,
   syncAdvancedJSON,
@@ -335,7 +338,13 @@ const { bind } = createWorkspaceBindingsController({
   loadAll
 });
 
-bindRuntimeStreams({ appendLog });
 bind();
 showTab("rules");
+
+try {
+  bindRuntimeStreams({ appendLog });
+} catch (error) {
+  appendLog(`运行时事件订阅失败：${error instanceof Error ? error.message : String(error)}`);
+}
+
 loadAll().catch((error) => appendLog(error instanceof Error ? error.message : String(error)));

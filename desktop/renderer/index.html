@@ -27,7 +27,7 @@
 
           <div id="panelRules" class="panel active">
             <div class="cardTitle">常用提醒规则</div>
-            <div class="hint">面向美股：输入股票代码（如 AAPL、MSFT）。点击“添加规则”选择常见条件，系统会自动生成规则。</div>
+            <div class="hint">面向美股：点击“添加规则”可直接选择“创新高”“财报日大涨”“财报异动提醒”等模板，再按需调整标的范围、阈值和通知方式。</div>
             <div class="actions">
               <button id="btnAddRule" class="primary">添加规则</button>
               <button id="btnSaveRules">保存全部规则</button>
@@ -287,6 +287,22 @@
           </section>
 
           <section class="card">
+            <div class="cardTitle">运行</div>
+            <div class="hint">开发联调建议直接运行开发版，而不是每次重新打包。后端日志会同时输出到本窗口和启动终端。</div>
+            <div class="actions">
+              <button id="btnDryRunOnce">模拟运行一次</button>
+              <button id="btnRunOnce" class="primary">真实跑一次</button>
+            </div>
+            <div class="actions">
+              <button id="btnStart" class="primary">启动常驻</button>
+              <button id="btnStop">停止</button>
+              <button id="btnResetTestData">重置测试数据</button>
+            </div>
+            <div class="meta" id="devModeInfo"></div>
+            <div class="meta" id="paths"></div>
+          </section>
+
+          <section class="card">
             <div class="cardTitle">版权与许可证</div>
             <div class="hint">
               本程序按 AGPL-3.0-or-later 分发，基于上游 OpenStock 项目继续修改。本程序按现状提供，不提供任何明示或暗示担保。
@@ -318,28 +334,21 @@
             </div>
             <pre id="aiPanelOutput"></pre>
           </section>
-
-          <section class="card">
-            <div class="cardTitle">运行</div>
-            <div class="hint">开发联调建议直接运行开发版，而不是每次重新打包。后端日志会同时输出到本窗口和启动终端。</div>
-            <div class="actions">
-              <button id="btnDryRunOnce">模拟运行一次</button>
-              <button id="btnRunOnce" class="primary">真实跑一次</button>
-            </div>
-            <div class="actions">
-              <button id="btnStart" class="primary">启动常驻</button>
-              <button id="btnStop">停止</button>
-              <button id="btnResetTestData">重置测试数据</button>
-            </div>
-            <div class="meta" id="devModeInfo"></div>
-            <div class="meta" id="paths"></div>
-          </section>
         </aside>
 
         <section id="modal" class="modal hidden">
           <div class="modalCard">
             <div class="modalTitle" id="modalTitle">规则编辑</div>
-            <div id="rulePresetHint" class="hint">默认模板：最近一个成交日收盘市值超过100亿美金、成交额超过5亿美金，5个交易日内股价创历史新高。</div>
+            <div id="rulePresetHint" class="hint">默认模板：250 个交易日收盘新高 + 成交额 >= 1 亿美元 + 收盘市值 >= 20 亿美元 + 当季收入增速 >= 15% + 当季 EBITDA > 2000 万美元 + 利润增速同比 >= 15%。</div>
+            <div class="row">
+              <label>模板</label>
+              <select id="ruleTemplate">
+                <option value="innovation_high">创新高</option>
+                <option value="earnings_day_surge">财报日大涨</option>
+                <option value="earnings_momentum_alert">财报异动提醒</option>
+                <option value="custom">自定义</option>
+              </select>
+            </div>
             <div class="row">
               <label>启用</label>
               <select id="ruleEnabled">
@@ -405,6 +414,7 @@
               </div>
               <div id="conditionsList" class="conditionsList"></div>
             </div>
+            <div id="ruleFieldHint" class="hint">说明：`利润增速同比` 使用 GAAP 净利润同比优先，缺失时按“营业利润同比 -> EBITDA 同比”回退；`经营展望改善（代理信号）` 会明确标记代理说明。</div>
             <div class="row">
               <label>冷却(秒)</label>
               <input id="ruleCooldownSec" type="number" min="0" step="1" />
