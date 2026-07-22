@@ -63,6 +63,12 @@ const groupedApi = {
   events: {
     onLog: subscribe("log"),
     onEvent: subscribe("event")
+  },
+  agent: {
+    handlePrompt: invoke("agent:handlePrompt"),
+    applyProposal: invoke("agent:applyProposal"),
+    rejectProposal: invoke("agent:rejectProposal"),
+    listProposals: invoke("agent:listProposals")
   }
 };
 

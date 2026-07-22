@@ -2,6 +2,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { ipcMain, shell } from "electron";
 import {
+  loadDesktopActionProposals,
   loadDesktopConfig,
   loadDesktopRules,
   readJSON,
@@ -192,6 +193,41 @@ function parseOptionalPlainObject(value) {
   return ensurePlainObject(value, "payload", { optional: true, fallback: {} });
 }
 
+function assertAgentService(agentService) {
+  if (!agentService || typeof agentService.handlePrompt !== "function") {
+    throw createIpcError(IPC_ERROR_CODE_INTERNAL, "agentService 未注册");
+  }
+}
+
+function parseAgentPromptPayload(payload) {
+  const value = ensurePlainObject(payload, "payload");
+  return {
+    prompt: ensureNonEmptyString(value.prompt, "prompt"),
+    actor: String(value.actor || ""),
+    attachments: Array.isArray(value.attachments) ? value.attachments : [],
+    source: String(value.source || "assistant")
+  };
+}
+
+function parseAgentProposalPayload(payload) {
+  const value = ensurePlainObject(payload, "payload");
+  return {
+    proposalId: ensureNonEmptyString(value.proposalId, "proposalId"),
+    token: String(value.token || ""),
+    actor: String(value.actor || ""),
+    source: String(value.source || "assistant")
+  };
+}
+
+function parseAgentRejectPayload(payload) {
+  const value = ensurePlainObject(payload, "payload");
+  return {
+    proposalId: ensureNonEmptyString(value.proposalId, "proposalId"),
+    actor: String(value.actor || ""),
+    source: String(value.source || "assistant")
+  };
+}
+
 export function registerDesktopIpc({
   desktopDir,
   engine,
@@ -201,7 +237,8 @@ export function registerDesktopIpc({
   log,
   sourceRepoUrl,
   upstreamRepoUrl,
-  licenseUrl
+  licenseUrl,
+  agentService
 }) {
   const usingCustomDataDir = Boolean(forcedUserDataDir);
   function getEngineSchedulerStatus() {
@@ -375,4 +412,21 @@ export function registerDesktopIpc({
     }
     return { ok: true };
   });
+
+  registerHandled("agent:handlePrompt", async (_evt, payload) => {
+    assertAgentService(agentService);
+    return agentService.handlePrompt(parseAgentPromptPayload(payload));
+  });
+
+  registerHandled("agent:applyProposal", async (_evt, payload) => {
+    assertAgentService(agentService);
+    return agentService.applyProposal(parseAgentProposalPayload(payload));
+  });
+
+  registerHandled("agent:rejectProposal", async (_evt, payload) => {
+    assertAgentService(agentService);
+    return agentService.rejectProposal(parseAgentRejectPayload(payload));
+  });
+
+  registerHandled("agent:listProposals", async () => loadDesktopActionProposals(paths));
 }

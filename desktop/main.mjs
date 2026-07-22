@@ -243,7 +243,8 @@ async function main() {
     log: publishLog,
     sourceRepoUrl: SOURCE_REPO_URL,
     upstreamRepoUrl: UPSTREAM_REPO_URL,
-    licenseUrl: LICENSE_URL
+    licenseUrl: LICENSE_URL,
+    agentService
   });
 
   const previousDiagnostics = await readJSON(paths.diagnostics, {});

@@ -59,6 +59,12 @@ const groupedApi = {
     openExternal: invoke("shell:openExternal"),
     openPath: invoke("shell:openPath")
   },
+  agent: {
+    handlePrompt: invoke("agent:handlePrompt"),
+    applyProposal: invoke("agent:applyProposal"),
+    rejectProposal: invoke("agent:rejectProposal"),
+    listProposals: invoke("agent:listProposals")
+  },
   events: {
     onLog: subscribe("log"),
     onEvent: subscribe("event")

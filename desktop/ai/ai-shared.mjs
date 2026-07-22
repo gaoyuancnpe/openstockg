@@ -32,6 +32,12 @@ export function normalizeAiRuntimeConfig(ai) {
   const provider = String(input.provider || "deepseek").trim().toLowerCase() || "deepseek";
   const thinkingEnabled = Boolean(input.thinkingEnabled);
   const reasoningEffort = normalizeReasoningEffort(input.reasoningEffort);
+  const inputOrchestration = input.orchestration && typeof input.orchestration === "object"
+    ? input.orchestration
+    : {};
+  const inputStructuredOutput = input.structuredOutput && typeof input.structuredOutput === "object"
+    ? input.structuredOutput
+    : {};
 
   return {
     provider,
@@ -44,13 +50,15 @@ export function normalizeAiRuntimeConfig(ai) {
       mode: "single_task",
       planner: "passthrough",
       maxSteps: 1,
-      fanOutEnabled: false
+      fanOutEnabled: false,
+      ...inputOrchestration
     },
     structuredOutput: {
       enabled: true,
       responseMode: "json_markdown",
       fallbackToText: true,
-      schemaVersion: STRUCTURED_OUTPUT_SCHEMA_VERSION
+      schemaVersion: STRUCTURED_OUTPUT_SCHEMA_VERSION,
+      ...inputStructuredOutput
     }
   };
 }

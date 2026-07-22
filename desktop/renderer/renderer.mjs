@@ -125,6 +125,8 @@ const el = {
   aiPanelIntentHint: $("aiPanelIntentHint"),
   aiPanelIntentActions: $("aiPanelIntentActions"),
   aiPanelMessages: $("aiPanelMessages"),
+  aiProposalList: $("aiProposalList"),
+  btnRefreshProposals: $("btnRefreshProposals"),
   aiPanelInput: $("aiPanelInput"),
   btnAiSend: $("btnAiSend"),
   btnAiBuild: $("btnAiBuild"),
@@ -350,6 +352,37 @@ function renderDiagnosticsSummary() {
     if (info.updatedAt) parts.push(`更新：${info.updatedAt}`);
     el.diagnosticsMeta.textContent = parts.join("\n");
   }
+}
+
+function renderProposalList(proposals) {
+  if (!el.aiProposalList) return;
+  if (!Array.isArray(proposals) || proposals.length === 0) {
+    el.aiProposalList.innerHTML = "<div>暂无 Proposal</div>";
+    return;
+  }
+  const escapeHtml = (value) => String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  el.aiProposalList.innerHTML = proposals.map((p) => {
+    const status = escapeHtml(p?.status || "unknown");
+    const id = escapeHtml(p?.id || "");
+    const expiresAt = p?.expiresAt ? escapeHtml(new Date(p.expiresAt).toLocaleString()) : "";
+    const intents = escapeHtml((Array.isArray(p?.intents) ? p.intents : []).map((i) => i?.target || "").join(", "));
+    return `<div style="padding:4px;border-bottom:1px solid #eee;"><span>[${status}] ${id}</span>${expiresAt ? `<span style="color:#888;"> | 过期：${expiresAt}</span>` : ""}${intents ? `<span style="color:#888;"> | 目标：${intents}</span>` : ""}</div>`;
+  }).join("");
+}
+
+function refreshProposalList() {
+  if (!window.api?.agent?.listProposals) return;
+  window.api.agent.listProposals()
+    .then((proposals) => renderProposalList(proposals))
+    .catch((err) => {
+      if (el.aiProposalList) {
+        el.aiProposalList.textContent = `加载失败：${err instanceof Error ? err.message : String(err)}`;
+      }
+    });
 }
 
 async function loadDiagnosticsSummary() {
@@ -767,6 +800,9 @@ async function bootstrapRenderer() {
   el.btnAiAttachFinancial?.addEventListener("click", () => {
     attachAiContextSnapshot("financial_results");
   });
+  el.btnRefreshProposals?.addEventListener("click", () => {
+    refreshProposalList();
+  });
 
   el.logFilterType?.addEventListener("change", renderLogEntries);
   el.logFilterRule?.addEventListener("change", renderLogEntries);
@@ -861,6 +897,16 @@ async function bootstrapRenderer() {
             updatedAt: new Date().toISOString()
           };
           renderDiagnosticsSummary();
+        } else if (evt?.type === "agent_proposal_status") {
+          const proposalId = evt?.proposalId || "";
+          const status = evt?.status || "unknown";
+          const changes = Array.isArray(evt?.changes) ? evt.changes.join("；") : "";
+          const detail = changes ? `${status}：${changes}` : status;
+          if (el.aiPanelStatus) {
+            el.aiPanelStatus.textContent = `[Proposal ${proposalId}] ${detail}`;
+          }
+          console.log("[agent_proposal_status]", evt);
+          refreshProposalList();
         }
       }
     });
@@ -870,6 +916,7 @@ async function bootstrapRenderer() {
 
   await loadAll();
   renderDiagnosticsSummary();
+  refreshProposalList();
 }
 
 window.addEventListener("error", (event) => {
