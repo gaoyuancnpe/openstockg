@@ -240,6 +240,7 @@ export function createWorkspaceBindingsController({
     try {
       const res = await window.api.resetTestData();
       appendLog(`测试数据已重置：${res?.base || "当前目录"}`);
+      state.logEntries = [];
       el.log.textContent = "";
       appendLog("已清空测试数据并重新加载默认状态。");
       await loadAll();
@@ -249,11 +250,12 @@ export function createWorkspaceBindingsController({
   }
 
   function bindTabEvents() {
-    el.tabRules.addEventListener("click", () => showTab("rules"));
-    el.tabScreener.addEventListener("click", () => showTab("screener"));
-    el.tabFinancial.addEventListener("click", () => showTab("financial"));
-    el.tabSchedule.addEventListener("click", () => showTab("schedule"));
-    el.tabConfig.addEventListener("click", () => showTab("config"));
+    if (el.tabRules) el.tabRules.addEventListener("click", () => showTab("rules"));
+    if (el.tabScreener) el.tabScreener.addEventListener("click", () => showTab("screener"));
+    if (el.tabFinancial) el.tabFinancial.addEventListener("click", () => showTab("financial"));
+    if (el.tabSchedule) el.tabSchedule.addEventListener("click", () => showTab("schedule"));
+    if (el.tabConfig) el.tabConfig.addEventListener("click", () => showTab("config"));
+    if (el.tabMarketAmv) el.tabMarketAmv.addEventListener("click", () => showTab("marketAmv"));
   }
 
   function bindUiStateEvents() {
@@ -292,7 +294,7 @@ export function createWorkspaceBindingsController({
     });
     el.btnClearAiPanel.addEventListener("click", () => {
       clearAiPanel();
-      appendLog("已清空 AI 解读");
+      appendLog("已清空 AI 会话");
     });
   }
 
@@ -362,6 +364,9 @@ export function createWorkspaceBindingsController({
     });
     el.btnRunOnce.addEventListener("click", async () => {
       await runOnce({ dryRun: false, provider: getProviderValue(el) });
+    });
+    el.btnRunOnceIgnoreCooldown.addEventListener("click", async () => {
+      await runOnce({ dryRun: false, provider: getProviderValue(el), ignoreCooldown: true });
     });
     el.btnStart.addEventListener("click", start);
     el.btnStop.addEventListener("click", stop);

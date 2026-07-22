@@ -37,6 +37,16 @@ const DEFAULT_CONFIG_TEMPLATE = {
     user: "",
     pass: ""
   },
+  feishu: {
+    enabled: false,
+    appId: "",
+    appSecret: "",
+    allowUserOpenIds: [],
+    requireAllowlist: false,
+    allowRemoteApply: false,
+    confirmTtlSec: 300
+  },
+  defaultWebhookType: "generic",
   defaultWebhookUrl: ""
 };
 
@@ -51,9 +61,24 @@ export function getDefaultDesktopConfig() {
 export function normalizeDesktopConfig(cfg) {
   const input = cfg && typeof cfg === "object" ? cfg : {};
   const defaults = cloneDefaults();
+  const defaultWebhookUrl = String(input.defaultWebhookUrl ?? defaults.defaultWebhookUrl ?? "");
+  const defaultWebhookType = String(input.defaultWebhookType || defaults.defaultWebhookType || "generic").toLowerCase() === "feishu"
+    ? "feishu"
+    : "generic";
+  const feishuInput = input.feishu && typeof input.feishu === "object" ? input.feishu : {};
+  const allowUserOpenIds = Array.isArray(feishuInput.allowUserOpenIds)
+    ? Array.from(new Set(
+      feishuInput.allowUserOpenIds
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+    ))
+    : [];
+  const confirmTtlSec = Number.parseInt(String(feishuInput.confirmTtlSec ?? defaults.feishu.confirmTtlSec ?? "300"), 10);
   return {
     ...defaults,
     ...input,
+    defaultWebhookType,
+    defaultWebhookUrl,
     ai: {
       ...defaults.ai,
       ...(input.ai && typeof input.ai === "object" ? input.ai : {}),
@@ -73,6 +98,17 @@ export function normalizeDesktopConfig(cfg) {
     email: {
       ...defaults.email,
       ...(input.email && typeof input.email === "object" ? input.email : {})
+    },
+    feishu: {
+      ...defaults.feishu,
+      ...feishuInput,
+      enabled: Boolean(feishuInput.enabled),
+      appId: String(feishuInput.appId || ""),
+      appSecret: String(feishuInput.appSecret || ""),
+      allowUserOpenIds,
+      requireAllowlist: Boolean(feishuInput.requireAllowlist),
+      allowRemoteApply: Boolean(feishuInput.allowRemoteApply),
+      confirmTtlSec: Number.isFinite(confirmTtlSec) && confirmTtlSec > 0 ? confirmTtlSec : defaults.feishu.confirmTtlSec
     }
   };
 }

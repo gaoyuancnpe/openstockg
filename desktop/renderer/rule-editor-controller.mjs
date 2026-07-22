@@ -9,6 +9,7 @@ import {
   uiGroupFromConditionTree,
   usesFmpRuleFields
 } from "./rule-condition-mapper.mjs";
+import { buildRuleFromDraftFields } from "../rules/rule-draft-adapter.mjs";
 
 function getFallbackConditionItem(getIsFmpProvider) {
   return defaultConditionItem(Boolean(getIsFmpProvider()));
@@ -28,6 +29,21 @@ export function createRuleEditorController({
   syncAdvancedJSON,
   renderRulesList
 }) {
+  async function persistRules(successMessage) {
+    try {
+      await window.api.saveRules(state.rules);
+      syncAdvancedJSON();
+      renderRulesList();
+      if (typeof appendLog === "function" && successMessage) appendLog(successMessage);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (typeof appendLog === "function") appendLog(`规则保存失败：${message}`);
+      alert(`规则保存失败：${message}`);
+      return false;
+    }
+  }
+
   function syncTemplateHints(rule) {
     const presentation = getRuleTemplatePresentation(rule);
     state.modalTemplateKey = presentation.templateKey;
@@ -132,6 +148,7 @@ export function createRuleEditorController({
       : [fallbackItem];
     el.ruleCooldownSec.value = String(rule?.cooldownSec ?? 3600);
     el.ruleEmailTo.value = String(rule?.notify?.email || "");
+    el.ruleWebhookType.value = String(rule?.notify?.webhookType || "");
     el.ruleWebhookUrl.value = String(rule?.notify?.webhookUrl || "");
 
     renderModalConditions();
@@ -183,6 +200,7 @@ export function createRuleEditorController({
     const groupOp = String(el.ruleGroupOp.value || "and").toLowerCase() === "or" ? "or" : "and";
     const cooldownSec = Number.parseInt(String(el.ruleCooldownSec.value || "0"), 10);
     const notifyEmail = String(el.ruleEmailTo.value || "").trim();
+    const notifyWebhookType = String(el.ruleWebhookType.value || "").trim().toLowerCase();
     const notifyWebhook = String(el.ruleWebhookUrl.value || "").trim();
     const templateKey = String(state.modalTemplateKey || "custom");
 
@@ -232,7 +250,14 @@ export function createRuleEditorController({
       cooldownSec: Number.isFinite(cooldownSec) ? cooldownSec : 0,
       notify: {
         ...(notifyEmail ? { email: notifyEmail } : {}),
-        ...(notifyWebhook ? { webhookUrl: notifyWebhook } : {})
+        ...(
+          notifyWebhook || notifyWebhookType
+            ? {
+              ...(notifyWebhook ? { webhookUrl: notifyWebhook } : {}),
+              webhookType: notifyWebhookType === "feishu" ? "feishu" : "generic"
+            }
+            : {}
+        )
       },
       ui,
       condition,
@@ -242,28 +267,36 @@ export function createRuleEditorController({
     if (state.editingIndex === null) state.rules.unshift(next);
     else state.rules[state.editingIndex] = next;
 
-    try {
-      await window.api.saveRules(state.rules);
-      syncAdvancedJSON();
-      renderRulesList();
-      closeRuleModal();
-      if (typeof appendLog === "function") appendLog("规则已保存");
-      return true;
-    } catch (error) {
-      if (typeof appendLog === "function") {
-        appendLog(`规则保存失败：${error instanceof Error ? error.message : String(error)}`);
-      }
-      alert(`规则保存失败：${error instanceof Error ? error.message : String(error)}`);
+    const saved = await persistRules("规则已保存");
+    if (saved) closeRuleModal();
+    return saved;
+  }
+
+  function openRuleModalWithDraft(fields) {
+    const draftRule = buildRuleFromDraftFields(fields);
+    openRuleModal(null, draftRule);
+  }
+
+  async function saveRuleDraft(fields) {
+    const draftRule = buildRuleFromDraftFields(fields);
+    if (draftRule.universe?.type === "manual" && (!Array.isArray(draftRule.symbols) || draftRule.symbols.length === 0)) {
+      openRuleModal(null, draftRule);
+      alert("AI 生成的规则草案缺少股票代码，已为你打开规则编辑器，请补全后再保存。");
       return false;
     }
+    state.rules.unshift(draftRule);
+    return persistRules(`AI 规则已加入列表：${draftRule.name}`);
   }
 
   return {
     addCondition,
+    buildRuleFromDraftFields,
     closeRuleModal,
     handleRuleTemplateChange,
     openRuleModal,
+    openRuleModalWithDraft,
     renderModalConditions,
+    saveRuleDraft,
     saveRuleFromModal
   };
 }

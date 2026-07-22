@@ -127,11 +127,13 @@ export async function computeIndicators({ baseUrl, apiKey, symbol, condition, st
   const needsMarketCap = conditionStr.includes("marketCap");
   const needsTurnoverM = conditionStr.includes("turnoverM");
   const needsRecent5dCloseAth = conditionStr.includes("recent5dCloseAth");
-  if (!needsSma20 && !needsRsi14 && !needsVolume && !needsMarketCap && !needsTurnoverM && !needsRecent5dCloseAth) return {};
+  const needsAmv = conditionStr.includes("amv");
+  const needsActiveChips = conditionStr.includes("activeChips");
+  if (!needsSma20 && !needsRsi14 && !needsVolume && !needsMarketCap && !needsTurnoverM && !needsRecent5dCloseAth && !needsAmv && !needsActiveChips) return {};
 
   const out = {};
 
-  if (needsSma20 || needsRsi14 || needsVolume) {
+  if (needsSma20 || needsRsi14 || needsVolume || needsAmv || needsActiveChips) {
     const toSec = Math.floor(nowMs() / 1000);
     const fromSec = toSec - 90 * 86400;
     const candles = await finnhubCandles({ baseUrl, apiKey, symbol, resolution: "D", fromSec, toSec });
@@ -143,6 +145,12 @@ export async function computeIndicators({ baseUrl, apiKey, symbol, condition, st
         const lastVolume = candles.v.length > 0 ? candles.v[candles.v.length - 1] : null;
         out.volumeAvg20 = avg;
         out.volumeRatio = avg && lastVolume ? lastVolume / avg : null;
+      }
+      if (needsAmv || needsActiveChips) {
+        const volSma10 = sma(candles.v, 10);
+        const lastClose = candles.c.length > 0 ? candles.c[candles.c.length - 1] : null;
+        if (needsActiveChips) out.activeChips = volSma10 !== null ? volSma10 / 1e6 : null;
+        if (needsAmv) out.amv = (volSma10 !== null && lastClose !== null) ? (volSma10 * lastClose) / 1e6 : null;
       }
     }
   }

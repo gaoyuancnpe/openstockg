@@ -7,6 +7,7 @@ import {
 } from "../main/data-store.mjs";
 import { createAlertsRunner } from "./alerts-runner.mjs";
 import { createEngineScheduler } from "./scheduler.mjs";
+import { createMarketAmvService } from "./market-amv-service.mjs";
 import { createScreenerService } from "./screener-service.mjs";
 
 export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
@@ -43,14 +44,16 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
     log,
     emitEvent
   });
-  const scheduler = createEngineScheduler({ loadConfig, tick: runner.tick, log });
+  const scheduler = createEngineScheduler({ loadConfig, tick: runner.tick, log, emitEvent });
   const screenerService = createScreenerService({ dataPaths, loadConfig, loadState, saveState, log });
+  const marketAmvService = createMarketAmvService({ loadConfig, log });
 
   return {
-    start: scheduler.start,
+    start: async (options = {}) => scheduler.start(options),
     stop: scheduler.stop,
-    runOnce: async ({ dryRun }) => {
-      await runner.tick({ dryRun: Boolean(dryRun) });
+    getSchedulerStatus: scheduler.getStatus,
+    runOnce: async ({ dryRun, ignoreCooldown }) => {
+      await runner.tick({ dryRun: Boolean(dryRun), ignoreCooldown: Boolean(ignoreCooldown) });
     },
     runScreener: screenerService.runScreener,
     explainAiTarget: async ({ kind, mode, payload }) => {
@@ -61,6 +64,7 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
       const cfg = await loadConfig();
       return explainAiWithDeepSeek({ cfg, kind: "financial", mode: "chat", payload: row });
     },
-    runFinancialScreener: screenerService.runFinancialScreener
+    runFinancialScreener: screenerService.runFinancialScreener,
+    runMarketAmv: marketAmvService.computeMarket0amv
   };
 }

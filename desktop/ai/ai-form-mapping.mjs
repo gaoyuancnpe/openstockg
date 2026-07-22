@@ -100,7 +100,16 @@ function normalizeRuleDraft(fields, warnings) {
     cooldownSec: takeNumber(input.cooldownSec) ?? 86400,
     notify: {
       ...(takeString(input?.notify?.email) ? { email: takeString(input.notify.email) } : {}),
-      ...(takeString(input?.notify?.webhookUrl) ? { webhookUrl: takeString(input.notify.webhookUrl) } : {})
+      ...(
+        takeString(input?.notify?.webhookUrl) || takeString(input?.notify?.webhookType || input?.notify?.webhook?.type)
+          ? {
+            ...(takeString(input?.notify?.webhookUrl) ? { webhookUrl: takeString(input.notify.webhookUrl) } : {}),
+            webhookType: takeString(input?.notify?.webhookType || input?.notify?.webhook?.type || "generic") === "feishu"
+              ? "feishu"
+              : "generic"
+          }
+          : {}
+      )
     },
     groupOp: String(input.groupOp || "and").trim().toLowerCase() === "or" ? "or" : "and",
     conditions
@@ -154,6 +163,22 @@ function normalizeFinancialPreset(fields, warnings) {
   };
 }
 
+function normalizeScheduleDraft(fields, warnings) {
+  const input = fields && typeof fields === "object" ? fields : {};
+  const mode = String(input.mode || "interval").trim().toLowerCase() === "daily" ? "daily" : "interval";
+  const intervalSec = takeNumber(input.intervalSec);
+  if (mode === "interval" && intervalSec === null) {
+    warnings.push("scheduleDraft.intervalSec 缺失，已回退到 60 秒");
+  }
+  const dailyTime = takeString(input.dailyTime) || "09:30";
+  return {
+    mode,
+    intervalSec: mode === "interval" ? (intervalSec === null ? 60 : intervalSec) : null,
+    dailyTime,
+    weekdaysOnly: takeBoolean(input.weekdaysOnly) !== false
+  };
+}
+
 function normalizeFormIntent(intent) {
   const target = String(intent?.target || "").trim();
   const mode = String(intent?.mode || "patch").trim().toLowerCase();
@@ -175,6 +200,8 @@ export function buildAiFormMapping({ structured }) {
     let normalizedFields = null;
     if (intent.target === "ruleDraft") {
       normalizedFields = normalizeRuleDraft(intent.fields, warnings);
+    } else if (intent.target === "scheduleDraft") {
+      normalizedFields = normalizeScheduleDraft(intent.fields, warnings);
     } else if (intent.target === "screenerPreset") {
       normalizedFields = normalizeScreenerPreset(intent.fields, warnings);
     } else if (intent.target === "financialPreset") {

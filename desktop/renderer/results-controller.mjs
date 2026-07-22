@@ -94,7 +94,7 @@ export function createResultsController({
         actionTd.appendChild(explainBtn);
 
         const buildBtn = document.createElement("button");
-        buildBtn.textContent = "生成模板";
+        buildBtn.textContent = "生成规则";
         buildBtn.disabled = state.aiPanelBusy;
         buildBtn.addEventListener("click", async () => {
           await buildAiTarget("screener", r);
@@ -119,7 +119,7 @@ export function createResultsController({
         actionTd.appendChild(explainBtn);
 
         const buildBtn = document.createElement("button");
-        buildBtn.textContent = "生成模板";
+        buildBtn.textContent = "生成规则";
         buildBtn.disabled = state.aiPanelBusy;
         buildBtn.addEventListener("click", async () => {
           await buildAiTarget("screener", r);
@@ -198,7 +198,7 @@ export function createResultsController({
       actionTd.appendChild(explainBtn);
 
       const buildBtn = document.createElement("button");
-      buildBtn.textContent = "生成模板";
+      buildBtn.textContent = "生成规则";
       buildBtn.disabled = state.aiPanelBusy;
       buildBtn.addEventListener("click", async () => {
         await buildAiTarget("financial", row);

@@ -15,7 +15,7 @@ export function normalizeReasoningEffort(value) {
 
 export function normalizeAiTaskKind(value) {
   const kind = String(value || "").trim().toLowerCase();
-  if (kind === "financial" || kind === "screener" || kind === "rule") {
+  if (kind === "financial" || kind === "screener" || kind === "rule" || kind === "assistant") {
     return kind;
   }
   throw new Error(`不支持的 AI 解读类型：${kind || "unknown"}`);

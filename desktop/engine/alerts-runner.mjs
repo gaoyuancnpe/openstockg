@@ -2,14 +2,23 @@ import { normalizeHttpBaseUrl, toNumber } from "../shared-runtime.mjs";
 import { chunk, appendJsonLine } from "./shared.mjs";
 import { computeIndicators, buildEvalContext, quoteToEvalContext } from "./indicator-domain.mjs";
 import { computeFmpRuleStats, loadFmpDefaultUniverse, loadUniverseUS } from "./fmp-domain.mjs";
-import { buildTransport, flushQueuedRuleEmail, notifyAlert } from "./notification-domain.mjs";
+import {
+  buildTransport,
+  flushQueuedRuleEmail,
+  flushQueuedRuleWebhook,
+  formatWebhookTargetLabel,
+  normalizeWebhookTarget,
+  notifyAlert
+} from "./notification-domain.mjs";
 import {
   buildRuleKey,
+  formatAdoptedFieldSummary,
   fireRuleAlert,
   isFmpDefaultRuleCompatible,
   summarizeCondition
 } from "./rule-domain.mjs";
 import { finnhubBasicFinancials, finnhubQuote } from "./providers.mjs";
+import { createMarketAmvService } from "./market-amv-service.mjs";
 
 export function createAlertsRunner({
   dataPaths,
@@ -22,15 +31,60 @@ export function createAlertsRunner({
 }) {
   let busy = false;
 
+  const marketAmvService = createMarketAmvService({ loadConfig, log });
+
   const appendEventLine = async (event) => appendJsonLine(dataPaths.events, event);
 
-  function describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookUrl }) {
+  function describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookType, defaultWebhookUrl }) {
     const emailTarget = String(rule?.notify?.email || defaultEmailTo || "");
-    const webhookTarget = String(rule?.notify?.webhookUrl || defaultWebhookUrl || "");
+    const webhookTarget = normalizeWebhookTarget({
+      type: rule?.notify?.webhookType || defaultWebhookType,
+      url: rule?.notify?.webhookUrl || defaultWebhookUrl
+    });
     const parts = [];
     if (emailTarget) parts.push(`邮件=${emailTarget}`);
-    if (webhookTarget) parts.push(`回调=${webhookTarget}`);
+    if (webhookTarget.url) parts.push(formatWebhookTargetLabel(webhookTarget));
     return parts.length > 0 ? parts.join("，") : "无通知目标";
+  }
+
+  function summarizeResultForLog(fireResult) {
+    return {
+      evidence: fireResult?.evaluationSummary?.evidenceLines?.slice(0, 4).join("；") || "",
+      missing: fireResult?.evaluationSummary?.missingFieldDetails?.slice(0, 3).join("；") || "",
+      adopted: formatAdoptedFieldSummary(fireResult?.adoptedFields || [])
+    };
+  }
+
+  function conditionUsesAnyVar(node, wantedVars) {
+    if (!node || typeof node !== "object") return false;
+    if (node.var && wantedVars.has(String(node.var))) return true;
+    if (node.left && conditionUsesAnyVar(node.left, wantedVars)) return true;
+    if (node.right && conditionUsesAnyVar(node.right, wantedVars)) return true;
+    if (Array.isArray(node.args)) return node.args.some((item) => conditionUsesAnyVar(item, wantedVars));
+    return false;
+  }
+
+  function ruleUsesFinancialFields(rule) {
+    const wantedVars = new Set([
+      "earningsWithin1TradingDay",
+      "revenueGrowthYoY",
+      "revenueGrowthYoYPrevQuarter",
+      "revenueGrowthYoYDeltaVsPrevQuarter",
+      "grossMargin",
+      "grossMarginYoYDelta",
+      "grossMarginQoQDelta",
+      "ebitda",
+      "ebitdaM",
+      "ebitdaGrowthYoY",
+      "operatingIncome",
+      "operatingIncomeGrowthYoY",
+      "netIncome",
+      "netIncomeGrowthYoY",
+      "profitGrowthYoY",
+      "profitGrowthRateYoY",
+      "operatingOutlookImprovedProxy"
+    ]);
+    return conditionUsesAnyVar(rule?.condition, wantedVars);
   }
 
   async function runFmpRule({
@@ -39,19 +93,57 @@ export function createAlertsRunner({
     useUniverse,
     manualSymbols,
     dryRun,
+    ignoreCooldown,
     state,
-    runtime
+    runtime,
+    marketAmv
   }) {
-    const { fmpBaseUrl, fmpApiKey, transport, fromUser, defaultEmailTo, defaultWebhookUrl } = runtime;
+    const { fmpBaseUrl, fmpApiKey, transport, fromUser, defaultEmailTo, defaultWebhookType, defaultWebhookUrl } = runtime;
     const ruleName = rule.name || "未命名规则";
     const notifyEmailTo = String(rule.notify?.email || defaultEmailTo || "");
-    const notifyWebhookUrl = String(rule.notify?.webhookUrl || defaultWebhookUrl || "");
+    const notifyWebhookTarget = normalizeWebhookTarget({
+      type: rule.notify?.webhookType || defaultWebhookType,
+      url: rule.notify?.webhookUrl || defaultWebhookUrl
+    });
     const conditionText = summarizeCondition(rule.condition);
     const ruleKey = buildRuleKey(rule);
     const ruleCooldownSec = Number.parseInt(String(rule.cooldownSec || ""), 10);
     const cooldownSec = Number.isFinite(ruleCooldownSec) ? ruleCooldownSec : 900;
+    let matchedCount = 0;
     let firedCount = 0;
+    let cooldownSkippedCount = 0;
+    let missingFieldCount = 0;
+    let proxyHitCount = 0;
+    let fallbackHitCount = 0;
+    const financialRule = ruleUsesFinancialFields(rule);
     const queuedEmailNotifications = [];
+    const queuedWebhookNotifications = [];
+    const hitSamples = [];
+    const missSamples = [];
+
+    const logWebhookDeliverySummary = () => {
+      if (!notifyWebhookTarget.url) {
+        log(`规则 ${ruleName}：本轮未发送回调，原因=未配置回调地址`);
+        return;
+      }
+      if (notifyWebhookTarget.type !== "feishu") {
+        log(`规则 ${ruleName}：本轮回调类型=${notifyWebhookTarget.type}，不走飞书汇总`);
+        return;
+      }
+      if (queuedWebhookNotifications.length > 0) {
+        log(`规则 ${ruleName}：飞书汇总队列 ${queuedWebhookNotifications.length} 条，目标=${notifyWebhookTarget.url}`);
+        return;
+      }
+      if (firedCount === 0 && cooldownSkippedCount > 0) {
+        log(`规则 ${ruleName}：本轮未发送飞书，原因=命中 ${matchedCount} 支但全部被冷却拦截`);
+        return;
+      }
+      if (matchedCount === 0) {
+        log(`规则 ${ruleName}：本轮未发送飞书，原因=无命中`);
+        return;
+      }
+      log(`规则 ${ruleName}：本轮未发送飞书，原因=命中 ${matchedCount} 支但通知队列为空，请检查通知链路`);
+    };
 
     let fmpRows = [];
     if (useUniverse) {
@@ -93,6 +185,10 @@ export function createAlertsRunner({
       for (const result of batchResults) {
         if (!result) continue;
         const { row, symbol, stats } = result;
+        if (financialRule && stats.financialRuleEligible === false) {
+          log(`规则 ${ruleName}：已跳过 ${symbol}，原因=${stats.financialRuleSkipReason || "财报规则不适用该标的"}`);
+          continue;
+        }
         const minPrice = useUniverse ? toNumber(universe.minPrice) : null;
         const minMarketCap = useUniverse ? toNumber(universe.minMarketCap) : null;
         if (minPrice !== null && stats.price !== null && stats.price < minPrice) continue;
@@ -103,6 +199,9 @@ export function createAlertsRunner({
           price: stats.price,
           marketCap: stats.marketCap ?? toNumber(row?.marketCap),
           turnoverM: stats.turnoverM,
+          amv: stats.amv,
+          market0amv: marketAmv,
+          activeChips: stats.activeChips,
           recent5dCloseAth: stats.recent5dCloseAth,
           closeAth250d: stats.closeAth250d,
           closeChangePercent1d: stats.closeChangePercent1d,
@@ -130,12 +229,13 @@ export function createAlertsRunner({
           missingFields: Array.isArray(stats.missingFields) ? stats.missingFields : []
         };
 
-        const fired = await fireRuleAlert({
+        const fireResult = await fireRuleAlert({
           rule,
           symbol,
           ctx,
           conditionText,
           dryRun,
+          ignoreCooldown,
           state,
           ruleKey,
           cooldownSec,
@@ -145,14 +245,27 @@ export function createAlertsRunner({
           notify: (payload) => notifyAlert({
             ...payload,
             notifyEmailTo,
-            notifyWebhookUrl,
+            notifyWebhookTarget,
             queuedEmailNotifications,
+            queuedWebhookNotifications,
             transport,
             fromUser,
             log
           })
         });
-        if (fired) firedCount += 1;
+        const adoptedFields = Array.isArray(fireResult?.adoptedFields) ? fireResult.adoptedFields : [];
+        if (fireResult?.matched) {
+          matchedCount += 1;
+          if (adoptedFields.some((item) => item?.kind === "proxy")) proxyHitCount += 1;
+          if (adoptedFields.some((item) => item?.kind === "fallback")) fallbackHitCount += 1;
+          if (hitSamples.length < 5) hitSamples.push({ symbol, ...summarizeResultForLog(fireResult) });
+        }
+        if (fireResult && fireResult.matched && !fireResult.canFire) cooldownSkippedCount += 1;
+        if (fireResult?.fired) firedCount += 1;
+        if (!fireResult?.matched && fireResult?.evaluationSummary?.missingFieldDetails?.length > 0) {
+          missingFieldCount += 1;
+          if (missSamples.length < 5) missSamples.push({ symbol, ...summarizeResultForLog(fireResult) });
+        }
       }
     }
 
@@ -160,14 +273,56 @@ export function createAlertsRunner({
       rule,
       conditionText,
       entries: queuedEmailNotifications,
+      runSummary: {
+        scannedCount: fmpRows.length,
+        matchedCount,
+        firedCount,
+        cooldownSkippedCount,
+        missingFieldCount,
+        proxyHitCount,
+        fallbackHitCount
+      },
       notifyEmailTo,
       transport,
       fromUser,
       log
     });
+    await flushQueuedRuleWebhook({
+      rule,
+      conditionText,
+      entries: queuedWebhookNotifications,
+      runSummary: {
+        scannedCount: fmpRows.length,
+        matchedCount,
+        firedCount,
+        cooldownSkippedCount,
+        missingFieldCount,
+        proxyHitCount,
+        fallbackHitCount
+      },
+      webhookTarget: notifyWebhookTarget,
+      log
+    });
+    if (notifyEmailTo && queuedEmailNotifications.length > 0) {
+      log(`规则 ${ruleName}：汇总邮件队列 ${queuedEmailNotifications.length} 条，目标=${notifyEmailTo}`);
+    }
+    logWebhookDeliverySummary();
 
-    log(`规则 ${ruleName}：本轮扫描 ${fmpRows.length} 支，命中 ${firedCount} 次，通知=${describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookUrl })}`);
-    return { scannedCount: fmpRows.length, firedCount };
+    log(`规则 ${ruleName}：本轮扫描 ${fmpRows.length} 支，命中 ${matchedCount} 支，实际触发 ${firedCount} 次，冷却跳过 ${cooldownSkippedCount} 次，缺字段 ${missingFieldCount} 支，通知=${describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookType, defaultWebhookUrl })}`);
+    if (proxyHitCount > 0 || fallbackHitCount > 0) {
+      log(`规则 ${ruleName}：采用口径统计，代理命中 ${proxyHitCount} 支，回退口径命中 ${fallbackHitCount} 支`);
+    }
+    if (hitSamples.length > 0) {
+      for (const sample of hitSamples) {
+        log(`规则 ${ruleName}：命中样本 ${sample.symbol}${sample.evidence ? ` | 命中依据: ${sample.evidence}` : ""}${sample.adopted ? ` | 采用口径: ${sample.adopted}` : ""}`);
+      }
+    } else {
+      log(`规则 ${ruleName}：本轮无命中`);
+    }
+    for (const sample of missSamples) {
+      log(`规则 ${ruleName}：缺字段未命中样本 ${sample.symbol}${sample.missing ? ` | 缺字段: ${sample.missing}` : ""}${sample.evidence ? ` | 已满足依据: ${sample.evidence}` : ""}${sample.adopted ? ` | 采用口径: ${sample.adopted}` : ""}`);
+    }
+    return { scannedCount: fmpRows.length, matchedCount, firedCount };
   }
 
   async function runFinnhubRule({
@@ -176,19 +331,51 @@ export function createAlertsRunner({
     useUniverse,
     manualSymbols,
     dryRun,
+    ignoreCooldown,
     state,
-    runtime
+    runtime,
+    marketAmv
   }) {
-    const { finnhubBaseUrl, finnhubApiKey, transport, fromUser, defaultEmailTo, defaultWebhookUrl } = runtime;
+    const { finnhubBaseUrl, finnhubApiKey, transport, fromUser, defaultEmailTo, defaultWebhookType, defaultWebhookUrl } = runtime;
     const ruleName = rule.name || "未命名规则";
     const notifyEmailTo = String(rule.notify?.email || defaultEmailTo || "");
-    const notifyWebhookUrl = String(rule.notify?.webhookUrl || defaultWebhookUrl || "");
+    const notifyWebhookTarget = normalizeWebhookTarget({
+      type: rule.notify?.webhookType || defaultWebhookType,
+      url: rule.notify?.webhookUrl || defaultWebhookUrl
+    });
     const conditionText = summarizeCondition(rule.condition);
     const ruleKey = buildRuleKey(rule);
     const ruleCooldownSec = Number.parseInt(String(rule.cooldownSec || ""), 10);
     const cooldownSec = Number.isFinite(ruleCooldownSec) ? ruleCooldownSec : 900;
+    let matchedCount = 0;
     let firedCount = 0;
+    let cooldownSkippedCount = 0;
     const queuedEmailNotifications = [];
+    const queuedWebhookNotifications = [];
+
+    const logWebhookDeliverySummary = () => {
+      if (!notifyWebhookTarget.url) {
+        log(`规则 ${ruleName}：本轮未发送回调，原因=未配置回调地址`);
+        return;
+      }
+      if (notifyWebhookTarget.type !== "feishu") {
+        log(`规则 ${ruleName}：本轮回调类型=${notifyWebhookTarget.type}，不走飞书汇总`);
+        return;
+      }
+      if (queuedWebhookNotifications.length > 0) {
+        log(`规则 ${ruleName}：飞书汇总队列 ${queuedWebhookNotifications.length} 条，目标=${notifyWebhookTarget.url}`);
+        return;
+      }
+      if (firedCount === 0 && cooldownSkippedCount > 0) {
+        log(`规则 ${ruleName}：本轮未发送飞书，原因=命中 ${matchedCount} 支但全部被冷却拦截`);
+        return;
+      }
+      if (matchedCount === 0) {
+        log(`规则 ${ruleName}：本轮未发送飞书，原因=无命中`);
+        return;
+      }
+      log(`规则 ${ruleName}：本轮未发送飞书，原因=命中 ${matchedCount} 支但通知队列为空，请检查通知链路`);
+    };
 
     let symbols = manualSymbols;
     if (useUniverse) {
@@ -253,13 +440,14 @@ export function createAlertsRunner({
           }
 
           const indicators = await computeIndicators({ baseUrl: finnhubBaseUrl, apiKey: finnhubApiKey, symbol, condition: rule.condition, state });
-          const ctx = quoteToEvalContext({ symbol, quote, extra: { ...extra, ...indicators } });
-          const fired = await fireRuleAlert({
+          const ctx = quoteToEvalContext({ symbol, quote, extra: { ...extra, ...indicators, market0amv: marketAmv } });
+          const fireResult = await fireRuleAlert({
             rule,
             symbol,
             ctx,
             conditionText,
             dryRun,
+            ignoreCooldown,
             state,
             ruleKey,
             cooldownSec,
@@ -269,25 +457,29 @@ export function createAlertsRunner({
             notify: (payload) => notifyAlert({
               ...payload,
               notifyEmailTo,
-              notifyWebhookUrl,
+              notifyWebhookTarget,
               queuedEmailNotifications,
+              queuedWebhookNotifications,
               transport,
               fromUser,
               log
             })
           });
-          if (fired) firedCount += 1;
+          if (fireResult?.matched) matchedCount += 1;
+          if (fireResult && fireResult.matched && !fireResult.canFire) cooldownSkippedCount += 1;
+          if (fireResult?.fired) firedCount += 1;
           continue;
         }
 
         const indicators = await computeIndicators({ baseUrl: finnhubBaseUrl, apiKey: finnhubApiKey, symbol, condition: rule.condition, state });
-        const ctx = buildEvalContext({ symbol, quote, indicators });
-        const fired = await fireRuleAlert({
+        const ctx = { ...buildEvalContext({ symbol, quote, indicators }), market0amv: marketAmv };
+        const fireResult = await fireRuleAlert({
           rule,
           symbol,
           ctx,
           conditionText,
           dryRun,
+          ignoreCooldown,
           state,
           ruleKey,
           cooldownSec,
@@ -297,14 +489,17 @@ export function createAlertsRunner({
           notify: (payload) => notifyAlert({
             ...payload,
             notifyEmailTo,
-            notifyWebhookUrl,
+            notifyWebhookTarget,
             queuedEmailNotifications,
+            queuedWebhookNotifications,
             transport,
             fromUser,
             log
           })
         });
-        if (fired) firedCount += 1;
+        if (fireResult?.matched) matchedCount += 1;
+        if (fireResult && fireResult.matched && !fireResult.canFire) cooldownSkippedCount += 1;
+        if (fireResult?.fired) firedCount += 1;
       }
     }
 
@@ -312,24 +507,70 @@ export function createAlertsRunner({
       rule,
       conditionText,
       entries: queuedEmailNotifications,
+      runSummary: {
+        scannedCount: symbols.length,
+        matchedCount,
+        firedCount,
+        cooldownSkippedCount,
+        missingFieldCount: 0,
+        proxyHitCount: 0,
+        fallbackHitCount: 0
+      },
       notifyEmailTo,
       transport,
       fromUser,
       log
     });
-
-    log(`规则 ${ruleName}：本轮扫描 ${symbols.length} 支，命中 ${firedCount} 次，通知=${describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookUrl })}`);
-    return { scannedCount: symbols.length, firedCount };
+    await flushQueuedRuleWebhook({
+      rule,
+      conditionText,
+      entries: queuedWebhookNotifications,
+      runSummary: {
+        scannedCount: symbols.length,
+        matchedCount,
+        firedCount,
+        cooldownSkippedCount,
+        missingFieldCount: 0,
+        proxyHitCount: 0,
+        fallbackHitCount: 0
+      },
+      webhookTarget: notifyWebhookTarget,
+      log
+    });
+    logWebhookDeliverySummary();
+    log(`规则 ${ruleName}：本轮扫描 ${symbols.length} 支，命中 ${matchedCount} 支，实际触发 ${firedCount} 次，冷却跳过 ${cooldownSkippedCount} 次，通知=${describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookType, defaultWebhookUrl })}`);
+    return { scannedCount: symbols.length, matchedCount, firedCount };
   }
 
-  async function tick({ dryRun }) {
+  async function tick({ dryRun, ignoreCooldown = false, trigger = "manual" }) {
     if (busy) {
-      log("已有任务在运行，已忽略本次请求");
-      return;
+      const skipReason = {
+        code: "busy",
+        message: "已有任务在运行"
+      };
+      log(`${trigger === "scheduler" ? "定时触发" : "本次请求"}已跳过，原因=${skipReason.message}`);
+      return {
+        skipped: true,
+        skipReason
+      };
     }
     busy = true;
+    const startedAt = new Date().toISOString();
     try {
       log(`开始${dryRun ? "dry-run" : "执行"}...`);
+      if (!dryRun && ignoreCooldown) {
+        log("本次真实运行已启用调试模式：忽略冷却。");
+      }
+      if (emitEvent) {
+        emitEvent({
+          type: "run_status",
+          phase: "started",
+          trigger,
+          dryRun: Boolean(dryRun),
+          ignoreCooldown: Boolean(ignoreCooldown),
+          startedAt
+        });
+      }
       const cfg = await loadConfig();
       const rules = (await loadRules()).filter((rule) => rule && rule.enabled);
       const state = await loadState();
@@ -347,30 +588,105 @@ export function createAlertsRunner({
         transport: buildTransport(cfg.email),
         fromUser: String(cfg.email?.user || ""),
         defaultEmailTo: String(cfg.defaultEmailTo || ""),
+        defaultWebhookType: String(cfg.defaultWebhookType || "generic"),
         defaultWebhookUrl: String(cfg.defaultWebhookUrl || "")
       };
+
+      let completedRules = 0;
+      let failedRules = 0;
+      const failedRuleNames = [];
+
+      let marketAmv = null;
+      // market 0AMV depends on FMP screener API; computing requires fmpApiKey
+      // works even when main data provider is finnhub, as long as fmpApiKey is configured
+      if (runtime.fmpApiKey) {
+        const nowMs = Date.now();
+        const cached = state.market0amv;
+        if (cached && cached.value !== null && cached.timestamp && (nowMs - cached.timestamp) < 24 * 60 * 60 * 1000) {
+          marketAmv = cached.value;
+          log(`[market-amv] 使用缓存值: ${marketAmv.toLocaleString()} 百万美元`);
+        } else {
+          try {
+            log("[market-amv] 开始计算全市场 0AMV...");
+            const result = await marketAmvService.computeMarket0amv();
+            marketAmv = result.value;
+            state.market0amv = { value: marketAmv, date: result.date, timestamp: nowMs };
+            log(`[market-amv] 计算完成: ${marketAmv.toLocaleString()} 百万美元，有效样本 ${result.processedCount}/${result.sampleCount}`);
+          } catch (err) {
+            log(`[market-amv] 计算失败: ${err.message}`);
+          }
+        }
+      }
 
       for (const rule of rules) {
         const universe = rule.universe || { type: "manual" };
         const manualSymbols = Array.isArray(rule.symbols) ? rule.symbols.map((symbol) => String(symbol).toUpperCase()).filter(Boolean) : [];
         const useUniverse = String(universe.type || "manual") === "us_all";
         log(`开始检查规则：${rule.name || "未命名规则"}（范围=${useUniverse ? "全量美股" : `${manualSymbols.length} 个手动标的`}）`);
-
-        if (runtime.dataProvider === "fmp") {
-          if (!isFmpDefaultRuleCompatible(rule)) {
-            log(`FMP 模式暂只支持默认规则字段，已跳过规则：${rule.name || "未命名规则"}`);
+        try {
+          if (runtime.dataProvider === "fmp") {
+            if (!isFmpDefaultRuleCompatible(rule)) {
+              log(`FMP 模式暂只支持默认规则字段，已跳过规则：${rule.name || "未命名规则"}`);
+              completedRules += 1;
+              log(`规则完成：${rule.name || "未命名规则"}（已跳过）`);
+              continue;
+            }
+            await runFmpRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv });
+            completedRules += 1;
+            log(`规则完成：${rule.name || "未命名规则"}`);
             continue;
           }
-          await runFmpRule({ rule, universe, useUniverse, manualSymbols, dryRun, state, runtime });
-          continue;
-        }
 
-        await runFinnhubRule({ rule, universe, useUniverse, manualSymbols, dryRun, state, runtime });
+          await runFinnhubRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv });
+          completedRules += 1;
+          log(`规则完成：${rule.name || "未命名规则"}`);
+        } catch (ruleError) {
+          failedRules += 1;
+          failedRuleNames.push(rule.name || "未命名规则");
+          log(`规则失败：${rule.name || "未命名规则"} -> ${ruleError instanceof Error ? ruleError.message : String(ruleError)}`);
+        }
       }
 
       await saveState(state);
+      if (rules.length > 0) {
+        log(`本轮规则执行汇总：共 ${rules.length} 条，完成 ${completedRules} 条，失败 ${failedRules} 条${failedRuleNames.length > 0 ? `，失败规则=${failedRuleNames.join("、")}` : ""}`);
+      }
+      const finishedAt = new Date().toISOString();
+      if (emitEvent) {
+        emitEvent({
+          type: "run_status",
+          phase: "finished",
+          trigger,
+          dryRun: Boolean(dryRun),
+          ignoreCooldown: Boolean(ignoreCooldown),
+          startedAt,
+          finishedAt,
+          dataProvider: runtime.dataProvider,
+          totalRules: rules.length,
+          completedRules,
+          failedRules,
+          failedRuleNames
+        });
+      }
       log(`${dryRun ? "dry-run" : "执行"}完成`);
+      return {
+        skipped: false,
+        startedAt,
+        finishedAt
+      };
     } catch (error) {
+      if (emitEvent) {
+        emitEvent({
+          type: "run_status",
+          phase: "failed",
+          trigger,
+          dryRun: Boolean(dryRun),
+          ignoreCooldown: Boolean(ignoreCooldown),
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
       log(error instanceof Error ? error.message : String(error));
       throw error;
     } finally {

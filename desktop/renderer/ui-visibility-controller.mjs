@@ -111,13 +111,18 @@ export function createUiVisibilityController({ el, state, getIsFmpProvider }) {
       { btn: el.tabScreener, panel: el.panelScreener, key: "screener" },
       { btn: el.tabFinancial, panel: el.panelFinancial, key: "financial" },
       { btn: el.tabSchedule, panel: el.panelSchedule, key: "schedule" },
-      { btn: el.tabConfig, panel: el.panelConfig, key: "config" }
+      { btn: el.tabConfig, panel: el.panelConfig, key: "config" },
+      { btn: el.tabMarketAmv, panel: el.panelMarketAmv, key: "marketAmv" }
     ];
 
     for (const tabItem of tabs) {
       const active = tabItem.key === tab;
-      tabItem.btn.classList.toggle("active", active);
-      tabItem.panel.classList.toggle("active", active);
+      if (tabItem.btn) {
+        tabItem.btn.classList.toggle("active", active);
+      }
+      if (tabItem.panel) {
+        tabItem.panel.classList.toggle("active", active);
+      }
     }
   }
 

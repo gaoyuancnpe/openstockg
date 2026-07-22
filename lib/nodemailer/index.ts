@@ -23,11 +23,9 @@ export const transporter = nodemailer.createTransport({
 })
 
 // Verify connection on startup
-transporter.verify((error, success) => {
+transporter.verify((error) => {
     if (error) {
         console.error('❌ Nodemailer transporter verification failed:', error);
-    } else {
-        console.log('✅ Nodemailer transporter is ready to send emails');
     }
 });
 
@@ -56,7 +54,6 @@ export const sendWelcomeEmail = async ({ email, name, intro }: WelcomeEmailData)
         }
 
         const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Welcome email sent successfully:', info.messageId);
         return info;
     } catch (error) {
         console.error('❌ Failed to send welcome email:', error);
@@ -85,7 +82,6 @@ export const sendNewsSummaryEmail = async (
         };
 
         const info = await transporter.sendMail(mailOptions);
-        console.log('✅ News summary email sent successfully:', info.messageId);
         return info;
     } catch (error) {
         console.error('❌ Failed to send news summary email:', error);
@@ -114,7 +110,6 @@ export const sendDailyScreenerEmail = async (
         };
 
         const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Daily screener email sent successfully:', info.messageId);
         return info;
     } catch (error) {
         console.error('❌ Failed to send daily screener email:', error);

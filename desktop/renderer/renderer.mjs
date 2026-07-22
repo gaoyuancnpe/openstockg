@@ -19,11 +19,15 @@ const el = {
   tabFinancial: $("tabFinancial"),
   tabSchedule: $("tabSchedule"),
   tabConfig: $("tabConfig"),
+  tabMarketAmv: $("tabMarketAmv"),
   panelRules: $("panelRules"),
   panelScreener: $("panelScreener"),
   panelFinancial: $("panelFinancial"),
   panelSchedule: $("panelSchedule"),
   panelConfig: $("panelConfig"),
+  panelMarketAmv: $("panelMarketAmv"),
+  marketAmvResult: $("marketAmvResult"),
+  btnComputeMarketAmv: $("btnComputeMarketAmv"),
 
   dataProvider: $("dataProvider"),
   finnhubApiKey: $("finnhubApiKey"),
@@ -35,7 +39,15 @@ const el = {
   aiModel: $("aiModel"),
   aiThinkingEnabled: $("aiThinkingEnabled"),
   aiReasoningEffort: $("aiReasoningEffort"),
+  feishuEnabled: $("feishuEnabled"),
+  feishuAppId: $("feishuAppId"),
+  feishuAppSecret: $("feishuAppSecret"),
+  feishuAllowOpenIds: $("feishuAllowOpenIds"),
+  feishuRequireAllowlist: $("feishuRequireAllowlist"),
+  feishuAllowRemoteApply: $("feishuAllowRemoteApply"),
+  feishuConfirmTtlSec: $("feishuConfirmTtlSec"),
   defaultEmailTo: $("defaultEmailTo"),
+  defaultWebhookType: $("defaultWebhookType"),
   defaultWebhookUrl: $("defaultWebhookUrl"),
   gmailUser: $("gmailUser"),
   gmailPass: $("gmailPass"),
@@ -110,17 +122,47 @@ const el = {
   financialTable: $("financialTable"),
   aiPanelMeta: $("aiPanelMeta"),
   aiPanelStatus: $("aiPanelStatus"),
-  aiPanelOutput: $("aiPanelOutput"),
+  aiPanelIntentHint: $("aiPanelIntentHint"),
+  aiPanelIntentActions: $("aiPanelIntentActions"),
+  aiPanelMessages: $("aiPanelMessages"),
+  aiPanelInput: $("aiPanelInput"),
+  btnAiSend: $("btnAiSend"),
+  btnAiBuild: $("btnAiBuild"),
   btnClearAiPanel: $("btnClearAiPanel"),
+  btnAiAssistantMode: $("btnAiAssistantMode"),
+  btnClearAiAttachments: $("btnClearAiAttachments"),
+  btnAiAttachRules: $("btnAiAttachRules"),
+  btnAiAttachSchedule: $("btnAiAttachSchedule"),
+  btnAiAttachLastRun: $("btnAiAttachLastRun"),
+  btnAiAttachLog: $("btnAiAttachLog"),
+  btnAiAttachScreener: $("btnAiAttachScreener"),
+  btnAiAttachFinancial: $("btnAiAttachFinancial"),
+  aiPanelAttachmentMeta: $("aiPanelAttachmentMeta"),
 
   btnDryRunOnce: $("btnDryRunOnce"),
   btnRunOnce: $("btnRunOnce"),
+  btnRunOnceIgnoreCooldown: $("btnRunOnceIgnoreCooldown"),
   btnStart: $("btnStart"),
   btnStop: $("btnStop"),
   btnResetTestData: $("btnResetTestData"),
+  btnReloadDiagnostics: $("btnReloadDiagnostics"),
+  btnTestEmail: $("btnTestEmail"),
+  btnTestWebhook: $("btnTestWebhook"),
+  btnOpenLogDir: $("btnOpenLogDir"),
+  logFilterType: $("logFilterType"),
+  logFilterRule: $("logFilterRule"),
+  logFilterKeyword: $("logFilterKeyword"),
+  btnClearLog: $("btnClearLog"),
   log: $("log"),
   devModeInfo: $("devModeInfo"),
   paths: $("paths"),
+  lastRunSummary: $("lastRunSummary"),
+  schedulerSummary: $("schedulerSummary"),
+  feishuBridgeStatus: $("feishuBridgeStatus"),
+  diagnosticsMeta: $("diagnosticsMeta"),
+  scheduleRuntimeStatus: $("scheduleRuntimeStatus"),
+  scheduleRuntimeDetails: $("scheduleRuntimeDetails"),
+  scheduleRuntimeHint: $("scheduleRuntimeHint"),
   btnOpenSourceRepo: $("btnOpenSourceRepo"),
   btnOpenUpstreamRepo: $("btnOpenUpstreamRepo"),
   btnOpenLicenseUrl: $("btnOpenLicenseUrl"),
@@ -154,6 +196,7 @@ const el = {
   ruleFieldHint: $("ruleFieldHint"),
   ruleCooldownSec: $("ruleCooldownSec"),
   ruleEmailTo: $("ruleEmailTo"),
+  ruleWebhookType: $("ruleWebhookType"),
   ruleWebhookUrl: $("ruleWebhookUrl"),
   btnModalSave: $("btnModalSave"),
   btnModalCancel: $("btnModalCancel")
@@ -166,18 +209,235 @@ const state = {
   screenerSelected: [],
   financialResults: [],
   aiPanelResult: null,
+  aiPanelContext: null,
+  aiPanelMessages: [],
+  aiPanelAttachments: [],
   aiPanelBusy: false,
   modalForceFmp: false,
   modalTemplateKey: "custom",
   editingIndex: null,
   modalConditions: [],
-  runBusy: false
+  runBusy: false,
+  logEntries: [],
+  diagnostics: null
 };
 
-function appendLog(line) {
-  const ts = new Date().toISOString().replace("T", " ").replace("Z", "");
-  el.log.textContent += `[${ts}] ${String(line)}\n`;
+function formatRunSummary(lastRun) {
+  if (!lastRun || typeof lastRun !== "object") return "最近一次运行：暂无记录";
+  const phase = String(lastRun.phase || "");
+  const provider = String(lastRun.dataProvider || "").toUpperCase();
+  const trigger = String(lastRun.trigger || "manual");
+  const triggerText = trigger === "scheduler_catchup"
+    ? "补跑"
+    : (trigger === "scheduler" || trigger === "scheduler_resume" ? "定时" : "手动");
+  const base = [
+    `最近一次运行：${phase === "started" ? "进行中" : (phase === "finished" ? "已完成" : "失败")}`,
+    (lastRun.finishedAt || lastRun.startedAt) ? `时间=${formatTimeText(lastRun.finishedAt || lastRun.startedAt, "未知")}` : "",
+    `来源=${triggerText}`,
+    provider ? `数据源=${provider}` : "",
+    Number.isFinite(lastRun.totalRules) ? `总规则=${lastRun.totalRules}` : "",
+    Number.isFinite(lastRun.completedRules) ? `完成=${lastRun.completedRules}` : "",
+    Number.isFinite(lastRun.failedRules) ? `失败=${lastRun.failedRules}` : "",
+    lastRun.dryRun ? "模式=dry-run" : `模式=${lastRun.ignoreCooldown ? "真实执行（忽略冷却）" : "真实执行"}`
+  ].filter(Boolean);
+  const failedNames = Array.isArray(lastRun.failedRuleNames) && lastRun.failedRuleNames.length > 0
+    ? `；失败规则=${lastRun.failedRuleNames.join("、")}`
+    : "";
+  const errorText = lastRun.error ? `；错误=${lastRun.error}` : "";
+  return `${base.join("，")}${failedNames}${errorText}`;
+}
+
+function formatTimeText(value, fallback = "暂无") {
+  const date = value ? new Date(String(value)) : null;
+  if (!date || Number.isNaN(date.getTime())) return fallback;
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function formatSchedulerSummary(scheduler) {
+  if (!scheduler || typeof scheduler !== "object") {
+    return {
+      status: "常驻状态：未启动",
+      details: "模式：未调度\n下一次执行：未调度\n最近一次执行：暂无\n最近一次跳过：暂无",
+      hint: "未启动常驻时不会触发定时任务。",
+      runtime: "当前常驻：未启动"
+    };
+  }
+  const mode = String(scheduler.mode || "interval") === "daily" ? "daily" : "interval";
+  const modeText = mode === "daily" ? "每日定时" : "间隔执行";
+  const isRunning = Boolean(scheduler.isRunning);
+  const lastSkip = scheduler.lastSkip || null;
+  const lastStopReason = scheduler.lastStopReason || null;
+  const lastMissedRun = scheduler.lastMissedRun || null;
+  const lastCatchUp = scheduler.lastCatchUp || null;
+  const skipText = lastSkip?.message
+    ? `${lastSkip.message}（${formatTimeText(lastSkip.at, "时间未知")}）`
+    : (lastStopReason?.message ? `${lastStopReason.message}（${formatTimeText(lastStopReason.at, "时间未知")}）` : "暂无");
+  const missedText = lastMissedRun?.message
+    ? `${lastMissedRun.message}（${formatTimeText(lastMissedRun.at, "时间未知")}）`
+    : "暂无";
+  const catchUpText = lastCatchUp?.message
+    ? `${lastCatchUp.message}（${formatTimeText(lastCatchUp.at, "时间未知")}）`
+    : "暂无";
+
+  return {
+    status: `常驻状态：${isRunning ? "运行中" : "未启动"}`,
+    details: [
+      `模式：${modeText}`,
+      `下一次执行：${isRunning ? formatTimeText(scheduler.nextRunAt, "未调度") : "未调度"}`,
+      `最近一次执行：${formatTimeText(scheduler.lastRunAt, "暂无")}`,
+      `最近一次跳过/停止原因：${skipText}`,
+      `最近一次错过执行：${missedText}`,
+      `最近一次补跑：${catchUpText}`
+    ].join("\n"),
+    hint: isRunning
+      ? (mode === "daily"
+        ? "当前为 daily 模式：启动后等待到下一次设定时间才会触发。"
+        : "当前为 interval 模式：启动后立即执行一轮，并按固定间隔继续调度。")
+      : "未启动常驻时不会触发定时任务。",
+    runtime: [
+      `当前常驻：${isRunning ? "运行中" : "未启动"}`,
+      `模式=${modeText}`,
+      `下次执行=${isRunning ? formatTimeText(scheduler.nextRunAt, "未调度") : "未调度"}`,
+      `最近执行=${formatTimeText(scheduler.lastRunAt, "暂无")}`,
+      `最近跳过/停止=${skipText}`,
+      `最近错过=${missedText}`,
+      `最近补跑=${catchUpText}`
+    ].join("，")
+  };
+}
+
+function formatFeishuBridgeSummary(bridge) {
+  if (!bridge || typeof bridge !== "object") {
+    return "飞书桥接：未启用";
+  }
+  const statusText = bridge.isRunning ? "运行中" : (bridge.isEnabled ? "未连接" : "未启用");
+  const parts = [
+    `飞书桥接：${statusText}`,
+    `远程确认直写=${bridge.allowRemoteApply ? "开启" : "关闭"}`,
+    `allowlist=${bridge.requireAllowlist ? "强制" : "可选"}`,
+    Number.isFinite(bridge.allowedUsersCount) ? `允许用户数=${bridge.allowedUsersCount}` : "",
+    bridge.lastConnectedAt ? `最近连接=${formatTimeText(bridge.lastConnectedAt, "暂无")}` : "",
+    bridge.lastError ? `错误=${bridge.lastError}` : ""
+  ].filter(Boolean);
+  return parts.join("，");
+}
+
+function renderDiagnosticsSummary() {
+  if (el.lastRunSummary) {
+    el.lastRunSummary.textContent = formatRunSummary(state.diagnostics?.lastRun);
+  }
+  const schedulerSummary = formatSchedulerSummary(state.diagnostics?.scheduler);
+  if (el.schedulerSummary) {
+    el.schedulerSummary.textContent = schedulerSummary.runtime;
+  }
+  if (el.feishuBridgeStatus) {
+    el.feishuBridgeStatus.textContent = formatFeishuBridgeSummary(state.diagnostics?.feishuBridge);
+  }
+  if (el.scheduleRuntimeStatus) {
+    el.scheduleRuntimeStatus.textContent = schedulerSummary.status;
+  }
+  if (el.scheduleRuntimeDetails) {
+    el.scheduleRuntimeDetails.textContent = schedulerSummary.details;
+  }
+  if (el.scheduleRuntimeHint) {
+    el.scheduleRuntimeHint.textContent = schedulerSummary.hint;
+  }
+  if (el.diagnosticsMeta) {
+    const info = state.diagnostics || {};
+    const parts = [];
+    if (info.runtimeLog) parts.push(`运行日志：${info.runtimeLog}`);
+    if (info.diagnosticsFile) parts.push(`诊断文件：${info.diagnosticsFile}`);
+    if (info.updatedAt) parts.push(`更新：${info.updatedAt}`);
+    el.diagnosticsMeta.textContent = parts.join("\n");
+  }
+}
+
+async function loadDiagnosticsSummary() {
+  try {
+    state.diagnostics = await window.api.getDiagnostics();
+    renderDiagnosticsSummary();
+  } catch (error) {
+    appendLog(`读取诊断信息失败：${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function reportRendererError(kind, errorLike) {
+  try {
+    await window.api.reportRendererError({
+      kind,
+      message: errorLike instanceof Error ? errorLike.message : String(errorLike || kind),
+      stack: errorLike instanceof Error ? String(errorLike.stack || "") : ""
+    });
+  } catch {}
+}
+
+function detectLogType(message) {
+  const text = String(message || "");
+  if (/error|失败|ETIMEDOUT|ECONN|HTTP \d{3}|未配置|缺少/i.test(text)) return "error";
+  if (/Email |邮件|SMTP|summary sent|queued|fallback sent/i.test(text)) return "email";
+  if (/提醒事件|Webhook/i.test(text)) return "event";
+  if (/FMP /i.test(text)) return "fmp";
+  if (/规则 |MATCHED|FIRED|冷却|命中|跳过/.test(text)) return "rule";
+  if (/开始执行|执行完成|已启动常驻|已停止|dry-run|模拟运行|真实跑一次|启动前同步/.test(text)) return "run";
+  return "ui";
+}
+
+function detectRuleName(message) {
+  const text = String(message || "");
+  const direct = text.match(/规则\s+(.+?)(?:：|（|\s+\||$)/);
+  if (direct?.[1]) return direct[1].trim();
+  const matched = state.rules.find((rule) => rule?.name && text.includes(String(rule.name)));
+  return matched?.name || "";
+}
+
+function renderLogEntries() {
+  const typeFilter = String(el.logFilterType?.value || "all");
+  const keyword = String(el.logFilterKeyword?.value || "").trim().toLowerCase();
+  const currentRuleFilter = String(el.logFilterRule?.value || "all");
+  const ruleNames = Array.from(new Set([
+    ...state.rules.map((rule) => String(rule?.name || "")).filter(Boolean),
+    ...state.logEntries.map((entry) => String(entry.ruleName || "")).filter(Boolean)
+  ])).sort((a, b) => a.localeCompare(b, "zh-CN"));
+
+  if (el.logFilterRule) {
+    el.logFilterRule.innerHTML = "";
+    const allOption = document.createElement("option");
+    allOption.value = "all";
+    allOption.textContent = "全部规则";
+    el.logFilterRule.appendChild(allOption);
+    for (const ruleName of ruleNames) {
+      const option = document.createElement("option");
+      option.value = ruleName;
+      option.textContent = ruleName;
+      el.logFilterRule.appendChild(option);
+    }
+    el.logFilterRule.value = currentRuleFilter === "all" || ruleNames.includes(currentRuleFilter) ? currentRuleFilter : "all";
+  }
+
+  const ruleFilter = String(el.logFilterRule?.value || "all");
+  const lines = state.logEntries.filter((entry) => {
+    if (typeFilter !== "all" && entry.type !== typeFilter) return false;
+    if (ruleFilter !== "all" && entry.ruleName !== ruleFilter) return false;
+    if (keyword && !entry.message.toLowerCase().includes(keyword)) return false;
+    return true;
+  });
+
+  el.log.textContent = lines.map((entry) => `[${entry.timestamp}] ${entry.message}`).join("\n");
+  if (lines.length > 0) el.log.textContent += "\n";
   el.log.scrollTop = el.log.scrollHeight;
+}
+
+function appendLog(line) {
+  state.logEntries.push({
+    timestamp: new Date().toISOString().replace("T", " ").replace("Z", ""),
+    message: String(line),
+    type: detectLogType(line),
+    ruleName: detectRuleName(line)
+  });
+  if (state.logEntries.length > 2000) {
+    state.logEntries = state.logEntries.slice(-2000);
+  }
+  renderLogEntries();
 }
 
 function logAiFormMapping(result) {
@@ -197,154 +457,430 @@ function logAiFormMapping(result) {
   appendLog(`AI 表单映射建议已生成：${summary}`);
 }
 
-const configController = createConfigController({ el });
-const {
-  getConfigFromInputs,
-  setInputsFromConfig,
-  updateAiConfigUI,
-  updateScheduleUI
-} = configController;
-
-const getIsFmpProvider = () => String(el.dataProvider.value || "fmp").toLowerCase() === "fmp";
-
-function syncAdvancedJSON() {
-  el.rulesJson.value = JSON.stringify(state.rules, null, 2);
+function showFatalBootError(error) {
+  const message = error instanceof Error ? `${error.message}\n${error.stack || ""}` : String(error || "unknown");
+  if (el.log) {
+    el.log.textContent = `[BOOT_ERROR] ${message}`;
+  }
+  if (el.diagnosticsMeta) {
+    el.diagnosticsMeta.textContent = `前端初始化失败：${message}`;
+  }
 }
 
-let renderRulesList = () => {};
-let renderScreenerTable = () => {};
-let renderFinancialTable = () => {};
+async function applyAiFormIntentActionFactory({ showTab, updateScheduleUI, openRuleModalWithDraft, saveRuleDraft, updateScreenerUI, updateScreenerEstimate, updateFinancialUI, updateFinancialEstimate }) {
+  return async function applyAiFormIntentAction({ intent, action }) {
+    const warnings = Array.isArray(intent?.warnings) ? intent.warnings.filter(Boolean) : [];
+    const reason = String(intent?.reason || "").trim();
+    const warningText = warnings.length > 0 ? `；回退提示：${warnings.join(" / ")}` : "";
 
-const { addSymbolsToAlertPool } = createAlertPoolController({
-  el,
-  state,
-  appendLog,
-  syncAdvancedJSON,
-  renderRulesList: () => renderRulesList()
-});
+    if (action === "open_rule_modal") {
+      showTab("rules");
+      openRuleModalWithDraft(intent?.fields || {});
+      const message = `AI 规则草案已载入规则编辑器${reason ? `：${reason}` : ""}${warningText}`;
+      appendLog(message);
+      return { message };
+    }
 
-const uiVisibilityController = createUiVisibilityController({
-  el,
-  state,
-  getIsFmpProvider
-});
-const {
-  applyDefaultFmpScreenerPreset,
-  applyFinancialPreset,
-  showTab,
-  updateFinancialEstimate,
-  updateFinancialUI,
-  updateScreenerEstimate,
-  updateScreenerUI,
-  updateUniverseUI
-} = uiVisibilityController;
+    if (action === "save_rule_direct") {
+      const ruleName = String(intent?.fields?.name || "AI 建议规则").trim() || "AI 建议规则";
+      if (!window.confirm(`确认直接保存这条 AI 规则吗？\n\n${ruleName}`)) {
+        return { message: "已取消直接保存 AI 规则。" };
+      }
+      showTab("rules");
+      const saved = await saveRuleDraft(intent?.fields || {});
+      const message = saved
+        ? `AI 规则草案已直接保存${warningText}`
+        : "AI 规则草案未直接保存，请在规则编辑器中补全后手动保存。";
+      if (!saved) appendLog(message);
+      return { message };
+    }
 
-const { runOnce, start, stop } = createRunController({
-  el,
-  state,
-  appendLog,
-  getConfigFromInputs
-});
+    if (action === "apply_screener_preset") {
+      const fields = intent?.fields || {};
+      el.scrUniverse.value = String(fields.universe || "us_all");
+      el.screenerSymbols.value = Array.isArray(fields.symbols) ? fields.symbols.join("\n") : "";
+      el.scrMaxScan.value = fields.maxScan == null ? "2000" : String(fields.maxScan);
+      el.scrMinPrice.value = fields.minPrice == null ? "" : String(fields.minPrice);
+      el.scrMinMarketCap.value = fields.minMarketCap == null ? "" : String(fields.minMarketCap);
+      el.scrMinTurnoverM.value = fields.minTurnoverM == null ? "" : String(fields.minTurnoverM);
+      el.scrRecent5dCloseAth.value = fields.requireRecent5dCloseAth === false ? "false" : "true";
+      el.scrMinVolumeRatio.value = fields.minVolumeRatio == null ? "" : String(fields.minVolumeRatio);
+      updateScreenerUI();
+      updateScreenerEstimate();
+      showTab("screener");
+      const message = `AI 建议已应用到筛选页${warningText}`;
+      appendLog(message);
+      return { message };
+    }
 
-const { addCondition, closeRuleModal, handleRuleTemplateChange, openRuleModal, saveRuleFromModal } = createRuleEditorController({
-  el,
-  state,
-  parseSymbols,
-  getIsFmpProvider,
-  updateUniverseUI,
-  appendLog,
-  syncAdvancedJSON,
-  renderRulesList: () => renderRulesList()
-});
+    if (action === "apply_financial_preset") {
+      const fields = intent?.fields || {};
+      const criteria = fields.criteria || {};
+      el.finUniverse.value = String(fields.universe || "us_all");
+      el.financialSymbols.value = Array.isArray(fields.symbols) ? fields.symbols.join("\n") : "";
+      el.finMaxScan.value = fields.maxScan == null ? "100" : String(fields.maxScan);
+      el.finMinMarketCap.value = criteria.minMarketCap == null ? "" : String(criteria.minMarketCap);
+      el.finMinRevenueGrowthYoY.value = criteria.minRevenueGrowthYoY == null ? "" : String(criteria.minRevenueGrowthYoY);
+      el.finMinGrossMargin.value = criteria.minGrossMargin == null ? "" : String(criteria.minGrossMargin);
+      el.finMinEbitdaGrowthYoY.value = criteria.minEbitdaGrowthYoY == null ? "" : String(criteria.minEbitdaGrowthYoY);
+      el.finMinEbitdaMargin.value = criteria.minEbitdaMargin == null ? "" : String(criteria.minEbitdaMargin);
+      el.finMinOperatingMargin.value = criteria.minOperatingMargin == null ? "" : String(criteria.minOperatingMargin);
+      el.finPositiveOperatingCashFlow.value = criteria.requirePositiveOperatingCashFlow === false ? "false" : "true";
+      el.finPositiveFreeCashFlow.value = criteria.requirePositiveFreeCashFlow === false ? "false" : "true";
+      el.finMaxDebtToEquity.value = criteria.maxDebtToEquity == null ? "" : String(criteria.maxDebtToEquity);
+      updateFinancialUI();
+      updateFinancialEstimate();
+      showTab("financial");
+      const message = `AI 建议已应用到财报筛选页${warningText}`;
+      appendLog(message);
+      return { message };
+    }
 
-function rerenderAiActionSources() {
-  renderRulesList();
-  renderScreenerTable(state.screenerResults || []);
-  renderFinancialTable(state.financialResults || []);
+    if (action === "apply_schedule_preset") {
+      const fields = intent?.fields || {};
+      el.scheduleMode.value = String(fields.mode || "interval");
+      el.scheduleIntervalSec.value = fields.intervalSec == null ? "60" : String(fields.intervalSec);
+      el.scheduleDailyTime.value = String(fields.dailyTime || "09:30");
+      el.scheduleWeekdaysOnly.value = fields.weekdaysOnly === false ? "false" : "true";
+      updateScheduleUI();
+      showTab("schedule");
+      const message = `AI 建议已应用到定时页${warningText}`;
+      appendLog(message);
+      return { message };
+    }
+
+    throw new Error(`不支持的 AI 应用动作：${action}`);
+  };
 }
 
-const { buildAiTarget, clearAiPanel, explainAiTarget } = createAiPanelController({
-  el,
-  state,
-  appendLog,
-  rerenderAiActionSources,
-  onAiResult: (result) => logAiFormMapping(result)
-});
+async function bootstrapRenderer() {
+  const configController = createConfigController({ el });
+  const {
+    getConfigFromInputs,
+    setInputsFromConfig,
+    updateAiConfigUI,
+    updateScheduleUI
+  } = configController;
 
-const resultsController = createResultsController({
-  el,
-  state,
-  getIsFmpProvider,
-  addSymbolsToAlertPool,
-  explainAiTarget,
-  buildAiTarget
-});
-renderScreenerTable = resultsController.renderScreenerTable;
-renderFinancialTable = resultsController.renderFinancialTable;
+  const getIsFmpProvider = () => String(el.dataProvider.value || "fmp").toLowerCase() === "fmp";
 
-const rulesListController = createRulesListController({
-  el,
-  state,
-  appendLog,
-  syncAdvancedJSON,
-  openRuleModal,
-  explainAiTarget,
-  buildAiTarget
-});
-renderRulesList = rulesListController.renderRulesList;
+  function syncAdvancedJSON() {
+    el.rulesJson.value = JSON.stringify(state.rules, null, 2);
+  }
 
-const { bindRuntimeStreams, loadAll } = createRendererBootstrapController({
-  el,
-  state,
-  setInputsFromConfig,
-  buildTemplateRules,
-  syncAdvancedJSON,
-  renderRulesList,
-  updateScreenerUI,
-  updateFinancialUI
-});
+  let renderRulesList = () => {};
+  let renderScreenerTable = () => {};
+  let renderFinancialTable = () => {};
 
-const { bind } = createWorkspaceBindingsController({
-  el,
-  state,
-  appendLog,
-  getConfigFromInputs,
-  setInputsFromConfig,
-  updateAiConfigUI,
-  updateScheduleUI,
-  updateScreenerUI,
-  updateScreenerEstimate,
-  updateFinancialUI,
-  updateFinancialEstimate,
-  updateUniverseUI,
-  applyDefaultFmpScreenerPreset,
-  applyFinancialPreset,
-  addSymbolsToAlertPool,
-  clearAiPanel,
-  openRuleModal,
-  closeRuleModal,
-  saveRuleFromModal,
-  handleRuleTemplateChange,
-  addCondition,
-  renderRulesList,
-  syncAdvancedJSON,
-  renderScreenerTable,
-  renderFinancialTable,
-  showTab,
-  runOnce,
-  start,
-  stop,
-  buildTemplateRules,
-  loadAll
-});
+  const { addSymbolsToAlertPool } = createAlertPoolController({
+    el,
+    state,
+    appendLog,
+    syncAdvancedJSON,
+    renderRulesList: () => renderRulesList()
+  });
 
-bind();
-showTab("rules");
+  const uiVisibilityController = createUiVisibilityController({
+    el,
+    state,
+    getIsFmpProvider
+  });
+  const {
+    applyDefaultFmpScreenerPreset,
+    applyFinancialPreset,
+    showTab,
+    updateFinancialEstimate,
+    updateFinancialUI,
+    updateScreenerEstimate,
+    updateScreenerUI,
+    updateUniverseUI
+  } = uiVisibilityController;
 
-try {
-  bindRuntimeStreams({ appendLog });
-} catch (error) {
-  appendLog(`运行时事件订阅失败：${error instanceof Error ? error.message : String(error)}`);
+  const { runOnce, start, stop } = createRunController({
+    el,
+    state,
+    appendLog,
+    getConfigFromInputs
+  });
+
+  const {
+    addCondition,
+    closeRuleModal,
+    handleRuleTemplateChange,
+    openRuleModal,
+    openRuleModalWithDraft,
+    saveRuleDraft,
+    saveRuleFromModal
+  } = createRuleEditorController({
+    el,
+    state,
+    parseSymbols,
+    getIsFmpProvider,
+    updateUniverseUI,
+    appendLog,
+    syncAdvancedJSON,
+    renderRulesList: () => renderRulesList()
+  });
+
+  function rerenderAiActionSources() {
+    renderRulesList();
+    renderScreenerTable(state.screenerResults || []);
+    renderFinancialTable(state.financialResults || []);
+  }
+
+  const applyAiFormIntentAction = await applyAiFormIntentActionFactory({
+    showTab,
+    updateScheduleUI,
+    openRuleModalWithDraft,
+    saveRuleDraft,
+    updateScreenerUI,
+    updateScreenerEstimate,
+    updateFinancialUI,
+    updateFinancialEstimate
+  });
+
+  const {
+    attachAiContextSnapshot,
+    buildAiTarget,
+    buildCurrentTarget,
+    clearAiPanel,
+    clearAiPanelAttachments,
+    explainAiTarget,
+    refreshAiPanel,
+    sendCurrentMessage,
+    switchToAssistantMode
+  } = createAiPanelController({
+    el,
+    state,
+    appendLog,
+    rerenderAiActionSources,
+    onAiResult: (result) => logAiFormMapping(result),
+    onApplyFormIntent: applyAiFormIntentAction
+  });
+
+  const resultsController = createResultsController({
+    el,
+    state,
+    getIsFmpProvider,
+    addSymbolsToAlertPool,
+    explainAiTarget,
+    buildAiTarget
+  });
+  renderScreenerTable = resultsController.renderScreenerTable;
+  renderFinancialTable = resultsController.renderFinancialTable;
+
+  const rulesListController = createRulesListController({
+    el,
+    state,
+    appendLog,
+    syncAdvancedJSON,
+    openRuleModal
+  });
+  renderRulesList = rulesListController.renderRulesList;
+
+  const { bindRuntimeStreams, loadAll } = createRendererBootstrapController({
+    el,
+    state,
+    setInputsFromConfig,
+    buildTemplateRules,
+    syncAdvancedJSON,
+    renderRulesList,
+    updateScreenerUI,
+    updateFinancialUI,
+    applyDiagnostics: (diagnostics) => {
+      state.diagnostics = diagnostics || null;
+      renderDiagnosticsSummary();
+    }
+  });
+
+  const { bind } = createWorkspaceBindingsController({
+    el,
+    state,
+    appendLog,
+    getConfigFromInputs,
+    setInputsFromConfig,
+    updateAiConfigUI,
+    updateScheduleUI,
+    updateScreenerUI,
+    updateScreenerEstimate,
+    updateFinancialUI,
+    updateFinancialEstimate,
+    updateUniverseUI,
+    applyDefaultFmpScreenerPreset,
+    applyFinancialPreset,
+    addSymbolsToAlertPool,
+    clearAiPanel,
+    openRuleModal,
+    closeRuleModal,
+    saveRuleFromModal,
+    handleRuleTemplateChange,
+    addCondition,
+    renderRulesList,
+    syncAdvancedJSON,
+    renderScreenerTable,
+    renderFinancialTable,
+    showTab,
+    runOnce,
+    start,
+    stop,
+    buildTemplateRules,
+    loadAll
+  });
+
+  bind();
+  showTab("rules");
+  refreshAiPanel();
+
+  el.btnAiSend?.addEventListener("click", () => {
+    sendCurrentMessage();
+  });
+  el.btnAiBuild?.addEventListener("click", () => {
+    buildCurrentTarget();
+  });
+  el.aiPanelInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendCurrentMessage();
+    }
+  });
+  el.btnAiAssistantMode?.addEventListener("click", () => {
+    switchToAssistantMode();
+  });
+  el.btnClearAiAttachments?.addEventListener("click", () => {
+    clearAiPanelAttachments();
+  });
+  el.btnAiAttachRules?.addEventListener("click", () => {
+    attachAiContextSnapshot("rules");
+  });
+  el.btnAiAttachSchedule?.addEventListener("click", () => {
+    attachAiContextSnapshot("schedule");
+  });
+  el.btnAiAttachLastRun?.addEventListener("click", () => {
+    attachAiContextSnapshot("last_run");
+  });
+  el.btnAiAttachLog?.addEventListener("click", () => {
+    attachAiContextSnapshot("logs");
+  });
+  el.btnAiAttachScreener?.addEventListener("click", () => {
+    attachAiContextSnapshot("screener_results");
+  });
+  el.btnAiAttachFinancial?.addEventListener("click", () => {
+    attachAiContextSnapshot("financial_results");
+  });
+
+  el.logFilterType?.addEventListener("change", renderLogEntries);
+  el.logFilterRule?.addEventListener("change", renderLogEntries);
+  el.logFilterKeyword?.addEventListener("input", renderLogEntries);
+  el.btnClearLog?.addEventListener("click", () => {
+    state.logEntries = [];
+    renderLogEntries();
+  });
+  el.btnReloadDiagnostics?.addEventListener("click", () => {
+    loadDiagnosticsSummary();
+  });
+  el.btnTestEmail?.addEventListener("click", async () => {
+    try {
+      const res = await window.api.testEmail();
+      appendLog(`测试邮件已触发 -> ${res?.to || "-"}`);
+    } catch (error) {
+      appendLog(`测试邮件失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+  el.btnTestWebhook?.addEventListener("click", async () => {
+    try {
+      const res = await window.api.testWebhook();
+      appendLog(`测试回调已触发 -> ${res?.url || "-"}${res?.type === "feishu" ? `（分片=${res?.partsSent || 1}）` : ""}`);
+    } catch (error) {
+      appendLog(`测试回调失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+  el.btnOpenLogDir?.addEventListener("click", async () => {
+    const targetPath = state.diagnostics?.runtimeLog || state.diagnostics?.diagnosticsFile || state.config?.base || "";
+    if (!targetPath) {
+      appendLog("当前没有可打开的日志路径");
+      return;
+    }
+    try {
+      await window.api.openPath(targetPath);
+    } catch (error) {
+      appendLog(`打开日志路径失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+
+  el.btnComputeMarketAmv?.addEventListener("click", async () => {
+    if (!el.marketAmvResult) return;
+    el.marketAmvResult.innerHTML = "计算中，请稍候…";
+    el.btnComputeMarketAmv.disabled = true;
+    try {
+      const result = await window.api.engine.runMarketAmv();
+      const valueStr = Number(result?.value).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+      const dateStr = result?.date || "-";
+      const sample = result?.sampleCount ?? 0;
+      const processed = result?.processedCount ?? 0;
+      el.marketAmvResult.innerHTML = `
+        <div>日期：${dateStr}</div>
+        <div>全市场 0AMV：${valueStr} 百万美元</div>
+        <div>样本：有效 ${processed} / 总计 ${sample}</div>
+      `;
+      appendLog(`全市场 0AMV 计算完成：${valueStr} 百万美元（${dateStr}）`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      el.marketAmvResult.innerHTML = `<span class="error">计算失败：${message}</span>`;
+      appendLog(`全市场 0AMV 计算失败：${message}`);
+    } finally {
+      el.btnComputeMarketAmv.disabled = false;
+    }
+  });
+
+  try {
+    bindRuntimeStreams({
+      appendLog,
+      onEvent: (evt) => {
+        if (evt?.type === "run_status") {
+          state.diagnostics = {
+            ...(state.diagnostics || {}),
+            lastRun: evt,
+            scheduler: {
+              ...((state.diagnostics && state.diagnostics.scheduler) || {}),
+              lastRunAt: evt.phase === "finished" ? (evt.finishedAt || new Date().toISOString()) : ((state.diagnostics && state.diagnostics.scheduler && state.diagnostics.scheduler.lastRunAt) || "")
+            },
+            updatedAt: new Date().toISOString()
+          };
+          renderDiagnosticsSummary();
+        } else if (evt?.type === "scheduler_status") {
+          state.diagnostics = {
+            ...(state.diagnostics || {}),
+            scheduler: evt,
+            updatedAt: new Date().toISOString()
+          };
+          renderDiagnosticsSummary();
+        } else if (evt?.type === "feishu_bridge_status") {
+          state.diagnostics = {
+            ...(state.diagnostics || {}),
+            feishuBridge: evt,
+            updatedAt: new Date().toISOString()
+          };
+          renderDiagnosticsSummary();
+        }
+      }
+    });
+  } catch (error) {
+    appendLog(`运行时事件订阅失败：${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  await loadAll();
+  renderDiagnosticsSummary();
 }
 
-loadAll().catch((error) => appendLog(error instanceof Error ? error.message : String(error)));
+window.addEventListener("error", (event) => {
+  reportRendererError("window_error", event?.error || event?.message || "unknown");
+});
+window.addEventListener("unhandledrejection", (event) => {
+  reportRendererError("unhandled_rejection", event?.reason || "unknown");
+});
+
+bootstrapRenderer().catch((error) => {
+  showFatalBootError(error);
+  reportRendererError("renderer_bootstrap", error);
+  console.error("[renderer-bootstrap]", error);
+});

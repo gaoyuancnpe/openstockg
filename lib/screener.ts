@@ -16,7 +16,6 @@ export interface StockData {
 const DELAY_MS = 2000; // 2 seconds delay to respect API rate limits
 
 export async function screenStocks(): Promise<StockData[]> {
-  console.log(`Starting screener for ${MAJOR_US_STOCKS.length} stocks...`);
   const results: StockData[] = [];
 
   for (let i = 0; i < MAJOR_US_STOCKS.length; i++) {
@@ -28,7 +27,6 @@ export async function screenStocks(): Promise<StockData[]> {
     }
 
     try {
-      console.log(`Processing ${symbol} (${i + 1}/${MAJOR_US_STOCKS.length})...`);
       
       // Fetch quote
       const quote = await getQuote(symbol);
@@ -66,16 +64,10 @@ export async function screenStocks(): Promise<StockData[]> {
       // For now, we collect all valid stocks.
       results.push(stockData);
 
-      // Debug log for first 5 stocks to verify data quality
-      if (i < 5) {
-        console.log(`[DEBUG] Data for ${symbol}:`, JSON.stringify(stockData, null, 2));
-      }
-
     } catch (error) {
       console.error(`Error processing ${symbol}:`, error);
     }
   }
 
-  console.log(`Screener finished. Found ${results.length} stocks.`);
   return results;
 }

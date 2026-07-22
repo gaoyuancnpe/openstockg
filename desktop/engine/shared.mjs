@@ -109,11 +109,10 @@ function parseTimeHHMM(input) {
   return { hh, mm };
 }
 
-export function computeNextDailyRunMs({ timeHHMM, weekdaysOnly }) {
+export function computeNextDailyRunDate({ timeHHMM, weekdaysOnly, now = new Date() }) {
   const t = parseTimeHHMM(timeHHMM);
   if (!t) return null;
 
-  const now = new Date();
   const next = new Date(now);
   next.setSeconds(0, 0);
   next.setHours(t.hh, t.mm, 0, 0);
@@ -125,6 +124,11 @@ export function computeNextDailyRunMs({ timeHHMM, weekdaysOnly }) {
     while (!isWeekday(next)) next.setDate(next.getDate() + 1);
   }
 
-  return next.getTime() - now.getTime();
+  return next;
 }
 
+export function computeNextDailyRunMs({ timeHHMM, weekdaysOnly, now = new Date() }) {
+  const next = computeNextDailyRunDate({ timeHHMM, weekdaysOnly, now });
+  if (!next) return null;
+  return next.getTime() - now.getTime();
+}

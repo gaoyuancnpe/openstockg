@@ -23,6 +23,13 @@ function fallbackSectionsForTask(taskKind, text) {
       { key: "下一步动作", title: "下一步动作", bullets: ["后续可补充结构化输出以支持自动填表"] }
     ];
   }
+  if (taskKind === "assistant") {
+    return [
+      { key: "需求理解", title: "需求理解", bullets: cleanText ? [cleanText] : ["AI 未返回结构化摘要"] },
+      { key: "可执行建议", title: "可执行建议", bullets: ["未提供结构化建议条目"] },
+      { key: "风险与缺口", title: "风险与缺口", bullets: ["后续可补充上下文后再生成动作建议"] }
+    ];
+  }
   return [
     { key: "规则意图", title: "规则意图", bullets: cleanText ? [cleanText] : ["AI 未返回结构化摘要"] },
     { key: "主要问题", title: "主要问题", bullets: ["未提供结构化问题条目"] },
@@ -37,6 +44,9 @@ function normalizeVerdict(taskKind, verdict) {
   }
   if (taskKind === "screener") {
     return value === "track" || value === "deprioritize" ? value : "watch";
+  }
+  if (taskKind === "assistant") {
+    return value === "actionable" || value === "not_recommended" ? value : "need_context";
   }
   return value === "practical" || value === "flawed" ? value : "average";
 }

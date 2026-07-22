@@ -7,6 +7,8 @@ function renderPathsText(paths) {
     `rules.json：${paths.rules}`,
     `state.json：${paths.state}`,
     `events.jsonl：${paths.events}`,
+    `runtime.log：${paths.runtimeLog || "-"}`,
+    `diagnostics.json：${paths.diagnostics || "-"}`,
     `universe_us_symbols.json：${paths.universeUS}`,
     `universe_fmp_default.json：${paths.universeFmpDefault || "-"}`,
     `universe_fmp_financial.json：${paths.universeFmpFinancial || "-"}`
@@ -21,7 +23,8 @@ export function createRendererBootstrapController({
   syncAdvancedJSON,
   renderRulesList,
   updateScreenerUI,
-  updateFinancialUI
+  updateFinancialUI,
+  applyDiagnostics = null
 }) {
   function applyPaths(paths) {
     if (el.devModeInfo) {
@@ -54,11 +57,12 @@ export function createRendererBootstrapController({
   }
 
   async function loadAll() {
-    const [paths, config, rules, legalInfo] = await Promise.all([
+    const [paths, config, rules, legalInfo, diagnostics] = await Promise.all([
       window.api.getPaths(),
       window.api.loadConfig(),
       window.api.loadRules(),
-      window.api.getLegalInfo()
+      window.api.getLegalInfo(),
+      typeof window.api.getDiagnostics === "function" ? window.api.getDiagnostics() : null
     ]);
 
     applyPaths(paths);
@@ -76,13 +80,30 @@ export function createRendererBootstrapController({
     renderRulesList();
     updateScreenerUI();
     updateFinancialUI();
+    if (typeof applyDiagnostics === "function") {
+      applyDiagnostics(diagnostics);
+    }
 
     applyLegalInfo(legalInfo);
   }
 
-  function bindRuntimeStreams({ appendLog }) {
-    window.api.onLog(({ line }) => appendLog(line));
-    window.api.onEvent((evt) => appendLog(`提醒事件 ${evt.symbol} ${evt.conditionText}`));
+  function bindRuntimeStreams({ appendLog, onEvent = null }) {
+    if (typeof window.api?.onLog === "function") {
+      window.api.onLog(({ line }) => appendLog(line));
+    } else {
+      appendLog("运行时日志订阅不可用：window.api.onLog 未注入。");
+    }
+
+    if (typeof window.api?.onEvent === "function") {
+      window.api.onEvent((evt) => {
+        if (evt?.type === "alert") {
+          appendLog(`提醒事件 ${evt.symbol} ${evt.conditionText}`);
+        }
+        if (typeof onEvent === "function") onEvent(evt);
+      });
+    } else {
+      appendLog("事件订阅不可用：window.api.onEvent 未注入。");
+    }
   }
 
   return {

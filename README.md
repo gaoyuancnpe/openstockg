@@ -41,8 +41,6 @@ npm run dev
 ```bash
 npm run dist:win:check-env
 npm run dist:win
-npm run dist:win:zip:check-env
-npm run dist:win:zip
 ```
 
 如果你希望从仓库根目录直接进入桌面端，也可以执行：
@@ -51,8 +49,6 @@ npm run dist:win:zip
 npm run desktop:dev
 npm run desktop:dist:win:check-env
 npm run desktop:dist:win
-npm run desktop:dist:win:zip:check-env
-npm run desktop:dist:win:zip
 ```
 
 ## 当前推荐路线
@@ -97,7 +93,7 @@ npm run desktop:dist:win:zip
 - 如果你要在 Linux / WSL 下打 Windows `nsis` 安装包，还需要 `wine` / `wine64`
 - MongoDB
 - 至少一种行情数据源 Key
-  - `FMP`：桌面端默认推荐
+  - `FMP`：桌面端默认推荐（全市场 0AMV 计算也依赖此项）
   - `Finnhub`：命令行脚本当前主要依赖
 - 如需邮件通知，还需要：
   - `Gmail` 邮箱
@@ -291,13 +287,25 @@ npm run desktop:dev
 
 当前调用方式使用 DeepSeek 的 OpenAI 兼容 `chat/completions`，AI 只负责解释结构化结果与规则配置，不直接替代筛选是否通过。
 
+### 3.3 0AMV 活跃市值指标
+
+桌面端支持 `0AMV`（活跃市值，Active Market Value）指标，用于衡量个股与全市场的活跃资金参与度，包含三个层级：
+
+- **活筹 ActiveChips**：个股 10 日平均成交量（百万股）
+- **活筹市值 AMV**：个股 10 日均量 × 最新收盘价（百万美元）
+- **全市场 0AMV**：全市场样本股 AMV 之和（百万美元），默认采样市值前 100 只大盘股
+
+这三项均可作为规则条件使用（`活筹 ActiveChips ≥`、`活筹市值 AMV ≥`、`全市场 0AMV ≥`），也可在桌面端顶部 `0AMV` 标签页点击「计算 0AMV」单独查看全市场指数。
+
+注意：全市场 0AMV 计算依赖 `FMP API Key`（调用 `stock-screener` 与历史价格接口）；个股活筹 / 活筹市值基于 K 线数据，FMP 与 Finnhub 均支持。规则运行时全市场 0AMV 有 24 小时缓存。
+
 ### 4. 打包 Windows 安装包
 
 支持环境：
 
-- 原生 Windows：`dist:win` 与 `dist:win:zip` 都是默认支持入口
+- 原生 Windows：`dist:win` 是默认支持入口
 - Linux / WSL：`dist:win` 需要先安装 `wine`，可先跑 `npm run dist:win:check-env`
-- Linux / WSL：`dist:win:zip` 当前不作为支持环境，请改在 Windows PowerShell / CMD 中执行
+- 需要 Windows zip 并落到 `F:`：请直接改用下方 `Windows PowerShell` 脚本方案
 
 在 `desktop/` 目录执行：
 
@@ -319,43 +327,31 @@ npm run desktop:dist:win
 - 如果预检提示缺少 `wine`，请先补依赖，或切回 Windows 原生环境执行
 - 新入口会先输出环境原因和下一步建议，再决定是否继续调用 `electron-builder`
 
-### 5. 打包 Windows Zip
+### 5. Windows 一键打包并输出到 F 盘
 
-```bash
-npm run dist:win:zip:check-env
-npm run dist:win:zip
+如果你当前主要在 `WSL` 中开发，但最终要产出 Windows zip 并落到 `F:\OpenStockAlerts\dist`，推荐直接在 `Windows PowerShell` 中调用仓库里的脚本：
+
+- 脚本位置：`scripts/desktop/build-win-zip-to-f.ps1`
+- 作用：
+  - 从当前仓库读取 `desktop/` 源码
+  - 复制到 Windows 临时目录
+  - 在 Windows 本地执行 `npm ci` / `electron-builder`
+  - 将最新 zip 和 `USER_GUIDE.md` 复制到 `F:\OpenStockAlerts\dist`
+
+示例：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-22.04\home\gaoyuan\openstock-g\OpenStock\scripts\desktop\build-win-zip-to-f.ps1" -SourceDesktopPath "\\wsl.localhost\Ubuntu-22.04\home\gaoyuan\openstock-g\OpenStock\desktop" -DestDir "F:\OpenStockAlerts\dist"
 ```
-
-或在仓库根目录执行：
-
-```bash
-npm run desktop:dist:win:zip:check-env
-npm run desktop:dist:win:zip
-```
-
-产物默认在：
-
-- `desktop/dist/`
 
 说明：
 
-- `dist:win:zip` 当前只验证原生 Windows 环境
-- 如果你在 Linux / WSL 下执行，这个入口会直接失败并提示改到 Windows PowerShell / CMD 中运行，避免继续进入误导性的 `electron-builder` 报错
+- 这条命令要在 `Windows PowerShell` 中执行，不是在 WSL 终端中执行
+- 一般不需要手工把仓库额外复制到 Windows；脚本会自己把 `desktop/` 拷到 Windows 临时目录后再打包
+- 如果你的 WSL 发行版不是 `Ubuntu-22.04`，请把命令中的发行版名改成实际值
+- 这是当前唯一推荐保留的 `WSL -> Windows -> F:` 交付说明；旧的 zip 打包说明已废弃，不再建议按旧入口操作
 
-### 6. 直接复制到 F 盘
-
-如果你在 WSL 中开发，且 Windows 已挂载到 `/mnt/f`，可以直接执行：
-
-```bash
-npm run dist:win:zip:toF
-```
-
-该命令会：
-
-1. 先构建 Windows zip 包
-2. 再复制到 `F:\OpenStockAlerts\dist\`
-
-### 7. 桌面端本地数据文件
+### 6. 桌面端本地数据文件
 
 桌面端会把本地数据保存到用户目录下，主要包括：
 
@@ -547,9 +543,6 @@ npm install
 npm run dist:win:check-env
 npm run dev
 npm run dist:win
-npm run dist:win:zip:check-env
-npm run dist:win:zip
-npm run dist:win:zip:toF
 ```
 
 ### 仓库根目录（桌面端快捷入口）
@@ -558,8 +551,6 @@ npm run dist:win:zip:toF
 npm run desktop:dev
 npm run desktop:dist:win:check-env
 npm run desktop:dist:win
-npm run desktop:dist:win:zip:check-env
-npm run desktop:dist:win:zip
 npm run desktop:check-boundaries
 ```
 
@@ -614,24 +605,17 @@ npm run alerts:worker
 
 ```bash
 npm run dist:win:check-env
-npm run dist:win:zip:check-env
 ```
 
 常见情况：
 
 - `dist:win` 提示缺少 `wine`：安装 `wine` / `wine64` 后再试，或改到 Windows 原生环境
-- `dist:win:zip` 提示当前环境不支持：请直接切到 Windows PowerShell / CMD 执行
+- 需要产出 Windows zip 并复制到 `F:`：请直接改用上面的 `Windows PowerShell` 脚本方案
 
 如果你已经补齐 `wine`，再执行：
 
 ```bash
 npm run dist:win
-```
-
-如果你要打 zip 包，请改在 Windows 环境执行：
-
-```bash
-npm run dist:win:zip
 ```
 
 ### 5. 邮件发不出去

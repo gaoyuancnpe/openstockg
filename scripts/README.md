@@ -11,7 +11,7 @@
 
 | 分类 | 目录 | 当前脚本 |
 | --- | --- | --- |
-| 桌面端 | `scripts/desktop/` | `check-desktop-boundaries.mjs` |
+| 桌面端 | `scripts/desktop/` | `check-desktop-boundaries.mjs`, `build-win-zip-to-f.ps1` |
 | 共享 | `scripts/shared/` | `test-db.mjs`, `fmp-default-rule-test.mjs`, `fmp-financial-screener-test.mjs` |
 | 遗留 CLI | `scripts/legacy-cli/` | `alerts-seed.mjs`, `alerts-worker.mjs` |
 | 遗留 Web | `scripts/legacy-web/` | `check-env.mjs`, `fetch-to-csv.ts`, `manual-trigger.ts`, `seed-inactive-user.mjs`, `test-db.ts`, `test-email.ts`, `test-yahoo.ts`, `verify-watchlist.mjs` |
@@ -49,3 +49,23 @@ npm run alerts:seed -- --rule '<json>'
 npm run alerts:worker:dry
 npm run alerts:worker
 ```
+
+Windows 打包补充：
+
+- `scripts/desktop/build-win-zip-to-f.ps1`：给 `WSL 开发 + Windows 打包 + F 盘交付` 场景准备的辅助脚本
+- 执行环境：必须在 `Windows PowerShell` 中运行
+- 默认行为：
+  - 从当前仓库的 `desktop/` 读取源码
+  - 复制到 Windows 临时目录
+  - 在 Windows 本地执行依赖安装和 zip 打包
+  - 复制产物到 `F:\OpenStockAlerts\dist`
+- 推荐命令：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-22.04\home\gaoyuan\openstock-g\OpenStock\scripts\desktop\build-win-zip-to-f.ps1" -SourceDesktopPath "\\wsl.localhost\Ubuntu-22.04\home\gaoyuan\openstock-g\OpenStock\desktop" -DestDir "F:\OpenStockAlerts\dist"
+```
+
+说明：
+
+- 一般不需要手工把仓库再复制一份到 Windows
+- 如果 WSL 发行版名不同，请把命令中的 `Ubuntu-22.04` 改成实际发行版名

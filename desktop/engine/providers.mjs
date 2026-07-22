@@ -30,7 +30,11 @@ export async function fmpProfile({ baseUrl, apiKey, symbol }) {
     symbol: String(row?.symbol || symbol || "").toUpperCase(),
     companyName: String(row?.companyName || row?.name || ""),
     marketCapM: row?.marketCap !== null && row?.marketCap !== undefined ? Number(row.marketCap) / 1e6 : null,
-    ipoDate: String(row?.ipoDate || "")
+    ipoDate: String(row?.ipoDate || ""),
+    exchangeShortName: String(row?.exchangeShortName || ""),
+    type: String(row?.type || ""),
+    isEtf: row?.isEtf === true || String(row?.isEtf || "").toLowerCase() === "true",
+    isFund: row?.isFund === true || String(row?.isFund || "").toLowerCase() === "true"
   };
 }
 

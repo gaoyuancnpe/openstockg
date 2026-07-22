@@ -19,15 +19,21 @@
           <section class="card">
           <div class="tabs">
             <button id="tabRules" class="tab active">规则</button>
-            <button id="tabScreener" class="tab">筛选</button>
-            <button id="tabFinancial" class="tab">财报</button>
             <button id="tabSchedule" class="tab">定时</button>
             <button id="tabConfig" class="tab">配置</button>
+            <button id="tabMarketAmv" class="tab">0AMV</button>
+          </div>
+          <div id="panelMarketAmv" class="panel">
+            <div class="cardTitle">全市场 0AMV 指数</div>
+            <div id="marketAmvResult" class="meta"></div>
+            <div class="actions">
+              <button id="btnComputeMarketAmv" type="button" class="primary">计算 0AMV</button>
+            </div>
           </div>
 
           <div id="panelRules" class="panel active">
             <div class="cardTitle">常用提醒规则</div>
-            <div class="hint">面向美股：点击“添加规则”可直接选择“创新高”“财报日大涨”“财报异动提醒”等模板，再按需调整标的范围、阈值和通知方式。</div>
+            <div class="hint">面向美股：规则为空时会默认带出 4 条模板，包括“原始模板”“创新高”“财报日大涨”“财报异动提醒”；点击“添加规则”也可任选其一后再按需调整。</div>
             <div class="actions">
               <button id="btnAddRule" class="primary">添加规则</button>
               <button id="btnSaveRules">保存全部规则</button>
@@ -175,6 +181,8 @@
           <div id="panelSchedule" class="panel">
             <div class="cardTitle">定时任务</div>
             <div class="hint">桌面端常驻运行时才会执行定时。建议先模拟运行验证规则，再启动常驻。</div>
+            <div id="scheduleRuntimeStatus" class="meta">常驻状态：未启动</div>
+            <div id="scheduleRuntimeDetails" class="meta"></div>
             <div class="row">
               <label>模式</label>
               <select id="scheduleMode">
@@ -201,6 +209,7 @@
               <button id="btnSaveConfig" class="primary">保存定时配置</button>
               <button id="btnLoadConfig">重新加载</button>
             </div>
+            <div id="scheduleRuntimeHint" class="hint"></div>
           </div>
 
           <div id="panelConfig" class="panel">
@@ -258,13 +267,60 @@
                 <option value="max">max</option>
               </select>
             </div>
+            <div class="cardTitle">飞书桥接</div>
+            <div class="hint">这里配置“飞书聊天 -> 桌面端智能体 -> 规则/定时 proposal -> 飞书确认应用”链路。当前第一版采用文本确认命令，不走卡片回调。</div>
+            <div class="row">
+              <label>启用飞书桥接</label>
+              <select id="feishuEnabled">
+                <option value="false">关闭</option>
+                <option value="true">开启</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>飞书 App ID</label>
+              <input id="feishuAppId" type="text" placeholder="cli_xxx" />
+            </div>
+            <div class="row">
+              <label>飞书 App Secret</label>
+              <input id="feishuAppSecret" type="password" placeholder="App Secret" />
+            </div>
+            <div class="row">
+              <label>允许的 Open ID</label>
+              <textarea id="feishuAllowOpenIds" rows="3" placeholder="每行一个 open_id；留空时可配合“必须命中 allowlist”控制"></textarea>
+            </div>
+            <div class="row">
+              <label>必须命中 allowlist</label>
+              <select id="feishuRequireAllowlist">
+                <option value="false">否</option>
+                <option value="true">是</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>允许飞书确认后直写</label>
+              <select id="feishuAllowRemoteApply">
+                <option value="false">否</option>
+                <option value="true">是</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>确认有效期（秒）</label>
+              <input id="feishuConfirmTtlSec" type="number" min="30" step="30" placeholder="300" />
+            </div>
+            <div id="feishuBridgeStatus" class="meta">飞书桥接：未启用</div>
             <div class="row">
               <label>默认收件人</label>
               <input id="defaultEmailTo" type="text" placeholder="请填写收件邮箱地址" />
             </div>
             <div class="row">
+              <label>默认回调类型</label>
+              <select id="defaultWebhookType">
+                <option value="generic">通用 webhook</option>
+                <option value="feishu">飞书机器人</option>
+              </select>
+            </div>
+            <div class="row">
               <label>默认回调地址</label>
-              <input id="defaultWebhookUrl" type="text" placeholder="请填写回调网址" />
+              <input id="defaultWebhookUrl" type="text" placeholder="通用 webhook 或飞书机器人 webhook 地址" />
             </div>
             <div class="row">
               <label>Gmail 邮箱账号</label>
@@ -283,6 +339,23 @@
 
           <section class="card">
             <div class="cardTitle">日志</div>
+            <div class="logToolbar">
+              <select id="logFilterType">
+                <option value="all">全部类型</option>
+                <option value="run">运行</option>
+                <option value="rule">规则</option>
+                <option value="fmp">FMP</option>
+                <option value="email">邮件</option>
+                <option value="event">事件</option>
+                <option value="error">错误</option>
+                <option value="ui">界面</option>
+              </select>
+              <select id="logFilterRule">
+                <option value="all">全部规则</option>
+              </select>
+              <input id="logFilterKeyword" type="text" placeholder="关键词筛选，例如 ETF / 邮件 / 创新高" />
+              <button id="btnClearLog">清空日志</button>
+            </div>
             <pre id="log"></pre>
           </section>
 
@@ -292,6 +365,7 @@
             <div class="actions">
               <button id="btnDryRunOnce">模拟运行一次</button>
               <button id="btnRunOnce" class="primary">真实跑一次</button>
+              <button id="btnRunOnceIgnoreCooldown">真实跑一次（忽略冷却）</button>
             </div>
             <div class="actions">
               <button id="btnStart" class="primary">启动常驻</button>
@@ -300,6 +374,17 @@
             </div>
             <div class="meta" id="devModeInfo"></div>
             <div class="meta" id="paths"></div>
+            <div class="cardTitle">自诊断</div>
+            <div class="hint">用于让系统自己抓运行中的错误并保留现场。建议先看最近一次运行汇总，再用测试按钮验证邮件和回调链路。</div>
+            <div class="actions">
+              <button id="btnReloadDiagnostics">刷新诊断</button>
+              <button id="btnTestEmail">测试邮件</button>
+              <button id="btnTestWebhook">测试回调</button>
+              <button id="btnOpenLogDir">打开运行日志</button>
+            </div>
+            <div class="meta" id="lastRunSummary">最近一次运行：暂无记录</div>
+            <div class="meta" id="schedulerSummary">当前常驻：未启动</div>
+            <div class="meta" id="diagnosticsMeta"></div>
           </section>
 
           <section class="card">
@@ -326,23 +411,44 @@
         <aside class="sideColumn">
           <section class="card aiWorkspaceCard">
           <div class="cardTitle">AI 工作区</div>
-          <div class="hint">右侧统一承接聊天解读与结构化生成。`AI聊天` 用于解释，`生成模板/生成草案` 仅在你明确需要时请求结构化结果。</div>
-            <div id="aiPanelMeta" class="meta">暂未选择解读对象。</div>
-            <div id="aiPanelStatus" class="meta"></div>
+          <div class="hint">这里改成开放助手入口了。你可以直接聊天，不必先选规则；如果想让它基于当前应用现场判断，再手动附加规则、定时、最近运行、日志或筛选结果。只有你明确需要结构化产出时，才点“生成规则”。</div>
             <div class="actions">
-              <button id="btnClearAiPanel">清空AI解读</button>
+              <button id="btnAiAssistantMode" class="primary">切回开放助手</button>
+              <button id="btnClearAiAttachments">清空附加上下文</button>
             </div>
-            <pre id="aiPanelOutput"></pre>
+            <div class="aiContextToolbar">
+              <button id="btnAiAttachRules">附加规则</button>
+              <button id="btnAiAttachSchedule">附加定时</button>
+              <button id="btnAiAttachLastRun">附加最近运行</button>
+              <button id="btnAiAttachLog">附加日志</button>
+              <button id="btnAiAttachScreener">附加筛选结果</button>
+              <button id="btnAiAttachFinancial">附加财报结果</button>
+            </div>
+            <div id="aiPanelAttachmentMeta" class="meta">未附加应用上下文，当前为开放聊天。</div>
+            <div id="aiPanelMeta" class="meta">当前模式：开放助手。</div>
+            <div id="aiPanelStatus" class="meta"></div>
+            <div id="aiPanelIntentHint" class="hint hidden"></div>
+            <div id="aiPanelIntentActions" class="actions hidden"></div>
+            <div id="aiPanelMessages" class="aiPanelMessages"></div>
+            <div class="aiComposer">
+              <textarea id="aiPanelInput" rows="4" spellcheck="false" placeholder="直接输入你的问题，例如：帮我设计一条更稳的放量新高提醒规则"></textarea>
+              <div class="actions">
+                <button id="btnAiSend" class="primary">发送</button>
+                <button id="btnAiBuild">生成规则</button>
+                <button id="btnClearAiPanel">清空会话</button>
+              </div>
+            </div>
           </section>
         </aside>
 
         <section id="modal" class="modal hidden">
           <div class="modalCard">
             <div class="modalTitle" id="modalTitle">规则编辑</div>
-            <div id="rulePresetHint" class="hint">默认模板：250 个交易日收盘新高 + 成交额 >= 1 亿美元 + 收盘市值 >= 20 亿美元 + 当季收入增速 >= 15% + 当季 EBITDA > 2000 万美元 + 利润增速同比 >= 15%。</div>
+            <div id="rulePresetHint" class="hint">默认模板：收盘市值 >= 100 亿美元 + 最近成交日成交额 >= 5 亿美元 + 5 个交易日内股价创历史新高。</div>
             <div class="row">
               <label>模板</label>
               <select id="ruleTemplate">
+                <option value="fmp_default">原始模板</option>
                 <option value="innovation_high">创新高</option>
                 <option value="earnings_day_surge">财报日大涨</option>
                 <option value="earnings_momentum_alert">财报异动提醒</option>
@@ -422,6 +528,14 @@
             <div class="row">
               <label>收件人(可选)</label>
               <input id="ruleEmailTo" type="text" placeholder="留空则用默认收件人" />
+            </div>
+            <div class="row">
+              <label>回调类型(可选)</label>
+              <select id="ruleWebhookType">
+                <option value="">留空则使用默认回调类型</option>
+                <option value="generic">通用 webhook</option>
+                <option value="feishu">飞书机器人</option>
+              </select>
             </div>
             <div class="row">
               <label>回调地址(可选)</label>

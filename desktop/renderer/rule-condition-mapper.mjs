@@ -1,3 +1,6 @@
+import { conditionFromUI, conditionTypeNeedsValue } from "../rules/rule-condition-shared.mjs";
+export { conditionFromUI, conditionTypeNeedsValue } from "../rules/rule-condition-shared.mjs";
+
 const PROFIT_GROWTH_UI_VARS = new Set([
   "profitGrowthYoY",
   "profitGrowthRateYoY"
@@ -10,15 +13,21 @@ const OPERATING_OUTLOOK_PROXY_UI_VARS = new Set([
   "guidanceImprovedProxySignal"
 ]);
 
-const DEFAULT_RULE_TEMPLATE_KEY = "innovation_high";
+const DEFAULT_RULE_TEMPLATE_KEY = "fmp_default";
 
 const FMP_TEMPLATE_OPTIONS = [
+  { value: "fmp_default", label: "原始模板" },
   { value: "innovation_high", label: "创新高" },
   { value: "earnings_day_surge", label: "财报日大涨" },
   { value: "earnings_momentum_alert", label: "财报异动提醒" }
 ];
 
 const RULE_TEMPLATE_META = {
+  fmp_default: {
+    label: "原始模板",
+    presetHint: "默认模板：收盘市值 >= 100 亿美元 + 最近成交日成交额 >= 5 亿美元 + 5 个交易日内股价创历史新高。",
+    fieldHint: "说明：这是最早的 FMP 默认规则模板，适合先验证默认候选池、执行链路和邮件通知是否跑通。"
+  },
   innovation_high: {
     label: "创新高",
     presetHint: "默认模板：250 个交易日收盘新高 + 成交额 >= 1 亿美元 + 收盘市值 >= 20 亿美元 + 当季收入增速 >= 15% + 当季 EBITDA > 2000 万美元 + 利润增速同比 >= 15%。",
@@ -44,6 +53,9 @@ const RULE_TEMPLATE_META = {
 const FMP_CONDITION_TYPES = new Set([
   "market_cap_above",
   "turnover_m_above",
+  "active_chips_above",
+  "amv_above",
+  "market_0amv_above",
   "recent_5d_close_ath",
   "close_ath_250d",
   "close_change_percent_1d_above",
@@ -72,6 +84,9 @@ export const CONDITION_TYPE_OPTIONS = [
   { value: "volume_ratio_above", label: "成交量放大 ≥ (倍)" },
   { value: "market_cap_above", label: "收盘市值 ≥ (百万美元)" },
   { value: "turnover_m_above", label: "最近成交日成交额 ≥ (百万美元)" },
+  { value: "active_chips_above", label: "活筹 ActiveChips ≥ (百万股)" },
+  { value: "amv_above", label: "活筹市值 AMV ≥ (百万美元)" },
+  { value: "market_0amv_above", label: "全市场 0AMV ≥ (百万美元)" },
   { value: "recent_5d_close_ath", label: "5 个交易日内股价创历史新高" },
   { value: "close_ath_250d", label: "250 个交易日收盘新高" },
   { value: "close_change_percent_1d_above", label: "最近成交日收盘涨幅 ≥ (%)" },
@@ -85,6 +100,42 @@ export const CONDITION_TYPE_OPTIONS = [
 
 function cloneRuleSeed(rule) {
   return JSON.parse(JSON.stringify(rule));
+}
+
+function buildFmpDefaultTemplateRuleSeed() {
+  return {
+    templateKey: "fmp_default",
+    enabled: true,
+    name: "原始模板：百亿市值 + 五亿成交额 + 5日股价新高",
+    symbols: [],
+    universe: {
+      type: "us_all",
+      maxScan: 2000,
+      minPrice: null,
+      minMarketCap: 10000,
+      minTurnoverM: 500,
+      requireRecent5dCloseAth: true,
+      minVolumeRatio: null
+    },
+    cooldownSec: 86400,
+    notify: {},
+    ui: {
+      groupOp: "and",
+      items: [
+        { type: "market_cap_above", value: 10000 },
+        { type: "turnover_m_above", value: 500 },
+        { type: "recent_5d_close_ath", value: null }
+      ]
+    },
+    condition: {
+      op: "and",
+      args: [
+        { op: ">=", left: { var: "marketCap" }, right: 10000 },
+        { op: ">=", left: { var: "turnoverM" }, right: 500 },
+        { op: ">=", left: { var: "recent5dCloseAth" }, right: 1 }
+      ]
+    }
+  };
 }
 
 function buildInnovationHighRuleSeed() {
@@ -210,6 +261,7 @@ function buildEarningsMomentumAlertRuleSeed() {
 }
 
 const TEMPLATE_BUILDERS = {
+  fmp_default: buildFmpDefaultTemplateRuleSeed,
   innovation_high: buildInnovationHighRuleSeed,
   earnings_day_surge: buildEarningsDaySurgeRuleSeed,
   earnings_momentum_alert: buildEarningsMomentumAlertRuleSeed
@@ -237,44 +289,6 @@ export function getRuleTemplatePresentation(rule) {
 
 export function buildFmpDefaultRuleSeed() {
   return buildRuleSeedFromTemplate(DEFAULT_RULE_TEMPLATE_KEY);
-}
-
-export function conditionFromUI(type, value) {
-  const v = Number(value);
-  const num = Number.isFinite(v) ? v : 0;
-  if (type === "price_above") return { op: ">=", left: { var: "price" }, right: num };
-  if (type === "price_below") return { op: "<=", left: { var: "price" }, right: num };
-  if (type === "change_above") return { op: ">=", left: { var: "changePercent" }, right: num };
-  if (type === "change_below") return { op: "<=", left: { var: "changePercent" }, right: num };
-  if (type === "cross_above_sma20") return { op: "crossesAbove", left: { var: "price" }, right: { var: "sma20" } };
-  if (type === "cross_below_sma20") return { op: "crossesBelow", left: { var: "price" }, right: { var: "sma20" } };
-  if (type === "rsi_above") return { op: ">", left: { var: "rsi14" }, right: num };
-  if (type === "rsi_below") return { op: "<", left: { var: "rsi14" }, right: num };
-  if (type === "volume_ratio_above") return { op: ">=", left: { var: "volumeRatio" }, right: num };
-  if (type === "market_cap_above") return { op: ">=", left: { var: "marketCap" }, right: num };
-  if (type === "turnover_m_above") return { op: ">=", left: { var: "turnoverM" }, right: num };
-  if (type === "recent_5d_close_ath") return { op: ">=", left: { var: "recent5dCloseAth" }, right: 1 };
-  if (type === "close_ath_250d") return { op: ">=", left: { var: "closeAth250d" }, right: 1 };
-  if (type === "close_change_percent_1d_above") return { op: ">=", left: { var: "closeChangePercent1d" }, right: num };
-  if (type === "earnings_within_1_trading_day") return { op: ">=", left: { var: "earningsWithin1TradingDay" }, right: 1 };
-  if (type === "revenue_growth_yoy_above") return { op: ">=", left: { var: "revenueGrowthYoY" }, right: num };
-  if (type === "ebitda_m_above") return { op: ">=", left: { var: "ebitdaM" }, right: num };
-  if (type === "profit_growth_yoy_above") return { op: ">=", left: { var: "profitGrowthYoY" }, right: num };
-  if (type === "revenue_growth_yoy_delta_vs_prev_quarter_above") return { op: ">=", left: { var: "revenueGrowthYoYDeltaVsPrevQuarter" }, right: num };
-  if (type === "operating_outlook_improved_proxy") return { op: ">=", left: { var: "operatingOutlookImprovedProxy" }, right: 1 };
-  return { op: ">=", left: { var: "price" }, right: num };
-}
-
-export function conditionTypeNeedsValue(type) {
-  const normalizedType = String(type || "");
-  return !(
-    normalizedType === "cross_above_sma20" ||
-    normalizedType === "cross_below_sma20" ||
-    normalizedType === "recent_5d_close_ath" ||
-    normalizedType === "close_ath_250d" ||
-    normalizedType === "earnings_within_1_trading_day" ||
-    normalizedType === "operating_outlook_improved_proxy"
-  );
 }
 
 export function defaultConditionItem(isFmpProvider) {
@@ -308,6 +322,9 @@ function uiItemFromCondition(cond) {
   if (leftVar === "volumeRatio") return { type: "volume_ratio_above", value };
   if (leftVar === "marketCap") return { type: "market_cap_above", value };
   if (leftVar === "turnoverM") return { type: "turnover_m_above", value };
+  if (leftVar === "activeChips") return { type: "active_chips_above", value };
+  if (leftVar === "amv") return { type: "amv_above", value };
+  if (leftVar === "market0amv") return { type: "market_0amv_above", value };
   if (leftVar === "recent5dCloseAth") return { type: "recent_5d_close_ath", value: null };
   if (leftVar === "closeAth250d") return { type: "close_ath_250d", value: null };
   if (leftVar === "closeChangePercent1d") return { type: "close_change_percent_1d_above", value };
@@ -362,6 +379,9 @@ export function summarizeConditionItem(item) {
   if (type === "rsi_below") return `RSI14 < ${value}`;
   if (type === "volume_ratio_above") return `成交量放大 ≥ ${value} 倍`;
   if (type === "market_cap_above") return `收盘市值 ≥ ${value} 百万美元`;
+  if (type === "active_chips_above") return `活筹 ActiveChips ≥ ${value} 百万股`;
+  if (type === "amv_above") return `活筹市值 AMV ≥ ${value} 百万美元`;
+  if (type === "market_0amv_above") return `全市场 0AMV ≥ ${value} 百万美元`;
   if (type === "turnover_m_above") return `最近成交日成交额 ≥ ${value} 百万美元`;
   if (type === "recent_5d_close_ath") return "5 个交易日内股价创历史新高";
   if (type === "close_ath_250d") return "250 个交易日收盘新高";

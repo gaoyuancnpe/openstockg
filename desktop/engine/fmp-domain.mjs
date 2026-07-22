@@ -209,6 +209,23 @@ function mergeMissingFields(...lists) {
   return Array.from(new Set(lists.flat().filter(Boolean)));
 }
 
+function detectFundLikeSecurity(profile, symbol, incomeRows) {
+  const name = String(profile?.companyName || "").toUpperCase();
+  const symbolUpper = String(symbol || "").toUpperCase();
+  const nameLooksFundLike = /\b(ETF|ETN|FUND|PORTFOLIO|MUTUAL|INDEX)\b/.test(name);
+  const shareClassFundLike = symbolUpper.endsWith("X") && /\b(SHARES|INVESTOR|ADMIRAL|INSTITUTIONAL|INDEX|FUND)\b/.test(name);
+  const explicitFlag = Boolean(profile?.isEtf) || Boolean(profile?.isFund);
+  const noIncomeStatements = !Array.isArray(incomeRows) || incomeRows.length === 0;
+  const isFundLike = explicitFlag || nameLooksFundLike || shareClassFundLike;
+  return {
+    isFundLike,
+    shouldSkipFinancialRules: isFundLike && noIncomeStatements,
+    reason: isFundLike
+      ? (noIncomeStatements ? "fund_like_security_without_income_statement" : "fund_like_security")
+      : ""
+  };
+}
+
 async function computeFmpPriceStats({ baseUrl, apiKey, symbol, state }) {
   state.fmpHistoryStats = state.fmpHistoryStats && typeof state.fmpHistoryStats === "object" ? state.fmpHistoryStats : {};
   const cached = state.fmpHistoryStats[symbol] || null;
@@ -285,7 +302,12 @@ async function computeFmpPriceStats({ baseUrl, apiKey, symbol, state }) {
   const recent5 = recentHistory.slice(-5);
   const recent5Highs = recent5.map((row) => row.high ?? row.close).filter((value) => value !== null);
   const recent5MaxHigh = recent5Highs.length > 0 ? Math.max(...recent5Highs) : null;
-  const turnoverM = last?.close !== null && last?.volume !== null ? (last.close * last.volume) / 1e6 : null;
+  const turnoverM = last?.close != null && last?.volume != null ? (last.close * last.volume) / 1e6 : null;
+  const volSma10 = recentHistory.length >= 10
+    ? recentHistory.slice(-10).reduce((sum, r) => sum + (r.volume || 0), 0) / 10
+    : null;
+  const amv = volSma10 !== null && last?.close != null ? (volSma10 * last.close) / 1e6 : null;
+  const activeChips = volSma10 !== null ? volSma10 / 1e6 : null;
 
   const recentHistoryHighs = recentHistory.map((row) => row.high ?? row.close).filter((value) => value !== null);
   const recentChunkMax = recentHistoryHighs.length > 0 ? Math.max(...recentHistoryHighs) : null;
@@ -316,7 +338,7 @@ async function computeFmpPriceStats({ baseUrl, apiKey, symbol, state }) {
 
   const recent250Closes = recentHistory.slice(-250).map((row) => row.close).filter((value) => value !== null);
   const recent250MaxClose = recent250Closes.length > 0 ? Math.max(...recent250Closes) : null;
-  const closeAth250d = last?.close !== null && recent250MaxClose !== null ? (last.close >= recent250MaxClose ? 1 : 0) : null;
+  const closeAth250d = last?.close != null && recent250MaxClose !== null ? (last.close >= recent250MaxClose ? 1 : 0) : null;
   const closeChangePercent1d = computeGrowthPercent(last?.close, prev?.close);
 
   const latestDate = String(last?.date || "");
@@ -326,6 +348,12 @@ async function computeFmpPriceStats({ baseUrl, apiKey, symbol, state }) {
       value: turnoverM,
       source: "historical-price-eod",
       reason: last?.close === null || last?.volume === null ? "latest_close_or_volume_unavailable" : null,
+      latestTradingDate: latestDate
+    }),
+    activeChips: buildFieldMeta({
+      value: activeChips,
+      source: "historical-price-eod",
+      reason: volSma10 === null ? "recent_10d_volume_unavailable" : null,
       latestTradingDate: latestDate
     }),
     recent5dCloseAth: buildFieldMeta({
@@ -357,6 +385,8 @@ async function computeFmpPriceStats({ baseUrl, apiKey, symbol, state }) {
     latestClose: last?.close ?? null,
     latestVolume: last?.volume ?? null,
     turnoverM,
+    amv,
+    activeChips,
     marketCapM: profile.marketCapM,
     recent5dCloseAth,
     closeAth250d,
@@ -370,6 +400,8 @@ async function computeFmpPriceStats({ baseUrl, apiKey, symbol, state }) {
     price: last?.close ?? null,
     marketCap: profile.marketCapM,
     turnoverM,
+    amv,
+    activeChips,
     recent5dCloseAth,
     closeAth250d,
     closeChangePercent1d,
@@ -404,6 +436,9 @@ export async function computeFmpFinancialStats({ baseUrl, apiKey, symbol, state 
     return {
       symbol,
       companyName: String(cached.companyName || ""),
+      financialRuleEligible:
+        cached.financialRuleEligible === undefined ? true : Boolean(cached.financialRuleEligible),
+      financialRuleSkipReason: String(cached.financialRuleSkipReason || ""),
       marketCap: toNumber(cached.marketCap),
       reportDate: String(cached.reportDate || ""),
       filingDate: String(cached.filingDate || ""),
@@ -458,7 +493,7 @@ export async function computeFmpFinancialStats({ baseUrl, apiKey, symbol, state 
   const grossMarginYoYDelta = computeDelta(grossMargin, priorYearGrossMargin);
   const grossMarginQoQDelta = computeDelta(grossMargin, previousQuarterGrossMargin);
   const ebitda = latestIncome?.ebitda ?? null;
-  const ebitdaM = latestIncome?.ebitda !== null ? latestIncome.ebitda / 1e6 : null;
+  const ebitdaM = latestIncome?.ebitda != null ? latestIncome.ebitda / 1e6 : null;
   const ebitdaGrowthYoY = computeGrowthPercent(latestIncome?.ebitda, priorYearIncome?.ebitda);
   const operatingIncome = latestIncome?.operatingIncome ?? null;
   const operatingIncomeGrowthYoY = computeGrowthPercent(latestIncome?.operatingIncome, priorYearIncome?.operatingIncome);
@@ -467,10 +502,11 @@ export async function computeFmpFinancialStats({ baseUrl, apiKey, symbol, state 
   const ebitdaMargin = latestIncome ? toPercent(latestIncome.ebitda, latestIncome.revenue) : null;
   const operatingMargin = latestIncome ? toPercent(latestIncome.operatingIncome, latestIncome.revenue) : null;
   const netMargin = latestIncome ? toPercent(latestIncome.netIncome, latestIncome.revenue) : null;
-  const operatingCashFlowM = latestCashFlow?.operatingCashFlow !== null ? latestCashFlow.operatingCashFlow / 1e6 : null;
-  const freeCashFlowM = latestCashFlow?.freeCashFlow !== null ? latestCashFlow.freeCashFlow / 1e6 : null;
+  const operatingCashFlowM = latestCashFlow?.operatingCashFlow != null ? latestCashFlow.operatingCashFlow / 1e6 : null;
+  const freeCashFlowM = latestCashFlow?.freeCashFlow != null ? latestCashFlow.freeCashFlow / 1e6 : null;
   const debtToEquity = latestBalance ? toRatio(latestBalance.totalDebt, latestBalance.totalStockholdersEquity) : null;
   const marketCap = profile.marketCapM;
+  const fundLike = detectFundLikeSecurity(profile, symbol, incomeRows);
   const acceptedDate = String(latestIncome?.acceptedDate || "");
   const filingDate = String(latestIncome?.filingDate || "");
   const earningsEventDate = normalizeIsoDate(acceptedDate || filingDate);
@@ -555,19 +591,28 @@ export async function computeFmpFinancialStats({ baseUrl, apiKey, symbol, state 
       reportDate,
       filingDate,
       acceptedDate
+    }),
+    financialRuleEligible: buildFieldMeta({
+      value: fundLike.shouldSkipFinancialRules ? 0 : 1,
+      source: "profile+income-statement",
+      reason: fundLike.reason || null,
+      symbol,
+      companyName: profile.companyName
     })
   };
 
   state.fmpFinancialStats[symbol] = {
     updatedAt: new Date().toISOString(),
     companyName: profile.companyName,
+    financialRuleEligible: !fundLike.shouldSkipFinancialRules,
+    financialRuleSkipReason: fundLike.reason,
     marketCap,
     reportDate,
     filingDate,
     acceptedDate,
     earningsEventDate,
     earningsEventDateSource,
-    revenueM: latestIncome?.revenue !== null ? latestIncome.revenue / 1e6 : null,
+    revenueM: latestIncome?.revenue != null ? latestIncome.revenue / 1e6 : null,
     revenueGrowthYoY,
     revenueGrowthYoYPrevQuarter,
     revenueGrowthYoYDeltaVsPrevQuarter,
@@ -594,13 +639,15 @@ export async function computeFmpFinancialStats({ baseUrl, apiKey, symbol, state 
   return {
     symbol,
     companyName: profile.companyName,
+    financialRuleEligible: !fundLike.shouldSkipFinancialRules,
+    financialRuleSkipReason: fundLike.reason,
     marketCap,
     reportDate,
     filingDate,
     acceptedDate,
     earningsEventDate,
     earningsEventDateSource,
-    revenueM: latestIncome?.revenue !== null ? latestIncome.revenue / 1e6 : null,
+    revenueM: latestIncome?.revenue != null ? latestIncome.revenue / 1e6 : null,
     revenueGrowthYoY,
     revenueGrowthYoYPrevQuarter,
     revenueGrowthYoYDeltaVsPrevQuarter,
@@ -664,9 +711,13 @@ export async function computeFmpRuleStats({ baseUrl, apiKey, symbol, state }) {
   return {
     symbol,
     companyName: financialStats.companyName,
+    financialRuleEligible: financialStats.financialRuleEligible,
+    financialRuleSkipReason: financialStats.financialRuleSkipReason,
     price: priceStats.price,
     marketCap: priceStats.marketCap ?? financialStats.marketCap,
     turnoverM: priceStats.turnoverM,
+    amv: priceStats.amv,
+    activeChips: priceStats.activeChips,
     recent5dCloseAth: priceStats.recent5dCloseAth,
     closeAth250d: priceStats.closeAth250d,
     closeChangePercent1d: priceStats.closeChangePercent1d,

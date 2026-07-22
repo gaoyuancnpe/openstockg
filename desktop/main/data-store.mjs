@@ -133,6 +133,17 @@ function normalizeLegacyState(value) {
   return { value, repaired: false };
 }
 
+function normalizeLegacyActionProposals(value) {
+  if (!Array.isArray(value)) {
+    return { value: [], repaired: true };
+  }
+  const normalized = value.filter((item) => isPlainObject(item));
+  return {
+    value: normalized,
+    repaired: normalized.length !== value.length
+  };
+}
+
 function getDesktopStorageDefinitions(paths) {
   return {
     config: {
@@ -149,6 +160,11 @@ function getDesktopStorageDefinitions(paths) {
       filePath: paths.state,
       fallback: () => ({}),
       migrate: (value) => normalizeLegacyState(value)
+    },
+    actionProposals: {
+      filePath: paths.actionProposals,
+      fallback: () => [],
+      migrate: (value) => normalizeLegacyActionProposals(value)
     }
   };
 }
@@ -322,6 +338,9 @@ export function getDataPaths(app) {
     rules: path.join(base, "rules.json"),
     state: path.join(base, "state.json"),
     events: path.join(base, "events.jsonl"),
+    runtimeLog: path.join(base, "runtime.log"),
+    diagnostics: path.join(base, "diagnostics.json"),
+    actionProposals: path.join(base, "action-proposals.json"),
     universeUS: path.join(base, "universe_us_symbols.json"),
     universeFmpDefault: path.join(base, "universe_fmp_default.json"),
     universeFmpFinancial: path.join(base, "universe_fmp_financial.json")
@@ -330,7 +349,7 @@ export function getDataPaths(app) {
 
 export async function initializeDesktopStorage(paths, logger = null) {
   await ensureDir(paths.base);
-  return ensureDesktopStorageDocuments(paths, ["config", "rules", "state"], logger);
+  return ensureDesktopStorageDocuments(paths, ["config", "rules", "state", "actionProposals"], logger);
 }
 
 export async function loadDesktopConfig(paths, logger = null) {
@@ -384,6 +403,23 @@ export async function saveDesktopState(paths, state) {
   await writeJSONAtomic(paths.storageMeta, meta);
 }
 
+export async function loadDesktopActionProposals(paths, logger = null) {
+  const result = await ensureDesktopStorageDocuments(paths, ["actionProposals"], logger);
+  return result.values.actionProposals;
+}
+
+export async function saveDesktopActionProposals(paths, proposals) {
+  const metaRaw = await readJSON(paths.storageMeta, null);
+  const meta = normalizeStorageMeta(metaRaw);
+  const value = normalizeLegacyActionProposals(proposals).value;
+  await persistVersionedJSON(paths.actionProposals, value);
+  meta.documents.actionProposals = {
+    version: DESKTOP_STORAGE_SCHEMA_VERSION,
+    updatedAt: new Date().toISOString()
+  };
+  await writeJSONAtomic(paths.storageMeta, meta);
+}
+
 export async function resetTestDataFiles(paths) {
   const files = [
     paths.storageMeta,
@@ -391,12 +427,17 @@ export async function resetTestDataFiles(paths) {
     paths.rules,
     paths.state,
     paths.events,
+    paths.runtimeLog,
+    paths.diagnostics,
+    paths.actionProposals,
     paths.universeUS,
     paths.universeFmpDefault,
     paths.universeFmpFinancial,
     getBackupPath(paths.config),
     getBackupPath(paths.rules),
     getBackupPath(paths.state)
+    ,
+    getBackupPath(paths.actionProposals)
   ];
   const removed = [];
   for (const filePath of files) {

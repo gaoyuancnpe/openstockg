@@ -4,10 +4,12 @@ import { ipcMain, shell } from "electron";
 import {
   loadDesktopConfig,
   loadDesktopRules,
+  readJSON,
   resetTestDataFiles,
   saveDesktopConfig,
   saveDesktopRules
 } from "./data-store.mjs";
+import { buildTransport, sendEmail, sendNotificationWebhook } from "../engine/notification-domain.mjs";
 
 const IPC_ERROR_NAME = "DesktopIpcError";
 const IPC_ERROR_CODE_VALIDATION = "IPC_VALIDATION";
@@ -132,7 +134,8 @@ function registerHandled(channel, handler) {
 function parseRunOncePayload(payload) {
   const value = ensurePlainObject(payload, "payload", { optional: true, fallback: {} });
   return {
-    dryRun: Boolean(value.dryRun)
+    dryRun: Boolean(value.dryRun),
+    ignoreCooldown: Boolean(value.ignoreCooldown)
   };
 }
 
@@ -162,7 +165,7 @@ function parseFinancialExplainPayload(payload) {
 function parseAiExplainPayload(payload) {
   const value = ensurePlainObject(payload, "payload");
   return {
-    kind: ensureStringEnum(value.kind, "kind", ["financial", "screener", "rule"]),
+    kind: ensureStringEnum(value.kind, "kind", ["financial", "screener", "rule", "assistant"]),
     mode: ensureStringEnum(value.mode, "mode", ["chat", "builder"], "chat"),
     payload: ensurePlainObject(value.payload, "payload.payload")
   };
@@ -184,17 +187,40 @@ function parseExternalUrl(value) {
   return parsed.toString();
 }
 
+function parseOptionalPlainObject(value) {
+  if (value === undefined || value === null) return {};
+  return ensurePlainObject(value, "payload", { optional: true, fallback: {} });
+}
+
 export function registerDesktopIpc({
   desktopDir,
   engine,
+  afterConfigSave,
   forcedUserDataDir,
   paths,
+  log,
   sourceRepoUrl,
   upstreamRepoUrl,
   licenseUrl
 }) {
   const usingCustomDataDir = Boolean(forcedUserDataDir);
-  let engineRunning = false;
+  function getEngineSchedulerStatus() {
+    return typeof engine.getSchedulerStatus === "function" ? engine.getSchedulerStatus() : null;
+  }
+
+  let engineRunning = Boolean(getEngineSchedulerStatus()?.isRunning);
+
+  async function buildDiagnosticsResponse() {
+    const diagnostics = await readJSON(paths.diagnostics, {});
+    return {
+      runtimeLog: paths.runtimeLog,
+      diagnosticsFile: paths.diagnostics,
+      lastRun: diagnostics?.lastRun || null,
+      scheduler: diagnostics?.scheduler || getEngineSchedulerStatus() || null,
+      feishuBridge: diagnostics?.feishuBridge || null,
+      updatedAt: diagnostics?.updatedAt || ""
+    };
+  }
 
   registerHandled("paths:get", async () => ({
     ...paths,
@@ -206,6 +232,9 @@ export function registerDesktopIpc({
 
   registerHandled("config:save", async (_evt, cfg) => {
     await saveDesktopConfig(paths, ensurePlainObject(cfg, "cfg"));
+    if (typeof afterConfigSave === "function") {
+      await afterConfigSave();
+    }
     return { ok: true };
   });
 
@@ -233,18 +262,21 @@ export function registerDesktopIpc({
 
   registerHandled("engine:aiExplain", async (_evt, payload) => engine.explainAiTarget(parseAiExplainPayload(payload)));
 
+  registerHandled("engine:runMarketAmv", async () => engine.runMarketAmv());
+
   registerHandled("engine:start", async () => {
-    if (engineRunning) return { ok: true };
-    engine.start();
-    engineRunning = true;
-    return { ok: true };
+    const status = await engine.start();
+    engineRunning = Boolean(status?.isRunning ?? getEngineSchedulerStatus()?.isRunning);
+    return { ok: true, scheduler: status || getEngineSchedulerStatus() };
   });
 
   registerHandled("engine:stop", async () => {
-    if (!engineRunning) return { ok: true };
-    engine.stop();
+    if (!engineRunning) {
+      return { ok: true, scheduler: getEngineSchedulerStatus() };
+    }
+    const status = engine.stop();
     engineRunning = false;
-    return { ok: true };
+    return { ok: true, scheduler: status || getEngineSchedulerStatus() };
   });
 
   registerHandled("dev:resetTestData", async () => {
@@ -253,8 +285,70 @@ export function registerDesktopIpc({
       engineRunning = false;
     }
     const removedFiles = await resetTestDataFiles(paths);
-    console.log(`[desktop] reset test data in ${paths.base}`);
     return { ok: true, removedFiles, base: paths.base };
+  });
+
+  registerHandled("dev:getDiagnostics", async () => {
+    return buildDiagnosticsResponse();
+  });
+
+  registerHandled("dev:testEmail", async () => {
+    const cfg = await loadDesktopConfig(paths);
+    const to = String(cfg.defaultEmailTo || "");
+    if (!to) {
+      throw validationError("默认收件人未配置");
+    }
+    const transport = buildTransport(cfg.email);
+    const fromUser = String(cfg.email?.user || "");
+    await sendEmail(transport, {
+      fromUser,
+      to,
+      subject: "OpenStock 测试邮件",
+      text: [
+        "这是一封来自 OpenStock 桌面端的测试邮件。",
+        `时间: ${new Date().toISOString()}`,
+        `数据目录: ${paths.base}`,
+        "如果你收到了这封邮件，说明当前邮件通知链路至少在主进程侧可达。"
+      ].join("\n")
+    });
+    if (typeof log === "function") log(`测试邮件已发送 -> ${to}`);
+    return { ok: true, to };
+  });
+
+  registerHandled("dev:testWebhook", async () => {
+    const cfg = await loadDesktopConfig(paths);
+    const type = String(cfg.defaultWebhookType || "generic");
+    const url = String(cfg.defaultWebhookUrl || "");
+    if (!url) {
+      throw validationError("默认回调地址未配置");
+    }
+    const result = await sendNotificationWebhook({
+      target: { type, url },
+      payload: {
+        type: "diagnostics_test",
+        source: "openstock.desktop",
+        sentAt: new Date().toISOString(),
+        userDataDir: paths.base
+      },
+      title: "OpenStock 测试回调",
+      lines: [
+        "这是一条来自 OpenStock 桌面端的测试回调。",
+        `类型: ${type === "feishu" ? "飞书机器人" : "通用 webhook"}`,
+        `时间: ${new Date().toISOString()}`,
+        `数据目录: ${paths.base}`
+      ]
+    });
+    if (typeof log === "function") log(`测试回调已发送 -> ${url}${type === "feishu" ? `（分片=${result?.partsSent || 1}）` : ""}`);
+    return { ok: true, url, type, partsSent: result?.partsSent || 1 };
+  });
+
+  registerHandled("dev:reportRendererError", async (_evt, payload) => {
+    const value = parseOptionalPlainObject(payload);
+    const message = String(value.message || "未知 renderer 错误");
+    const stack = String(value.stack || "");
+    const kind = String(value.kind || "renderer_error");
+    if (typeof log === "function") log(`Renderer ${kind} ${message}${stack ? `\n${stack}` : ""}`, "error");
+    return { ok: true };
   });
 
   registerHandled("legal:get", async () => {
@@ -270,6 +364,15 @@ export function registerDesktopIpc({
 
   registerHandled("shell:openExternal", async (_evt, url) => {
     await shell.openExternal(parseExternalUrl(url));
+    return { ok: true };
+  });
+
+  registerHandled("shell:openPath", async (_evt, targetPath) => {
+    const filePath = ensureNonEmptyString(targetPath, "path");
+    const errorMessage = await shell.openPath(filePath);
+    if (errorMessage) {
+      throw createIpcError(IPC_ERROR_CODE_INTERNAL, errorMessage);
+    }
     return { ok: true };
   });
 }

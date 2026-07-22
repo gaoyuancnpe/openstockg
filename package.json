@@ -21,7 +21,8 @@
     "alerts:worker": "node scripts/legacy-cli/alerts-worker.mjs --once",
     "alerts:worker:dry": "node scripts/legacy-cli/alerts-worker.mjs --once --dry-run",
     "fmp:test": "node scripts/shared/fmp-default-rule-test.mjs",
-    "fmp:financial:test": "node scripts/shared/fmp-financial-screener-test.mjs"
+    "fmp:financial:test": "node scripts/shared/fmp-financial-screener-test.mjs",
+    "amv:index": "node scripts/shared/amv-index.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

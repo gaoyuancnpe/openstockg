@@ -45,6 +45,19 @@ export function createConfigController({ el }) {
         weekdaysOnly
       },
       defaultEmailTo: String(el.defaultEmailTo.value || ""),
+      feishu: {
+        enabled: String(el.feishuEnabled?.value || "false") === "true",
+        appId: String(el.feishuAppId?.value || ""),
+        appSecret: String(el.feishuAppSecret?.value || ""),
+        allowUserOpenIds: String(el.feishuAllowOpenIds?.value || "")
+          .split(/\r?\n/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+        requireAllowlist: String(el.feishuRequireAllowlist?.value || "false") === "true",
+        allowRemoteApply: String(el.feishuAllowRemoteApply?.value || "false") === "true",
+        confirmTtlSec: Number.parseInt(String(el.feishuConfirmTtlSec?.value || defaults.feishu.confirmTtlSec || "300"), 10)
+      },
+      defaultWebhookType: String(el.defaultWebhookType?.value || defaults.defaultWebhookType || "generic"),
       defaultWebhookUrl: String(el.defaultWebhookUrl.value || ""),
       email: {
         provider: defaults.email.provider,
@@ -66,7 +79,17 @@ export function createConfigController({ el }) {
     el.aiModel.value = normalized.ai.model;
     el.aiThinkingEnabled.value = String(Boolean(normalized.ai.thinkingEnabled));
     el.aiReasoningEffort.value = normalized.ai.reasoningEffort;
+    el.feishuEnabled.value = String(Boolean(normalized.feishu?.enabled));
+    el.feishuAppId.value = String(normalized.feishu?.appId || "");
+    el.feishuAppSecret.value = String(normalized.feishu?.appSecret || "");
+    el.feishuAllowOpenIds.value = Array.isArray(normalized.feishu?.allowUserOpenIds) ? normalized.feishu.allowUserOpenIds.join("\n") : "";
+    el.feishuRequireAllowlist.value = String(Boolean(normalized.feishu?.requireAllowlist));
+    el.feishuAllowRemoteApply.value = String(Boolean(normalized.feishu?.allowRemoteApply));
+    el.feishuConfirmTtlSec.value = String(normalized.feishu?.confirmTtlSec ?? 300);
     el.defaultEmailTo.value = normalized.defaultEmailTo;
+    if (el.defaultWebhookType) {
+      el.defaultWebhookType.value = normalized.defaultWebhookType || "generic";
+    }
     el.defaultWebhookUrl.value = normalized.defaultWebhookUrl;
     el.gmailUser.value = normalized.email.user;
     el.gmailPass.value = normalized.email.pass;

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+const { contextBridge, ipcRenderer } = require("electron");
 
 function createRendererError(channel, error) {
   const nextError = new Error(error?.message || `${channel} 调用失败`);
@@ -40,7 +40,6 @@ const groupedApi = {
     runOnce: invoke("engine:runOnce"),
     runScreener: invoke("engine:screener"),
     runFinancialScreener: invoke("engine:financialScreener"),
-    runMarketAmv: invoke("engine:runMarketAmv"),
     explainAiTarget: invoke("engine:aiExplain"),
     explainFinancialRow: invoke("engine:financialExplain"),
     start: invoke("engine:start"),

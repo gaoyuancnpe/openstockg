@@ -71,9 +71,7 @@ export const sendSignUpEmail = inngest.createFunction(
 
                 const { data: { email, name } } = event;
 
-                console.log(`📧 Attempting to send welcome email to: ${email}`);
                 const result = await sendWelcomeEmail({ email, name, intro: introText });
-                console.log(`✅ Welcome email sent successfully to: ${email}`);
                 return result;
             } catch (error) {
                 console.error('❌ Error sending welcome email:', error);
@@ -160,17 +158,7 @@ export const sendWeeklyNewsSummary = inngest.createFunction(
                 const subscriberList = subData.subscribers || [];
                 const confirmedCount = subscriberList.filter((s: any) => s.state === 'active').length;
 
-                console.log(`📋 Target Audience: Found ${subData.total_subscribers} total subscribers in Kit.`);
-                console.log(`✅ Confirmed (Active) Subscribers receiving email: ${confirmedCount}`);
 
-                // Log names/emails for the user to see in Inngest dashboard
-                if (subscriberList.length > 0) {
-                    console.log('--- Recipient List ---');
-                    subscriberList.forEach((s: any) => {
-                        console.log(`${s.email_address} (${s.first_name || 'No Name'}) - Status: ${s.state}`);
-                    });
-                    console.log('----------------------');
-                }
             } catch (e) {
                 console.warn("Could not list subscribers for logging:", e);
             }
@@ -258,9 +246,7 @@ export const sendWeeklyNewsSummary = inngest.createFunction(
             </html>
             `;
 
-            console.log(`📢 Sending Weekly News Broadcast to all subscribers`);
             const broadcastResult = await kit.sendBroadcast(subject, content);
-            console.log("👉 Kit API Response:", JSON.stringify(broadcastResult, null, 2));
             return { success: true, kitResponse: broadcastResult };
         })
 
@@ -345,7 +331,6 @@ export const checkStockAlerts = inngest.createFunction(
                 await connectToDatabase();
 
                 for (const { alert, currentPrice } of triggeredAlerts) {
-                    console.log(`🚀 ALERT FIRED: ${alert.symbol} is ${currentPrice} (${alert.condition} ${alert.targetPrice})`);
 
                     // Mark triggered
                     await Alert.findByIdAndUpdate(alert._id, { triggered: true, active: false });
@@ -509,16 +494,12 @@ export const checkInactiveUsers = inngest.createFunction(
 
                     // CHECK: Is this the test user?
                     if (user.email === '11aravipratapsingh@gmail.com') {
-                        console.log(`🚀 Sending REAL Re-engagement Email to TEST USER: ${user.email}`);
                         await kit.sendBroadcast(subject, content);
                     } else {
-                        console.log(`[Re-engagement Mock] Would send to ${user.email}`);
                     }
 
                     // Update DB to avoid loop
                     if (db) {
-                        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                        // @ts-ignore
                         await db.collection('user').updateOne({ _id: new mongoose.Types.ObjectId(user.id) }, { $set: { lastReengagementSentAt: new Date() } });
                     }
                     sent.push(user.email);
