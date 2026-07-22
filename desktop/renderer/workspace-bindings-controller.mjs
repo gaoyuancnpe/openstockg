@@ -153,11 +153,13 @@ export function createWorkspaceBindingsController({
       const rows = res && typeof res === "object" ? res.rows : res;
       const meta = res && typeof res === "object" ? res.meta : null;
       state.financialResults = Array.isArray(rows) ? rows : [];
+      state.financialSelected = [];
       el.financialSummary.textContent = buildFinancialSummaryText(state.financialResults.length, meta);
       renderFinancialTable(state.financialResults);
       appendLog("财报筛选：执行完成");
     } catch (error) {
       state.financialResults = [];
+      state.financialSelected = [];
       renderFinancialTable([]);
       el.financialSummary.textContent = "";
       appendLog(`财报筛选失败：${error instanceof Error ? error.message : String(error)}`);
@@ -289,8 +291,19 @@ export function createWorkspaceBindingsController({
       appendLog("已套用成长财报模板：营收增速 + 毛利率 + EBITDA同比/利润率 + 经营利润率 + 正现金流 + 负债约束");
     });
     el.btnFinancialAddToPool.addEventListener("click", async () => {
-      const symbols = (state.financialResults || []).map((row) => row.symbol).filter(Boolean);
+      const selected = Array.isArray(state.financialSelected) ? state.financialSelected : [];
+      const symbols = selected.length > 0
+        ? selected
+        : (state.financialResults || []).map((row) => row.symbol).filter(Boolean);
       await addSymbolsToAlertPool(symbols, { forceFmp: true });
+    });
+    el.btnFinancialAddSelected?.addEventListener("click", async () => {
+      const selected = Array.isArray(state.financialSelected) ? state.financialSelected : [];
+      if (selected.length === 0) {
+        appendLog("请先在财报结果中勾选目标股票");
+        return;
+      }
+      await addSymbolsToAlertPool(selected, { forceFmp: true });
     });
     el.btnClearAiPanel.addEventListener("click", () => {
       clearAiPanel();

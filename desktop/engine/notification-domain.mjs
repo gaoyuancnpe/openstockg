@@ -308,6 +308,20 @@ export function buildTransport(email) {
   const user = email?.user || "";
   const pass = email?.pass || "";
   if (!user || !pass) return null;
+  const host = String(email?.host ?? "").trim();
+  const port = Number(email?.port) || 0;
+  const secure = email?.secure ?? true;
+  if (host) {
+    return nodemailer.createTransport({
+      host,
+      port: port || 465,
+      secure,
+      auth: { user, pass },
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 3
+    });
+  }
   return nodemailer.createTransport({
     service: "gmail",
     auth: { user, pass },

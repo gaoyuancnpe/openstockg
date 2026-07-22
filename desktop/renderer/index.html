@@ -20,12 +20,16 @@
           <div class="tabs">
             <button id="tabRules" class="tab active">规则</button>
             <button id="tabSchedule" class="tab">定时</button>
+            <button id="tabScreener" class="tab">筛选</button>
+            <button id="tabFinancial" class="tab">财报</button>
             <button id="tabConfig" class="tab">配置</button>
             <button id="tabMarketAmv" class="tab">0AMV</button>
           </div>
           <div id="panelMarketAmv" class="panel">
             <div class="cardTitle">全市场 0AMV 指数</div>
             <div id="marketAmvResult" class="meta"></div>
+            <div class="cardTitle">历史趋势</div>
+            <div id="marketAmvHistoryList" class="meta" style="max-height:200px;overflow-y:auto;"></div>
             <div class="actions">
               <button id="btnComputeMarketAmv" type="button" class="primary">计算 0AMV</button>
             </div>
@@ -39,6 +43,8 @@
               <button id="btnSaveRules">保存全部规则</button>
               <button id="btnLoadRules">重新加载</button>
               <button id="btnToggleAdvanced">高级模式</button>
+              <button id="btnExportRules" type="button" class="secondary">导出规则</button>
+              <button id="btnImportRules" type="button" class="secondary">导入规则</button>
             </div>
             <div id="rulesList" class="list"></div>
             <div id="advancedBox" class="advanced hidden">
@@ -101,6 +107,7 @@
               <button id="btnRunScreener" class="primary">运行筛选</button>
               <button id="btnScreenerAddSelected">加入提醒池（选中）</button>
               <button id="btnScreenerToRule">用结果创建规则</button>
+              <button id="btnExportScreenerCsv" type="button" class="secondary">导出 CSV</button>
               <button id="btnRefreshUniverse">刷新美股列表</button>
             </div>
             <div id="scrEstimate" class="meta"></div>
@@ -172,6 +179,7 @@
               <button id="btnApplyFinancialPreset">套用成长财报模板</button>
               <button id="btnRunFinancialScreener" class="primary">运行财报筛选</button>
               <button id="btnFinancialAddToPool">将结果加入提醒池</button>
+              <button id="btnFinancialAddSelected" type="button" class="secondary">加入提醒池（选中）</button>
             </div>
             <div id="financialEstimate" class="meta"></div>
             <div id="financialSummary" class="hint"></div>
@@ -204,6 +212,9 @@
                 <option value="true">是</option>
                 <option value="false">否</option>
               </select>
+            </div>
+            <div class="row">
+              <label><input id="cfgSchedulerUsMarketHoursOnly" type="checkbox" /> 仅美股交易时段执行（美东 9:30-16:00）</label>
             </div>
             <div class="actions">
               <button id="btnSaveConfig" class="primary">保存定时配置</button>
@@ -330,6 +341,14 @@
               <label>Gmail 应用专用密码</label>
               <input id="gmailPass" type="password" placeholder="xxxx xxxx xxxx xxxx" />
             </div>
+            <div class="row">
+              <label>SMTP Host（留空用 Gmail）</label>
+              <input id="cfgEmailHost" type="text" placeholder="smtp.gmail.com" />
+            </div>
+            <div class="row">
+              <label>SMTP Port</label>
+              <input id="cfgEmailPort" type="number" placeholder="465" />
+            </div>
             <div class="actions">
               <button id="btnSaveConfig2" class="primary">保存配置</button>
               <button id="btnLoadConfig2">重新加载</button>
@@ -357,6 +376,14 @@
               <button id="btnClearLog">清空日志</button>
             </div>
             <pre id="log"></pre>
+          </section>
+
+          <section class="card">
+            <div class="cardTitle">命中历史</div>
+            <div id="alertHistoryList" class="meta" style="max-height:300px;overflow-y:auto;"></div>
+            <div class="actions">
+              <button id="btnRefreshAlertHistory" type="button" class="secondary">刷新命中历史</button>
+            </div>
           </section>
 
           <section class="card">

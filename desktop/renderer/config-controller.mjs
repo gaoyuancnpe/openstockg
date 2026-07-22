@@ -42,7 +42,8 @@ export function createConfigController({ el }) {
         mode: schedulerMode || defaults.scheduler.mode,
         intervalSec: Number.isFinite(intervalSec) ? intervalSec : defaults.scheduler.intervalSec,
         dailyTime,
-        weekdaysOnly
+        weekdaysOnly,
+        usMarketHoursOnly: el.cfgSchedulerUsMarketHoursOnly?.checked === true
       },
       defaultEmailTo: String(el.defaultEmailTo.value || ""),
       feishu: {
@@ -62,7 +63,10 @@ export function createConfigController({ el }) {
       email: {
         provider: defaults.email.provider,
         user: String(el.gmailUser.value || ""),
-        pass: String(el.gmailPass.value || "")
+        pass: String(el.gmailPass.value || ""),
+        host: String(el.cfgEmailHost?.value || ""),
+        port: Number.parseInt(String(el.cfgEmailPort?.value || "0"), 10) || 0,
+        secure: true
       }
     });
   }
@@ -93,12 +97,17 @@ export function createConfigController({ el }) {
     el.defaultWebhookUrl.value = normalized.defaultWebhookUrl;
     el.gmailUser.value = normalized.email.user;
     el.gmailPass.value = normalized.email.pass;
+    if (el.cfgEmailHost) el.cfgEmailHost.value = normalized.email.host || "";
+    if (el.cfgEmailPort) el.cfgEmailPort.value = String(normalized.email.port || "");
 
     const scheduler = normalized.scheduler;
     el.scheduleMode.value = String(scheduler.mode || "interval");
     el.scheduleIntervalSec.value = String(scheduler.intervalSec ?? normalized.pollIntervalSec ?? 60);
     el.scheduleDailyTime.value = String(scheduler.dailyTime || "09:30");
     el.scheduleWeekdaysOnly.value = String(Boolean(scheduler.weekdaysOnly));
+    if (el.cfgSchedulerUsMarketHoursOnly) {
+      el.cfgSchedulerUsMarketHoursOnly.checked = Boolean(scheduler.usMarketHoursOnly);
+    }
     updateScheduleUI();
     updateAiConfigUI();
   }

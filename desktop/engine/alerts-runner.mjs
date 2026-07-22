@@ -31,7 +31,7 @@ export function createAlertsRunner({
 }) {
   let busy = false;
 
-  const marketAmvService = createMarketAmvService({ loadConfig, log });
+  const marketAmvService = createMarketAmvService({ dataPaths, loadConfig, log });
 
   const appendEventLine = async (event) => appendJsonLine(dataPaths.events, event);
 

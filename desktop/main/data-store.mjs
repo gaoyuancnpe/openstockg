@@ -341,6 +341,7 @@ export function getDataPaths(app) {
     runtimeLog: path.join(base, "runtime.log"),
     diagnostics: path.join(base, "diagnostics.json"),
     actionProposals: path.join(base, "action-proposals.json"),
+    marketAmvHistoryJson: path.join(base, "market-amv-history.json"),
     universeUS: path.join(base, "universe_us_symbols.json"),
     universeFmpDefault: path.join(base, "universe_fmp_default.json"),
     universeFmpFinancial: path.join(base, "universe_fmp_financial.json")
@@ -430,6 +431,7 @@ export async function resetTestDataFiles(paths) {
     paths.runtimeLog,
     paths.diagnostics,
     paths.actionProposals,
+    paths.marketAmvHistoryJson,
     paths.universeUS,
     paths.universeFmpDefault,
     paths.universeFmpFinancial,
@@ -445,4 +447,40 @@ export async function resetTestDataFiles(paths) {
     removed.push(filePath);
   }
   return removed;
+}
+
+export async function loadDesktopEvents(paths, { limit = 50 } = {}) {
+  const file = paths.events;
+  try {
+    const text = await readFile(file, "utf-8");
+    const lines = text.trim().split("\n").filter(Boolean);
+    const recent = lines.slice(-limit);
+    return recent.map((line) => {
+      try { return JSON.parse(line); } catch { return null; }
+    }).filter(Boolean);
+  } catch (err) {
+    if (err && err.code === "ENOENT") return [];
+    throw err;
+  }
+}
+
+export async function loadDesktopMarketAmvHistory(paths) {
+  try {
+    const text = await readFile(paths.marketAmvHistoryJson, "utf-8");
+    return JSON.parse(text);
+  } catch (err) {
+    if (err && err.code === "ENOENT") return [];
+    throw err;
+  }
+}
+
+export async function appendDesktopMarketAmvHistory(paths, entry) {
+  const history = await loadDesktopMarketAmvHistory(paths);
+  const filtered = history.filter((h) => h && h.date !== entry.date);
+  filtered.push(entry);
+  const sorted = filtered.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const trimmed = sorted.slice(-90);
+  await ensureDir(path.dirname(paths.marketAmvHistoryJson));
+  await writeFile(paths.marketAmvHistoryJson, JSON.stringify(trimmed, null, 2), "utf-8");
+  return trimmed;
 }

@@ -1,9 +1,11 @@
 import path from "node:path";
-import { readFile } from "node:fs/promises";
-import { ipcMain, shell } from "electron";
+import { readFile, writeFile } from "node:fs/promises";
+import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 import {
   loadDesktopActionProposals,
   loadDesktopConfig,
+  loadDesktopEvents,
+  loadDesktopMarketAmvHistory,
   loadDesktopRules,
   readJSON,
   resetTestDataFiles,
@@ -301,6 +303,14 @@ export function registerDesktopIpc({
 
   registerHandled("engine:runMarketAmv", async () => engine.runMarketAmv());
 
+  registerHandled("engine:loadMarketAmvHistory", async () => {
+    return await loadDesktopMarketAmvHistory(paths);
+  });
+
+  registerHandled("events:load", async (_evt, { limit } = {}) => {
+    return await loadDesktopEvents(paths, { limit: limit || 50 });
+  });
+
   registerHandled("engine:start", async () => {
     const status = await engine.start();
     engineRunning = Boolean(status?.isRunning ?? getEngineSchedulerStatus()?.isRunning);
@@ -411,6 +421,35 @@ export function registerDesktopIpc({
       throw createIpcError(IPC_ERROR_CODE_INTERNAL, errorMessage);
     }
     return { ok: true };
+  });
+
+  registerHandled("shell:saveFile", async (_evt, { defaultName, content } = {}) => {
+    const win = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showSaveDialog(win, {
+      defaultPath: defaultName || "export.txt",
+      filters: [
+        { name: "CSV Files", extensions: ["csv"] },
+        { name: "JSON Files", extensions: ["json"] },
+        { name: "All Files", extensions: ["*"] }
+      ]
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+    await writeFile(result.filePath, String(content ?? ""), "utf-8");
+    return { ok: true, filePath: result.filePath };
+  });
+
+  registerHandled("shell:readFile", async (_evt, { extensions } = {}) => {
+    const win = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(win, {
+      properties: ["openFile"],
+      filters: [
+        { name: "JSON Files", extensions: extensions || ["json"] },
+        { name: "All Files", extensions: ["*"] }
+      ]
+    });
+    if (result.canceled || !result.filePaths.length) return { ok: false, canceled: true };
+    const fileContent = await readFile(result.filePaths[0], "utf-8");
+    return { ok: true, content: fileContent, filePath: result.filePaths[0] };
   });
 
   registerHandled("agent:handlePrompt", async (_evt, payload) => {

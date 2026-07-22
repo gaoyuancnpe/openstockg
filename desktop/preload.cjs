@@ -43,7 +43,8 @@ const groupedApi = {
     explainAiTarget: invoke("engine:aiExplain"),
     explainFinancialRow: invoke("engine:financialExplain"),
     start: invoke("engine:start"),
-    stop: invoke("engine:stop")
+    stop: invoke("engine:stop"),
+    loadMarketAmvHistory: invoke("engine:loadMarketAmvHistory")
   },
   dev: {
     resetTestData: invoke("dev:resetTestData"),
@@ -57,7 +58,9 @@ const groupedApi = {
   },
   shell: {
     openExternal: invoke("shell:openExternal"),
-    openPath: invoke("shell:openPath")
+    openPath: invoke("shell:openPath"),
+    saveFile: invoke("shell:saveFile"),
+    readFile: invoke("shell:readFile")
   },
   agent: {
     handlePrompt: invoke("agent:handlePrompt"),
@@ -66,6 +69,7 @@ const groupedApi = {
     listProposals: invoke("agent:listProposals")
   },
   events: {
+    load: invoke("events:load"),
     onLog: subscribe("log"),
     onEvent: subscribe("event")
   }

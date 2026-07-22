@@ -29,13 +29,17 @@ const DEFAULT_CONFIG_TEMPLATE = {
     mode: "interval",
     intervalSec: 60,
     dailyTime: "09:30",
-    weekdaysOnly: true
+    weekdaysOnly: true,
+    usMarketHoursOnly: false
   },
   defaultEmailTo: "",
   email: {
     provider: "gmail",
     user: "",
-    pass: ""
+    pass: "",
+    host: "",
+    port: 0,
+    secure: true
   },
   feishu: {
     enabled: false,
@@ -93,11 +97,15 @@ export function normalizeDesktopConfig(cfg) {
     },
     scheduler: {
       ...defaults.scheduler,
-      ...(input.scheduler && typeof input.scheduler === "object" ? input.scheduler : {})
+      ...(input.scheduler && typeof input.scheduler === "object" ? input.scheduler : {}),
+      usMarketHoursOnly: input?.scheduler?.usMarketHoursOnly ?? false
     },
     email: {
       ...defaults.email,
-      ...(input.email && typeof input.email === "object" ? input.email : {})
+      ...(input.email && typeof input.email === "object" ? input.email : {}),
+      host: String(input?.email?.host ?? "").trim(),
+      port: Number(input?.email?.port) || 0,
+      secure: input?.email?.secure ?? true
     },
     feishu: {
       ...defaults.feishu,

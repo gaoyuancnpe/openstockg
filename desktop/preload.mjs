@@ -41,6 +41,7 @@ const groupedApi = {
     runScreener: invoke("engine:screener"),
     runFinancialScreener: invoke("engine:financialScreener"),
     runMarketAmv: invoke("engine:runMarketAmv"),
+    loadMarketAmvHistory: invoke("engine:loadMarketAmvHistory"),
     explainAiTarget: invoke("engine:aiExplain"),
     explainFinancialRow: invoke("engine:financialExplain"),
     start: invoke("engine:start"),
@@ -58,9 +59,12 @@ const groupedApi = {
   },
   shell: {
     openExternal: invoke("shell:openExternal"),
-    openPath: invoke("shell:openPath")
+    openPath: invoke("shell:openPath"),
+    saveFile: invoke("shell:saveFile"),
+    readFile: invoke("shell:readFile")
   },
   events: {
+    load: invoke("events:load"),
     onLog: subscribe("log"),
     onEvent: subscribe("event")
   },

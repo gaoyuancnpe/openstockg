@@ -28,6 +28,7 @@ const el = {
   panelMarketAmv: $("panelMarketAmv"),
   marketAmvResult: $("marketAmvResult"),
   btnComputeMarketAmv: $("btnComputeMarketAmv"),
+  marketAmvHistoryList: $("marketAmvHistoryList"),
 
   dataProvider: $("dataProvider"),
   finnhubApiKey: $("finnhubApiKey"),
@@ -51,11 +52,14 @@ const el = {
   defaultWebhookUrl: $("defaultWebhookUrl"),
   gmailUser: $("gmailUser"),
   gmailPass: $("gmailPass"),
+  cfgEmailHost: $("cfgEmailHost"),
+  cfgEmailPort: $("cfgEmailPort"),
 
   scheduleMode: $("scheduleMode"),
   scheduleIntervalSec: $("scheduleIntervalSec"),
   scheduleDailyTime: $("scheduleDailyTime"),
   scheduleWeekdaysOnly: $("scheduleWeekdaysOnly"),
+  cfgSchedulerUsMarketHoursOnly: $("cfgSchedulerUsMarketHoursOnly"),
   rowIntervalSec: $("rowIntervalSec"),
   rowDailyTime: $("rowDailyTime"),
   rowWeekdaysOnly: $("rowWeekdaysOnly"),
@@ -69,6 +73,8 @@ const el = {
   btnSaveRules: $("btnSaveRules"),
   btnLoadRules: $("btnLoadRules"),
   btnToggleAdvanced: $("btnToggleAdvanced"),
+  btnExportRules: $("btnExportRules"),
+  btnImportRules: $("btnImportRules"),
   advancedBox: $("advancedBox"),
   rulesJson: $("rulesJson"),
   btnInsertTemplate: $("btnInsertTemplate"),
@@ -96,6 +102,7 @@ const el = {
   btnRunScreener: $("btnRunScreener"),
   btnScreenerAddSelected: $("btnScreenerAddSelected"),
   btnScreenerToRule: $("btnScreenerToRule"),
+  btnExportScreenerCsv: $("btnExportScreenerCsv"),
   btnRefreshUniverse: $("btnRefreshUniverse"),
   scrEstimate: $("scrEstimate"),
   screenerSummary: $("screenerSummary"),
@@ -117,6 +124,7 @@ const el = {
   btnApplyFinancialPreset: $("btnApplyFinancialPreset"),
   btnRunFinancialScreener: $("btnRunFinancialScreener"),
   btnFinancialAddToPool: $("btnFinancialAddToPool"),
+  btnFinancialAddSelected: $("btnFinancialAddSelected"),
   financialEstimate: $("financialEstimate"),
   financialSummary: $("financialSummary"),
   financialTable: $("financialTable"),
@@ -201,7 +209,9 @@ const el = {
   ruleWebhookType: $("ruleWebhookType"),
   ruleWebhookUrl: $("ruleWebhookUrl"),
   btnModalSave: $("btnModalSave"),
-  btnModalCancel: $("btnModalCancel")
+  btnModalCancel: $("btnModalCancel"),
+  alertHistoryList: $("alertHistoryList"),
+  btnRefreshAlertHistory: $("btnRefreshAlertHistory")
 };
 
 const state = {
@@ -209,6 +219,7 @@ const state = {
   rules: [],
   screenerResults: [],
   screenerSelected: [],
+  financialSelected: [],
   financialResults: [],
   aiPanelResult: null,
   aiPanelContext: null,
@@ -381,6 +392,74 @@ function refreshProposalList() {
     .catch((err) => {
       if (el.aiProposalList) {
         el.aiProposalList.textContent = `加载失败：${err instanceof Error ? err.message : String(err)}`;
+      }
+    });
+}
+
+function renderAlertHistory(events) {
+  if (!el.alertHistoryList) return;
+  if (!Array.isArray(events) || events.length === 0) {
+    el.alertHistoryList.innerHTML = "<div>暂无命中记录</div>";
+    return;
+  }
+  const escapeHtml = (value) => String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  const recent = events.slice().reverse();
+  el.alertHistoryList.innerHTML = recent.map((evt) => {
+    const time = escapeHtml(evt?.matchedAt ? new Date(evt.matchedAt).toLocaleString() : "-");
+    const ruleName = escapeHtml(evt?.rule?.name || "-");
+    const symbol = escapeHtml(evt?.symbol || "-");
+    const evidence = Array.isArray(evt?.evaluationSummary?.evidenceLines)
+      ? evt.evaluationSummary.evidenceLines.slice(0, 2).join("；")
+      : "";
+    return `<div style="padding:4px;border-bottom:1px solid #eee;"><span style="color:#888;">${time}</span> | <strong>${symbol}</strong> | ${ruleName}${evidence ? ` | ${escapeHtml(evidence)}` : ""}</div>`;
+  }).join("");
+}
+
+function refreshAlertHistory() {
+  if (!window.api?.events?.load) return;
+  window.api.events.load({ limit: 50 })
+    .then((events) => renderAlertHistory(events))
+    .catch((err) => {
+      if (el.alertHistoryList) {
+        el.alertHistoryList.textContent = `加载失败：${err instanceof Error ? err.message : String(err)}`;
+      }
+    });
+}
+
+function renderMarketAmvHistory(history) {
+  if (!el.marketAmvHistoryList) return;
+  if (!Array.isArray(history) || history.length === 0) {
+    el.marketAmvHistoryList.innerHTML = "<div>暂无历史数据</div>";
+    return;
+  }
+  const rows = history.slice().reverse();
+  let prevValue = null;
+  el.marketAmvHistoryList.innerHTML = rows.map((entry) => {
+    const date = String(entry?.date || "-");
+    const value = Number(entry?.value || 0);
+    const valueStr = value.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+    let changeStr = "-";
+    if (prevValue !== null && prevValue !== 0) {
+      const change = ((value - prevValue) / prevValue) * 100;
+      const sign = change >= 0 ? "+" : "";
+      changeStr = `${sign}${change.toFixed(2)}%`;
+    }
+    prevValue = value;
+    return `<div style="padding:2px 4px;border-bottom:1px solid #eee;">${date} | ${valueStr} 百万 | ${changeStr}</div>`;
+  }).join("");
+}
+
+function refreshMarketAmvHistory() {
+  if (!window.api?.engine?.loadMarketAmvHistory) return;
+  window.api.engine.loadMarketAmvHistory()
+    .then((history) => renderMarketAmvHistory(history))
+    .catch((err) => {
+      if (el.marketAmvHistoryList) {
+        el.marketAmvHistoryList.textContent = `加载失败：${err instanceof Error ? err.message : String(err)}`;
       }
     });
 }
@@ -697,7 +776,8 @@ async function bootstrapRenderer() {
     getIsFmpProvider,
     addSymbolsToAlertPool,
     explainAiTarget,
-    buildAiTarget
+    buildAiTarget,
+    appendLog
   });
   renderScreenerTable = resultsController.renderScreenerTable;
   renderFinancialTable = resultsController.renderFinancialTable;
@@ -864,9 +944,12 @@ async function bootstrapRenderer() {
       el.marketAmvResult.innerHTML = `<span class="error">计算失败：${message}</span>`;
       appendLog(`全市场 0AMV 计算失败：${message}`);
     } finally {
+      refreshMarketAmvHistory();
       el.btnComputeMarketAmv.disabled = false;
     }
   });
+
+  el.btnRefreshAlertHistory?.addEventListener("click", () => refreshAlertHistory());
 
   try {
     bindRuntimeStreams({
@@ -917,6 +1000,8 @@ async function bootstrapRenderer() {
   await loadAll();
   renderDiagnosticsSummary();
   refreshProposalList();
+  refreshAlertHistory();
+  refreshMarketAmvHistory();
 }
 
 window.addEventListener("error", (event) => {

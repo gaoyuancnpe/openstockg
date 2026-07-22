@@ -119,6 +119,52 @@ export function createRulesListController({
     });
   }
 
+  function bindImportExport() {
+    el.btnExportRules?.addEventListener("click", async () => {
+      if (!Array.isArray(state.rules) || state.rules.length === 0) {
+        if (typeof appendLog === "function") appendLog("没有可导出的规则");
+        return;
+      }
+      try {
+        const result = await window.api.shell.saveFile({
+          defaultName: "rules_export.json",
+          content: JSON.stringify(state.rules, null, 2)
+        });
+        if (result?.ok && typeof appendLog === "function") {
+          appendLog(`规则已导出：${result.filePath}`);
+        }
+      } catch (error) {
+        if (typeof appendLog === "function") {
+          appendLog(`规则导出失败：${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    });
+
+    el.btnImportRules?.addEventListener("click", async () => {
+      try {
+        const result = await window.api.shell.readFile({ extensions: ["json"] });
+        if (!result?.ok) return;
+        const parsed = JSON.parse(result.content);
+        if (!Array.isArray(parsed)) {
+          if (typeof appendLog === "function") appendLog("导入失败：规则文件必须是数组");
+          alert("导入失败：规则文件必须是数组");
+          return;
+        }
+        if (state.rules.length > 0 && !confirm(`当前已有 ${state.rules.length} 条规则，导入将替换现有规则。是否继续？`)) {
+          return;
+        }
+        state.rules = parsed;
+        await persistRules(`规则已导入：共 ${parsed.length} 条`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (typeof appendLog === "function") appendLog(`规则导入失败：${message}`);
+        alert(`规则导入失败：${message}`);
+      }
+    });
+  }
+
+  bindImportExport();
+
   return {
     renderRulesList
   };

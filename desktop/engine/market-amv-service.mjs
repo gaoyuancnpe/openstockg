@@ -1,5 +1,6 @@
 import { normalizeHttpBaseUrl, fetchJSON } from "../shared-runtime.mjs";
 import { sortUniverseRowsByMarketCapDesc, isoDateToday, isoDateShiftDays } from "./shared.mjs";
+import { appendDesktopMarketAmvHistory } from "../main/data-store.mjs";
 
 const SMA_PERIOD = 10;
 const DEFAULT_SAMPLE_LIMIT = 100; // 默认取市值前100只股票合成
@@ -11,7 +12,7 @@ function sma(values, period) {
   return sum / period;
 }
 
-export function createMarketAmvService({ loadConfig, log }) {
+export function createMarketAmvService({ dataPaths, loadConfig, log }) {
   async function computeMarket0amv({ limit = DEFAULT_SAMPLE_LIMIT, useFmp = true } = {}) {
     const cfg = await loadConfig();
     const baseUrl = normalizeHttpBaseUrl(cfg.fmpBaseUrl, "https://financialmodelingprep.com");
@@ -58,13 +59,23 @@ export function createMarketAmvService({ loadConfig, log }) {
       }
     }
 
-    return {
+    const result = {
       date: today,
       value: totalAmv / 1e6, // 百万美元
       sampleCount: rows.length,
       processedCount: processed,
       source: "fmp"
     };
+    try {
+      await appendDesktopMarketAmvHistory(dataPaths, {
+        date: result.date,
+        value: result.value,
+        sampleCount: result.sampleCount,
+        processedCount: result.processedCount,
+        timestamp: new Date().toISOString()
+      });
+    } catch (_) { /*不影响主流程 */ }
+    return result;
   }
 
   return { computeMarket0amv };

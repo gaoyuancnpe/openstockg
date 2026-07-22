@@ -6,13 +6,47 @@ function formatFinancialNumber(value, digits = 1) {
   return value === null || value === undefined || Number.isNaN(Number(value)) ? "-" : Number(value).toFixed(digits);
 }
 
+function rowsToCsv(rows, columns) {
+  const headers = columns.map((c) => c.label || c.key).join(",");
+  const lines = rows.map((row) =>
+    columns.map((c) => {
+      const v = row[c.key];
+      if (v == null) return "";
+      const s = Array.isArray(v) ? v.join("; ") : String(v);
+      return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(",")
+  );
+  return [headers, ...lines].join("\n");
+}
+
+function getScreenerCsvColumns(isFmp) {
+  if (isFmp) {
+    return [
+      { key: "symbol", label: "code" },
+      { key: "price", label: "price" },
+      { key: "marketCap", label: "market_cap_m" },
+      { key: "turnoverM", label: "turnover_m" },
+      { key: "recent5dCloseAth", label: "recent_5d_close_ath" }
+    ];
+  }
+  return [
+    { key: "symbol", label: "code" },
+    { key: "price", label: "price" },
+    { key: "changePercent", label: "change_percent" },
+    { key: "marketCap", label: "market_cap" },
+    { key: "peTTM", label: "pe_ttm" },
+    { key: "volumeRatio", label: "volume_ratio" }
+  ];
+}
+
 export function createResultsController({
   el,
   state,
   getIsFmpProvider,
   addSymbolsToAlertPool,
   explainAiTarget,
-  buildAiTarget
+  buildAiTarget,
+  appendLog
 }) {
   function renderScreenerTable(rows) {
     if (!rows || rows.length === 0) {
@@ -147,32 +181,35 @@ export function createResultsController({
     }
 
     const table = document.createElement("table");
-    table.innerHTML = `
-      <thead>
-        <tr>
-          <th>股票</th>
-          <th>公司</th>
-          <th>报告期</th>
-          <th>营收同比</th>
-          <th>毛利率</th>
-          <th>EBITDA</th>
-          <th>EBITDA同比</th>
-          <th>EBITDA利润率</th>
-          <th>经营利润率</th>
-          <th>经营现金流</th>
-          <th>自由现金流</th>
-          <th>负债权益比</th>
-          <th>命中原因</th>
-          <th>AI</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    `;
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
 
-    const tbody = table.querySelector("tbody");
+    const selectTh = document.createElement("th");
+    const master = document.createElement("input");
+    master.type = "checkbox";
+    const allSelected = rows.length > 0 && rows.every((r) => state.financialSelected.includes(r.symbol));
+    master.checked = allSelected;
+    master.addEventListener("change", () => {
+      state.financialSelected = master.checked ? rows.map((r) => r.symbol) : [];
+      renderFinancialTable(rows);
+    });
+    selectTh.appendChild(master);
+    trh.appendChild(selectTh);
+
+    const headers = ["股票", "公司", "报告期", "营收同比", "毛利率", "EBITDA", "EBITDA同比", "EBITDA利润率", "经营利润率", "经营现金流", "自由现金流", "负债权益比", "命中原因", "AI"];
+    headers.forEach((h) => {
+      const th = document.createElement("th");
+      th.textContent = h;
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
     for (const row of rows) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
+        <td class="fin-cb-cell"></td>
         <td>${row.symbol || "-"}</td>
         <td>${row.companyName || "-"}</td>
         <td>${row.reportDate || "-"}</td>
@@ -187,6 +224,19 @@ export function createResultsController({
         <td>${formatFinancialNumber(row.debtToEquity, 2)}x</td>
         <td>${Array.isArray(row.reasons) ? row.reasons.join("；") : "-"}</td>
       `;
+
+      const cbCell = tr.querySelector(".fin-cb-cell");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = state.financialSelected.includes(row.symbol);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+          state.financialSelected = Array.from(new Set([...state.financialSelected, row.symbol]));
+        } else {
+          state.financialSelected = state.financialSelected.filter((sym) => sym !== row.symbol);
+        }
+      });
+      cbCell.appendChild(checkbox);
 
       const actionTd = document.createElement("td");
       const explainBtn = document.createElement("button");
@@ -208,8 +258,38 @@ export function createResultsController({
       tbody.appendChild(tr);
     }
 
+    table.appendChild(tbody);
     el.financialTable.appendChild(table);
   }
+
+  function bindExportScreenerCsv() {
+    if (!el.btnExportScreenerCsv) return;
+    el.btnExportScreenerCsv.addEventListener("click", async () => {
+      const rows = state.screenerResults || [];
+      if (rows.length === 0) {
+        if (typeof appendLog === "function") appendLog("没有可导出的筛选结果");
+        return;
+      }
+      const isFmp = Boolean(getIsFmpProvider());
+      const columns = getScreenerCsvColumns(isFmp);
+      const csv = rowsToCsv(rows, columns);
+      try {
+        const result = await window.api.shell.saveFile({
+          defaultName: "screener_results.csv",
+          content: csv
+        });
+        if (result?.ok && typeof appendLog === "function") {
+          appendLog(`筛选结果已导出：${result.filePath}`);
+        }
+      } catch (error) {
+        if (typeof appendLog === "function") {
+          appendLog(`导出失败：${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    });
+  }
+
+  bindExportScreenerCsv();
 
   return {
     renderScreenerTable,

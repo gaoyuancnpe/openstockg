@@ -34,6 +34,25 @@ function parseDateOrNull(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function isUsMarketOpen() {
+  const now = new Date();
+  const et = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric", minute: "numeric", weekday: "short"
+  }).format(now);
+  const match = et.match(/(\w+),\s+(\d+):(\d+)\s+(AM|PM)/);
+  if (!match) return true;
+  const weekday = match[1];
+  let hour = parseInt(match[2]);
+  const minute = parseInt(match[3]);
+  const ampm = match[4];
+  if (ampm === "PM" && hour !== 12) hour += 12;
+  if (ampm === "AM" && hour === 12) hour = 0;
+  const totalMin = hour * 60 + minute;
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  return totalMin >= 570 && totalMin <= 960;
+}
+
 export function createEngineScheduler({ loadConfig, tick, log, emitEvent }) {
   let timer = null;
   let dailyTimeout = null;
@@ -75,6 +94,13 @@ export function createEngineScheduler({ loadConfig, tick, log, emitEvent }) {
   }
 
   async function runScheduledTick({ trigger = "scheduler", catchUpContext = null } = {}) {
+    const tickCfg = await loadConfig();
+    if (tickCfg?.scheduler?.usMarketHoursOnly && !isUsMarketOpen()) {
+      updateSchedulerStatus({
+        lastSkip: buildSchedulerReason("market_closed", "非美股交易时段，跳过执行", { trigger })
+      });
+      return null;
+    }
     const result = await tick({ dryRun: false, trigger });
     if (result?.skipped && result.skipReason) {
       const patch = {

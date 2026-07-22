@@ -46,7 +46,7 @@ export function createAlertsEngine({ dataPaths, onLog, onEvent }) {
   });
   const scheduler = createEngineScheduler({ loadConfig, tick: runner.tick, log, emitEvent });
   const screenerService = createScreenerService({ dataPaths, loadConfig, loadState, saveState, log });
-  const marketAmvService = createMarketAmvService({ loadConfig, log });
+  const marketAmvService = createMarketAmvService({ dataPaths, loadConfig, log });
 
   return {
     start: async (options = {}) => scheduler.start(options),
