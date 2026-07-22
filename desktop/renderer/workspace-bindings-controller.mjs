@@ -279,11 +279,11 @@ export function createWorkspaceBindingsController({
   }
 
   function bindWorkspaceActions() {
-    el.btnApplyDefaultScreener.addEventListener("click", () => {
+    el.btnApplyScreenerDefaults.addEventListener("click", () => {
       applyDefaultFmpScreenerPreset();
       appendLog("已套用默认规则门槛：100亿市值 + 5亿成交额 + 5日股价新高");
     });
-    el.btnScreenerAddSelected.addEventListener("click", async () => {
+    el.btnScreenerAddToPool.addEventListener("click", async () => {
       await addSymbolsToAlertPool(state.screenerSelected);
     });
     el.btnApplyFinancialPreset.addEventListener("click", () => {
@@ -361,14 +361,14 @@ export function createWorkspaceBindingsController({
     });
 
     el.btnSaveRulesFromJson.addEventListener("click", saveRulesFromJsonEditor);
-    el.btnScreenerToRule.addEventListener("click", openRuleDraftFromScreener);
+    el.btnScreenerCreateRule.addEventListener("click", openRuleDraftFromScreener);
   }
 
   function bindResultActions() {
     el.csvFile.addEventListener("change", importSymbolsFromCsvFile);
     el.btnRunFinancialScreener.addEventListener("click", runFinancialWorkspace);
     el.btnRunScreener.addEventListener("click", runScreenerWorkspace);
-    el.btnRefreshUniverse.addEventListener("click", refreshScreenerUniverse);
+    el.btnRefreshUsList.addEventListener("click", refreshScreenerUniverse);
   }
 
   function bindRunActions() {

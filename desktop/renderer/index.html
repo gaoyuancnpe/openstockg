@@ -25,15 +25,6 @@
             <button id="tabConfig" class="tab">配置</button>
             <button id="tabMarketAmv" class="tab">0AMV</button>
           </div>
-          <div id="panelMarketAmv" class="panel">
-            <div class="cardTitle">全市场 0AMV 指数</div>
-            <div id="marketAmvResult" class="meta"></div>
-            <div class="cardTitle">历史趋势</div>
-            <div id="marketAmvHistoryList" class="meta" style="max-height:200px;overflow-y:auto;"></div>
-            <div class="actions">
-              <button id="btnComputeMarketAmv" type="button" class="primary">计算 0AMV</button>
-            </div>
-          </div>
 
           <div id="panelRules" class="panel active">
             <div class="cardTitle">常用提醒规则</div>
@@ -103,12 +94,14 @@
               <input id="scrMinVolumeRatio" type="number" step="0.01" placeholder="例如 2 表示当日成交量 >= 20日均量*2" />
             </div>
             <div class="actions">
-              <button id="btnApplyDefaultScreener">套用默认门槛（百亿/五亿/5日股价新高）</button>
               <button id="btnRunScreener" class="primary">运行筛选</button>
-              <button id="btnScreenerAddSelected">加入提醒池（选中）</button>
-              <button id="btnScreenerToRule">用结果创建规则</button>
+            </div>
+            <div class="actionsSecondary">
+              <button id="btnApplyScreenerDefaults">套用默认门槛（百亿/五亿/5日股价新高）</button>
+              <button id="btnScreenerAddToPool">加入提醒池（选中）</button>
+              <button id="btnScreenerCreateRule">用结果创建规则</button>
               <button id="btnExportScreenerCsv" type="button" class="secondary">导出 CSV</button>
-              <button id="btnRefreshUniverse">刷新美股列表</button>
+              <button id="btnRefreshUsList">刷新美股列表</button>
             </div>
             <div id="scrEstimate" class="meta"></div>
             <div id="screenerSummary" class="hint"></div>
@@ -225,6 +218,7 @@
 
           <div id="panelConfig" class="panel">
             <div class="cardTitle">信息源与通知配置</div>
+            <div class="configSectionTitle">数据源</div>
             <div class="row">
               <label>数据源</label>
               <select id="dataProvider">
@@ -232,6 +226,7 @@
                 <option value="fmp">FMP 数据源（当前仅默认规则保证可跑）</option>
               </select>
             </div>
+            <div class="configSectionTitle">Finnhub API</div>
             <div class="row">
               <label>Finnhub 接口密钥</label>
               <input id="finnhubApiKey" type="password" placeholder="FINNHUB_API_KEY" />
@@ -240,6 +235,7 @@
               <label>Finnhub 接口地址</label>
               <input id="finnhubBaseUrl" type="text" placeholder="https://finnhub.io/api/v1" />
             </div>
+            <div class="configSectionTitle">FMP API</div>
             <div class="row">
               <label>FMP 接口密钥</label>
               <input id="fmpApiKey" type="password" placeholder="FMP_API_KEY" />
@@ -248,6 +244,7 @@
               <label>FMP 接口地址</label>
               <input id="fmpBaseUrl" type="text" placeholder="https://financialmodelingprep.com" />
             </div>
+            <div class="configSectionTitle">AI / DeepSeek</div>
             <div class="hint">财报页 AI 解读当前接 DeepSeek v4，可在这里切换 `flash/pro`、是否开启思考模式和思考强度。</div>
             <div class="row">
               <label>DeepSeek API Key</label>
@@ -278,7 +275,7 @@
                 <option value="max">max</option>
               </select>
             </div>
-            <div class="cardTitle">飞书桥接</div>
+            <div class="configSectionTitle">飞书通知</div>
             <div class="hint">这里配置“飞书聊天 -> 桌面端智能体 -> 规则/定时 proposal -> 飞书确认应用”链路。当前第一版采用文本确认命令，不走卡片回调。</div>
             <div class="row">
               <label>启用飞书桥接</label>
@@ -318,6 +315,7 @@
               <input id="feishuConfirmTtlSec" type="number" min="30" step="30" placeholder="300" />
             </div>
             <div id="feishuBridgeStatus" class="meta">飞书桥接：未启用</div>
+            <div class="configSectionTitle">邮件通知</div>
             <div class="row">
               <label>默认收件人</label>
               <input id="defaultEmailTo" type="text" placeholder="请填写收件邮箱地址" />
@@ -354,6 +352,16 @@
               <button id="btnLoadConfig2">重新加载</button>
             </div>
           </div>
+          <div id="panelMarketAmv" class="panel">
+            <div class="cardTitle">全市场 0AMV 指数</div>
+            <div id="marketAmvResult" class="meta"></div>
+            <div class="cardTitle">历史趋势</div>
+            <div id="marketAmvHistoryList" class="meta scrollList"></div>
+            <div class="actions">
+              <button id="btnComputeMarketAmv" type="button" class="primary">计算 0AMV</button>
+            </div>
+          </div>
+
           </section>
 
           <section class="card">
@@ -380,7 +388,7 @@
 
           <section class="card">
             <div class="cardTitle">命中历史</div>
-            <div id="alertHistoryList" class="meta" style="max-height:300px;overflow-y:auto;"></div>
+            <div id="alertHistoryList" class="meta scrollListTall"></div>
             <div class="actions">
               <button id="btnRefreshAlertHistory" type="button" class="secondary">刷新命中历史</button>
             </div>
@@ -457,9 +465,9 @@
             <div id="aiPanelIntentHint" class="hint hidden"></div>
             <div id="aiPanelIntentActions" class="actions hidden"></div>
             <div id="aiPanelMessages" class="aiPanelMessages"></div>
-            <div id="aiProposalList" class="meta" style="margin-top:8px;max-height:200px;overflow-y:auto;"></div>
+            <div id="aiProposalList" class="meta scrollList" style="margin-top:8px;"></div>
             <div class="actions">
-              <button id="btnRefreshProposals" type="button" class="secondary" style="margin-top:4px;">刷新 Proposal 列表</button>
+              <button id="btnRefreshProposals" type="button" class="secondary marginTop">刷新 Proposal 列表</button>
             </div>
             <div class="aiComposer">
               <textarea id="aiPanelInput" rows="4" spellcheck="false" placeholder="直接输入你的问题，例如：帮我设计一条更稳的放量新高提醒规则"></textarea>

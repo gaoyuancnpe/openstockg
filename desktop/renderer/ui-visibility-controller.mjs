@@ -65,8 +65,8 @@ export function createUiVisibilityController({ el, state, getIsFmpProvider }) {
     el.rowScrMinTurnoverM.classList.toggle("hidden", !isFmp);
     el.rowScrRecent5dCloseAth.classList.toggle("hidden", !isFmp);
     el.rowScrMinVolumeRatio.classList.toggle("hidden", isFmp);
-    el.btnApplyDefaultScreener.classList.toggle("hidden", !isFmp);
-    el.btnScreenerAddSelected.classList.toggle("hidden", !isFmp);
+    el.btnApplyScreenerDefaults.classList.toggle("hidden", !isFmp);
+    el.btnScreenerAddToPool.classList.toggle("hidden", !isFmp);
     updateScreenerEstimate();
   }
 

@@ -98,12 +98,12 @@ const el = {
   scrRecent5dCloseAth: $("scrRecent5dCloseAth"),
   rowScrMinVolumeRatio: $("rowScrMinVolumeRatio"),
   scrMinVolumeRatio: $("scrMinVolumeRatio"),
-  btnApplyDefaultScreener: $("btnApplyDefaultScreener"),
+  btnApplyScreenerDefaults: $("btnApplyScreenerDefaults"),
   btnRunScreener: $("btnRunScreener"),
-  btnScreenerAddSelected: $("btnScreenerAddSelected"),
-  btnScreenerToRule: $("btnScreenerToRule"),
+  btnScreenerAddToPool: $("btnScreenerAddToPool"),
+  btnScreenerCreateRule: $("btnScreenerCreateRule"),
   btnExportScreenerCsv: $("btnExportScreenerCsv"),
-  btnRefreshUniverse: $("btnRefreshUniverse"),
+  btnRefreshUsList: $("btnRefreshUsList"),
   scrEstimate: $("scrEstimate"),
   screenerSummary: $("screenerSummary"),
   screenerTable: $("screenerTable"),
@@ -381,7 +381,7 @@ function renderProposalList(proposals) {
     const id = escapeHtml(p?.id || "");
     const expiresAt = p?.expiresAt ? escapeHtml(new Date(p.expiresAt).toLocaleString()) : "";
     const intents = escapeHtml((Array.isArray(p?.intents) ? p.intents : []).map((i) => i?.target || "").join(", "));
-    return `<div style="padding:4px;border-bottom:1px solid #eee;"><span>[${status}] ${id}</span>${expiresAt ? `<span style="color:#888;"> | 过期：${expiresAt}</span>` : ""}${intents ? `<span style="color:#888;"> | 目标：${intents}</span>` : ""}</div>`;
+    return `<div class="historyItem"><span>[${status}] ${id}</span>${expiresAt ? `<span class="muted"> | 过期：${expiresAt}</span>` : ""}${intents ? `<span class="muted"> | 目标：${intents}</span>` : ""}</div>`;
   }).join("");
 }
 
@@ -415,7 +415,7 @@ function renderAlertHistory(events) {
     const evidence = Array.isArray(evt?.evaluationSummary?.evidenceLines)
       ? evt.evaluationSummary.evidenceLines.slice(0, 2).join("；")
       : "";
-    return `<div style="padding:4px;border-bottom:1px solid #eee;"><span style="color:#888;">${time}</span> | <strong>${symbol}</strong> | ${ruleName}${evidence ? ` | ${escapeHtml(evidence)}` : ""}</div>`;
+    return `<div class="historyItem"><span class="muted">${time}</span> | <strong>${symbol}</strong> | ${ruleName}${evidence ? ` | ${escapeHtml(evidence)}` : ""}</div>`;
   }).join("");
 }
 
@@ -449,7 +449,7 @@ function renderMarketAmvHistory(history) {
       changeStr = `${sign}${change.toFixed(2)}%`;
     }
     prevValue = value;
-    return `<div style="padding:2px 4px;border-bottom:1px solid #eee;">${date} | ${valueStr} 百万 | ${changeStr}</div>`;
+    return `<div class="historyItemCompact">${date} | ${valueStr} 百万 | ${changeStr}</div>`;
   }).join("");
 }
 

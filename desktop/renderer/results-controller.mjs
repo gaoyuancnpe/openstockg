@@ -6,6 +6,14 @@ function formatFinancialNumber(value, digits = 1) {
   return value === null || value === undefined || Number.isNaN(Number(value)) ? "-" : Number(value).toFixed(digits);
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function rowsToCsv(rows, columns) {
   const headers = columns.map((c) => c.label || c.key).join(",");
   const lines = rows.map((row) =>
@@ -181,6 +189,14 @@ export function createResultsController({
     }
 
     const table = document.createElement("table");
+    table.className = "finTable";
+    const colgroup = document.createElement("colgroup");
+    [36, 70, 120, 80, 70, 70, 90, 80, 80, 70, 90, 90, 70, null, 140].forEach((w) => {
+      const col = document.createElement("col");
+      if (w) col.style.width = w + "px";
+      colgroup.appendChild(col);
+    });
+    table.appendChild(colgroup);
     const thead = document.createElement("thead");
     const trh = document.createElement("tr");
 
@@ -197,9 +213,10 @@ export function createResultsController({
     trh.appendChild(selectTh);
 
     const headers = ["股票", "公司", "报告期", "营收同比", "毛利率", "EBITDA", "EBITDA同比", "EBITDA利润率", "经营利润率", "经营现金流", "自由现金流", "负债权益比", "命中原因", "AI"];
-    headers.forEach((h) => {
+    headers.forEach((h, idx) => {
       const th = document.createElement("th");
       th.textContent = h;
+      if (idx === headers.length - 1) th.className = "stickyRight";
       trh.appendChild(th);
     });
     thead.appendChild(trh);
@@ -211,17 +228,17 @@ export function createResultsController({
       tr.innerHTML = `
         <td class="fin-cb-cell"></td>
         <td>${row.symbol || "-"}</td>
-        <td>${row.companyName || "-"}</td>
+        <td class="cellEllipsis" title="${escapeHtml(row.companyName || "")}">${escapeHtml(row.companyName || "-")}</td>
         <td>${row.reportDate || "-"}</td>
-        <td>${formatFinancialNumber(row.revenueGrowthYoY)}%</td>
-        <td>${formatFinancialNumber(row.grossMargin)}%</td>
-        <td>${formatFinancialNumber(row.ebitdaM, 0)}M</td>
-        <td>${formatFinancialNumber(row.ebitdaGrowthYoY)}%</td>
-        <td>${formatFinancialNumber(row.ebitdaMargin)}%</td>
-        <td>${formatFinancialNumber(row.operatingMargin)}%</td>
-        <td>${formatFinancialNumber(row.operatingCashFlowM, 0)}M</td>
-        <td>${formatFinancialNumber(row.freeCashFlowM, 0)}M</td>
-        <td>${formatFinancialNumber(row.debtToEquity, 2)}x</td>
+        <td class="cellNum">${formatFinancialNumber(row.revenueGrowthYoY)}%</td>
+        <td class="cellNum">${formatFinancialNumber(row.grossMargin)}%</td>
+        <td class="cellNum">${formatFinancialNumber(row.ebitdaM, 0)}M</td>
+        <td class="cellNum">${formatFinancialNumber(row.ebitdaGrowthYoY)}%</td>
+        <td class="cellNum">${formatFinancialNumber(row.ebitdaMargin)}%</td>
+        <td class="cellNum">${formatFinancialNumber(row.operatingMargin)}%</td>
+        <td class="cellNum">${formatFinancialNumber(row.operatingCashFlowM, 0)}M</td>
+        <td class="cellNum">${formatFinancialNumber(row.freeCashFlowM, 0)}M</td>
+        <td class="cellNum">${formatFinancialNumber(row.debtToEquity, 2)}x</td>
         <td>${Array.isArray(row.reasons) ? row.reasons.join("；") : "-"}</td>
       `;
 
@@ -239,6 +256,7 @@ export function createResultsController({
       cbCell.appendChild(checkbox);
 
       const actionTd = document.createElement("td");
+      actionTd.className = "stickyRight";
       const explainBtn = document.createElement("button");
       explainBtn.textContent = "AI聊天";
       explainBtn.disabled = state.aiPanelBusy;
