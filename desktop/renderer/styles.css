@@ -70,7 +70,7 @@ body {
 }
 
 .card.full { grid-column: 1 / -1; }
-.cardTitle { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.cardTitle { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .hint { font-size: 12px; color: var(--muted); margin-bottom: 8px; line-height: 1.4; }
 
 .row { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
@@ -208,11 +208,6 @@ pre#log {
   font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
-}
-
-.aiWorkspaceCard {
-  position: sticky;
-  top: 16px;
 }
 
 .aiPanelMessages {
@@ -371,7 +366,6 @@ details.meta summary {
   .workspace { grid-template-columns: 1fr; }
   .row { grid-template-columns: 1fr; }
   .condRow { grid-template-columns: 1fr; }
-  .aiWorkspaceCard { position: static; }
   .aiContextToolbar { grid-template-columns: 1fr; }
   .logToolbar { grid-template-columns: 1fr; }
   .listTop { grid-template-columns: 1fr; }
@@ -458,3 +452,36 @@ details.meta summary {
   text-align: right;
   white-space: nowrap;
 }
+
+/* === 可折叠组件 === */
+.collapseToggle {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: transform 0.2s;
+  line-height: 1;
+}
+.collapseToggle:hover {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+.collapseToggle.collapsed {
+  transform: rotate(-90deg);
+}
+.cardBody {
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.cardBody.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.error { color: #ff6b6b; font-size: 12px; }
+.fin-cb-cell { text-align: center; width: 36px; }

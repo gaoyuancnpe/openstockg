@@ -44,6 +44,7 @@ const groupedApi = {
     explainFinancialRow: invoke("engine:financialExplain"),
     start: invoke("engine:start"),
     stop: invoke("engine:stop"),
+    runMarketAmv: invoke("engine:runMarketAmv"),
     loadMarketAmvHistory: invoke("engine:loadMarketAmvHistory")
   },
   dev: {

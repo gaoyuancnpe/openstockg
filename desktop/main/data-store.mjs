@@ -344,7 +344,10 @@ export function getDataPaths(app) {
     marketAmvHistoryJson: path.join(base, "market-amv-history.json"),
     universeUS: path.join(base, "universe_us_symbols.json"),
     universeFmpDefault: path.join(base, "universe_fmp_default.json"),
-    universeFmpFinancial: path.join(base, "universe_fmp_financial.json")
+    universeFmpFinancial: path.join(base, "universe_fmp_financial.json"),
+    marketAmvConstituentsSp500: path.join(base, "market-amv-constituents-sp500.json"),
+    marketAmvConstituentsNasdaq: path.join(base, "market-amv-constituents-nasdaq.json"),
+    marketAmvBackfillState: path.join(base, "market-amv-backfill-state.json")
   };
 }
 
@@ -435,6 +438,9 @@ export async function resetTestDataFiles(paths) {
     paths.universeUS,
     paths.universeFmpDefault,
     paths.universeFmpFinancial,
+    paths.marketAmvConstituentsSp500,
+    paths.marketAmvConstituentsNasdaq,
+    paths.marketAmvBackfillState,
     getBackupPath(paths.config),
     getBackupPath(paths.rules),
     getBackupPath(paths.state)
@@ -464,23 +470,86 @@ export async function loadDesktopEvents(paths, { limit = 50 } = {}) {
   }
 }
 
-export async function loadDesktopMarketAmvHistory(paths) {
+export async function loadDesktopMarketAmvHistory(paths, { index } = {}) {
   try {
     const text = await readFile(paths.marketAmvHistoryJson, "utf-8");
-    return JSON.parse(text);
+    const all = JSON.parse(text);
+    const arr = Array.isArray(all) ? all : [];
+    const normalized = arr.map((h) => ({ ...h, index: h && h.index ? String(h.index) : "all" }));
+    if (!index) return normalized;
+    return normalized.filter((h) => h.index === String(index));
   } catch (err) {
     if (err && err.code === "ENOENT") return [];
     throw err;
   }
 }
 
-export async function appendDesktopMarketAmvHistory(paths, entry) {
+function groupAndTrimByIndex(entries, maxPerIndex) {
+  const groups = new Map();
+  for (const e of entries) {
+    const idx = (e && e.index) ? String(e.index) : "all";
+    if (!groups.has(idx)) groups.set(idx, []);
+    groups.get(idx).push(e);
+  }
+  const result = [];
+  for (const [, list] of groups) {
+    list.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    result.push(...list.slice(-maxPerIndex));
+  }
+  return result;
+}
+
+export async function appendDesktopMarketAmvHistory(paths, entry, { maxPerIndex = 90 } = {}) {
+  const normalizedEntry = { ...entry, index: entry && entry.index ? String(entry.index) : "all" };
   const history = await loadDesktopMarketAmvHistory(paths);
-  const filtered = history.filter((h) => h && h.date !== entry.date);
-  filtered.push(entry);
-  const sorted = filtered.sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  const trimmed = sorted.slice(-90);
+  const filtered = history.filter((h) => !(h && h.date === normalizedEntry.date && h.index === normalizedEntry.index));
+  filtered.push(normalizedEntry);
+  const sorted = filtered.sort((a, b) => {
+    const idxCmp = String(a?.index || "all").localeCompare(String(b?.index || "all"));
+    return idxCmp !== 0 ? idxCmp : String(a?.date || "").localeCompare(String(b?.date || ""));
+  });
+  const trimmed = groupAndTrimByIndex(sorted, maxPerIndex);
   await ensureDir(path.dirname(paths.marketAmvHistoryJson));
   await writeFile(paths.marketAmvHistoryJson, JSON.stringify(trimmed, null, 2), "utf-8");
   return trimmed;
+}
+
+export async function bulkAppendDesktopMarketAmvHistory(paths, entries, { maxPerIndex = 6000 } = {}) {
+  const history = await loadDesktopMarketAmvHistory(paths);
+  const map = new Map();
+  for (const h of history) {
+    const key = (h?.index || "all") + "|" + (h?.date || "");
+    map.set(key, h);
+  }
+  for (const entry of entries) {
+    const normalizedEntry = { ...entry, index: entry && entry.index ? String(entry.index) : "all" };
+    const key = normalizedEntry.index + "|" + normalizedEntry.date;
+    map.set(key, normalizedEntry);
+  }
+  const all = Array.from(map.values());
+  const sorted = all.sort((a, b) => {
+    const idxCmp = String(a?.index || "all").localeCompare(String(b?.index || "all"));
+    return idxCmp !== 0 ? idxCmp : String(a?.date || "").localeCompare(String(b?.date || ""));
+  });
+  const trimmed = groupAndTrimByIndex(sorted, maxPerIndex);
+  await ensureDir(path.dirname(paths.marketAmvHistoryJson));
+  await writeFile(paths.marketAmvHistoryJson, JSON.stringify(trimmed, null, 2), "utf-8");
+  return trimmed;
+}
+
+export async function loadMarketAmvBackfillState(paths) {
+  try {
+    const text = await readFile(paths.marketAmvBackfillState, "utf-8");
+    const data = JSON.parse(text);
+    return data && typeof data === "object" ? data : {};
+  } catch (err) {
+    if (err && err.code === "ENOENT") return {};
+    throw err;
+  }
+}
+
+export async function saveMarketAmvBackfillState(paths, state) {
+  await ensureDir(path.dirname(paths.marketAmvBackfillState));
+  await writeFile(paths.marketAmvBackfillState, JSON.stringify(state, null, 2), "utf-8");
+  return state;
 }

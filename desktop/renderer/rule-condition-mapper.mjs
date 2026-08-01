@@ -56,6 +56,8 @@ const FMP_CONDITION_TYPES = new Set([
   "active_chips_above",
   "amv_above",
   "market_0amv_above",
+  "market_0amv_sp500_above",
+  "market_0amv_nasdaq_above",
   "recent_5d_close_ath",
   "close_ath_250d",
   "close_change_percent_1d_above",
@@ -87,6 +89,8 @@ export const CONDITION_TYPE_OPTIONS = [
   { value: "active_chips_above", label: "活筹 ActiveChips ≥ (百万股)" },
   { value: "amv_above", label: "活筹市值 AMV ≥ (百万美元)" },
   { value: "market_0amv_above", label: "全市场 0AMV ≥ (百万美元)" },
+  { value: "market_0amv_sp500_above", label: "全市场 0AMV(S&P500) ≥ (百万美元)" },
+  { value: "market_0amv_nasdaq_above", label: "全市场 0AMV(Nasdaq) ≥ (百万美元)" },
   { value: "recent_5d_close_ath", label: "5 个交易日内股价创历史新高" },
   { value: "close_ath_250d", label: "250 个交易日收盘新高" },
   { value: "close_change_percent_1d_above", label: "最近成交日收盘涨幅 ≥ (%)" },
@@ -325,6 +329,8 @@ function uiItemFromCondition(cond) {
   if (leftVar === "activeChips") return { type: "active_chips_above", value };
   if (leftVar === "amv") return { type: "amv_above", value };
   if (leftVar === "market0amv") return { type: "market_0amv_above", value };
+  if (leftVar === "market0amvSp500") return { type: "market_0amv_sp500_above", value };
+  if (leftVar === "market0amvNasdaq") return { type: "market_0amv_nasdaq_above", value };
   if (leftVar === "recent5dCloseAth") return { type: "recent_5d_close_ath", value: null };
   if (leftVar === "closeAth250d") return { type: "close_ath_250d", value: null };
   if (leftVar === "closeChangePercent1d") return { type: "close_change_percent_1d_above", value };

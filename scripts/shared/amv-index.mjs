@@ -28,13 +28,35 @@ async function fmp(pathName, params) {
   return fetchJSON(u.toString());
 }
 
-async function getSymbols(index, limit) {
-  if (index === 'nasdaq') {
-    const data = await fmp('/stable/company-screener', { exchange: 'NASDAQ', marketCapMoreThan: 10000000000, limit: limit || 500 });
-    return Array.isArray(data) ? data.map(r => String(r.symbol).trim().toUpperCase()).filter(s => /^[A-Z0-9.-]+$/.test(s)) : [];
-  }
-  const data = await fmp('/stable/company-screener', { exchange: 'NASDAQ,NYSE', marketCapMoreThan: 10000000000, limit: limit || 1000 });
+async function getConstituents(index) {
+  const pathName = index === 'nasdaq' ? '/stable/nasdaq-constituent' : '/stable/sp500-constituent';
+  const data = await fmp(pathName);
   return Array.isArray(data) ? data.map(r => String(r.symbol).trim().toUpperCase()).filter(s => /^[A-Z0-9.-]+$/.test(s)) : [];
+}
+
+async function getScreenerMarketCapMap() {
+  const data = await fmp('/stable/company-screener', { exchange: 'NASDAQ,NYSE', marketCapMoreThan: 10000000000, limit: 2000 });
+  const map = new Map();
+  if (Array.isArray(data)) {
+    for (const r of data) {
+      const s = String(r.symbol).trim().toUpperCase();
+      if (/^[A-Z0-9.-]+$/.test(s)) {
+        const mc = toNumber(r.marketCap);
+        if (mc !== null) map.set(s, mc);
+      }
+    }
+  }
+  return map;
+}
+
+async function getSymbols(index, limit) {
+  const constituents = await getConstituents(index);
+  const mcapMap = await getScreenerMarketCapMap();
+  const ranked = constituents
+    .map(s => ({ symbol: s, marketCap: mcapMap.get(s) || 0 }))
+    .sort((a, b) => b.marketCap - a.marketCap);
+  const top = limit > 0 ? ranked.slice(0, limit) : ranked;
+  return top.map(x => x.symbol);
 }
 
 async function getHistory(symbol) {

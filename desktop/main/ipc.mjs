@@ -6,6 +6,7 @@ import {
   loadDesktopConfig,
   loadDesktopEvents,
   loadDesktopMarketAmvHistory,
+  loadMarketAmvBackfillState,
   loadDesktopRules,
   readJSON,
   resetTestDataFiles,
@@ -301,10 +302,31 @@ export function registerDesktopIpc({
 
   registerHandled("engine:aiExplain", async (_evt, payload) => engine.explainAiTarget(parseAiExplainPayload(payload)));
 
-  registerHandled("engine:runMarketAmv", async () => engine.runMarketAmv());
+  registerHandled("engine:runMarketAmv", async (_evt, payload = {}) => {
+    const index = String(payload && payload.index || "all");
+    const limit = payload && payload.limit != null ? Number(payload.limit) : undefined;
+    return await engine.runMarketAmv({ index, limit, useFmp: true });
+  });
 
-  registerHandled("engine:loadMarketAmvHistory", async () => {
-    return await loadDesktopMarketAmvHistory(paths);
+  registerHandled("engine:loadMarketAmvHistory", async (_evt, payload = {}) => {
+    const index = payload && payload.index ? String(payload.index) : undefined;
+    return await loadDesktopMarketAmvHistory(paths, { index });
+  });
+
+  registerHandled("engine:backfillMarketAmv", async (_evt, payload = {}) => {
+    const index = String(payload && payload.index || "all");
+    const limit = payload && payload.limit != null ? Number(payload.limit) : undefined;
+    const fromDate = payload && payload.fromDate ? String(payload.fromDate) : undefined;
+    const toDate = payload && payload.toDate ? String(payload.toDate) : undefined;
+    return await engine.backfillMarketAmv({ index, limit, fromDate, toDate });
+  });
+
+  registerHandled("engine:cancelBackfillMarketAmv", async () => {
+    return await engine.cancelBackfillMarketAmv();
+  });
+
+  registerHandled("engine:loadMarketAmvBackfillState", async () => {
+    return await loadMarketAmvBackfillState(paths);
   });
 
   registerHandled("events:load", async (_evt, { limit } = {}) => {

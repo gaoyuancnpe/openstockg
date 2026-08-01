@@ -354,48 +354,38 @@
           </div>
           <div id="panelMarketAmv" class="panel">
             <div class="cardTitle">全市场 0AMV 指数</div>
+            <div class="row">
+              <label>指数</label>
+              <select id="marketAmvIndex">
+                <option value="all" selected>全市场（默认）</option>
+                <option value="sp500">标普 500</option>
+                <option value="nasdaq">纳斯达克</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>取前 N 市值</label>
+              <input id="marketAmvLimit" type="number" min="1" max="1000" step="10" value="100" />
+            </div>
             <div id="marketAmvResult" class="meta"></div>
-            <div class="cardTitle">历史趋势</div>
-            <div id="marketAmvHistoryList" class="meta scrollList"></div>
             <div class="actions">
               <button id="btnComputeMarketAmv" type="button" class="primary">计算 0AMV</button>
+            </div>
+            <div class="cardTitle">历史趋势</div>
+            <div id="marketAmvHistoryList" class="meta scrollList"></div>
+            <div class="cardTitle">历史回填（最长 20 年）</div>
+            <div id="marketAmvBackfillProgress" class="meta"></div>
+            <div class="actions">
+              <button id="btnBackfillMarketAmv" type="button" class="primary">开始回填</button>
+              <button id="btnCancelBackfillMarketAmv" type="button">取消回填</button>
+              <button id="btnRefreshBackfillState" type="button">查看进度</button>
             </div>
           </div>
 
           </section>
 
           <section class="card">
-            <div class="cardTitle">日志</div>
-            <div class="logToolbar">
-              <select id="logFilterType">
-                <option value="all">全部类型</option>
-                <option value="run">运行</option>
-                <option value="rule">规则</option>
-                <option value="fmp">FMP</option>
-                <option value="email">邮件</option>
-                <option value="event">事件</option>
-                <option value="error">错误</option>
-                <option value="ui">界面</option>
-              </select>
-              <select id="logFilterRule">
-                <option value="all">全部规则</option>
-              </select>
-              <input id="logFilterKeyword" type="text" placeholder="关键词筛选，例如 ETF / 邮件 / 创新高" />
-              <button id="btnClearLog">清空日志</button>
-            </div>
-            <pre id="log"></pre>
-          </section>
-
-          <section class="card">
-            <div class="cardTitle">命中历史</div>
-            <div id="alertHistoryList" class="meta scrollListTall"></div>
-            <div class="actions">
-              <button id="btnRefreshAlertHistory" type="button" class="secondary">刷新命中历史</button>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="cardTitle">运行</div>
+            <div class="cardTitle">运行<button class="collapseToggle" type="button" data-target="panelRunBody" aria-expanded="true">▼</button></div>
+            <div id="panelRunBody" class="cardBody">
             <div class="hint">开发联调建议直接运行开发版，而不是每次重新打包。后端日志会同时输出到本窗口和启动终端。</div>
             <div class="actions">
               <button id="btnDryRunOnce">模拟运行一次</button>
@@ -420,7 +410,8 @@
             <div class="meta" id="lastRunSummary">最近一次运行：暂无记录</div>
             <div class="meta" id="schedulerSummary">当前常驻：未启动</div>
             <div class="meta" id="diagnosticsMeta"></div>
-          </section>
+                    </div>
+</section>
 
           <section class="card">
             <div class="cardTitle">版权与许可证</div>
@@ -477,6 +468,39 @@
                 <button id="btnClearAiPanel">清空会话</button>
               </div>
             </div>
+          </section>
+
+          <section class="card">
+            <div class="cardTitle">日志<button class="collapseToggle" type="button" data-target="panelLogBody" aria-expanded="true">▼</button></div>
+            <div id="panelLogBody" class="cardBody">
+            <div class="logToolbar">
+              <select id="logFilterType">
+                <option value="all">全部类型</option>
+                <option value="run">运行</option>
+                <option value="rule">规则</option>
+                <option value="fmp">FMP</option>
+                <option value="email">邮件</option>
+                <option value="event">事件</option>
+                <option value="error">错误</option>
+                <option value="ui">界面</option>
+              </select>
+              <select id="logFilterRule">
+                <option value="all">全部规则</option>
+              </select>
+              <input id="logFilterKeyword" type="text" placeholder="关键词筛选，例如 ETF / 邮件 / 创新高" />
+              <button id="btnClearLog">清空日志</button>
+            </div>
+            <pre id="log"></pre>
+                    </div>
+          </section>
+          <section class="card">
+            <div class="cardTitle">命中历史<button class="collapseToggle" type="button" data-target="panelAlertHistoryBody" aria-expanded="true">▼</button></div>
+            <div id="panelAlertHistoryBody" class="cardBody">
+            <div id="alertHistoryList" class="meta scrollListTall"></div>
+            <div class="actions">
+              <button id="btnRefreshAlertHistory" type="button" class="secondary">刷新命中历史</button>
+            </div>
+                    </div>
           </section>
         </aside>
 

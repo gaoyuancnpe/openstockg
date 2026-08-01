@@ -19,6 +19,7 @@ import {
 } from "./rule-domain.mjs";
 import { finnhubBasicFinancials, finnhubQuote } from "./providers.mjs";
 import { createMarketAmvService } from "./market-amv-service.mjs";
+import { loadDesktopMarketAmvHistory } from "../main/data-store.mjs";
 
 export function createAlertsRunner({
   dataPaths,
@@ -31,7 +32,7 @@ export function createAlertsRunner({
 }) {
   let busy = false;
 
-  const marketAmvService = createMarketAmvService({ dataPaths, loadConfig, log });
+  const marketAmvService = createMarketAmvService({ dataPaths, loadConfig, log, emitEvent });
 
   const appendEventLine = async (event) => appendJsonLine(dataPaths.events, event);
 
@@ -201,6 +202,8 @@ export function createAlertsRunner({
           turnoverM: stats.turnoverM,
           amv: stats.amv,
           market0amv: marketAmv,
+          market0amvSp500: marketAmvSp500,
+          market0amvNasdaq: marketAmvNasdaq,
           activeChips: stats.activeChips,
           recent5dCloseAth: stats.recent5dCloseAth,
           closeAth250d: stats.closeAth250d,
@@ -440,7 +443,7 @@ export function createAlertsRunner({
           }
 
           const indicators = await computeIndicators({ baseUrl: finnhubBaseUrl, apiKey: finnhubApiKey, symbol, condition: rule.condition, state });
-          const ctx = quoteToEvalContext({ symbol, quote, extra: { ...extra, ...indicators, market0amv: marketAmv } });
+          const ctx = quoteToEvalContext({ symbol, quote, extra: { ...extra, ...indicators, market0amv: marketAmv, market0amvSp500: marketAmvSp500, market0amvNasdaq: marketAmvNasdaq } });
           const fireResult = await fireRuleAlert({
             rule,
             symbol,
@@ -472,7 +475,7 @@ export function createAlertsRunner({
         }
 
         const indicators = await computeIndicators({ baseUrl: finnhubBaseUrl, apiKey: finnhubApiKey, symbol, condition: rule.condition, state });
-        const ctx = { ...buildEvalContext({ symbol, quote, indicators }), market0amv: marketAmv };
+        const ctx = { ...buildEvalContext({ symbol, quote, indicators }), market0amv: marketAmv, market0amvSp500: marketAmvSp500, market0amvNasdaq: marketAmvNasdaq };
         const fireResult = await fireRuleAlert({
           rule,
           symbol,
@@ -597,24 +600,48 @@ export function createAlertsRunner({
       const failedRuleNames = [];
 
       let marketAmv = null;
-      // market 0AMV depends on FMP screener API; computing requires fmpApiKey
-      // works even when main data provider is finnhub, as long as fmpApiKey is configured
+      let marketAmvSp500 = null;
+      let marketAmvNasdaq = null;
+      const primaryIndex = String(cfg.marketAmv?.primaryIndex || "sp500");
       if (runtime.fmpApiKey) {
         const nowMs = Date.now();
-        const cached = state.market0amv;
-        if (cached && cached.value !== null && cached.timestamp && (nowMs - cached.timestamp) < 24 * 60 * 60 * 1000) {
-          marketAmv = cached.value;
-          log(`[market-amv] 使用缓存值: ${marketAmv.toLocaleString()} 百万美元`);
-        } else {
-          try {
-            log("[market-amv] 开始计算全市场 0AMV...");
-            const result = await marketAmvService.computeMarket0amv();
-            marketAmv = result.value;
-            state.market0amv = { value: marketAmv, date: result.date, timestamp: nowMs };
-            log(`[market-amv] 计算完成: ${marketAmv.toLocaleString()} 百万美元，有效样本 ${result.processedCount}/${result.sampleCount}`);
-          } catch (err) {
-            log(`[market-amv] 计算失败: ${err.message}`);
+        const sampleLimit = cfg.marketAmv?.sampleLimit;
+        async function resolveAmv(idx) {
+          const cacheKey = idx === "sp500" ? "market0amvSp500" : "market0amvNasdaq";
+          const cached = state[cacheKey];
+          if (cached && cached.value !== null && cached.timestamp && (nowMs - cached.timestamp) < 24 * 60 * 60 * 1000) {
+            log(`[market-amv] ${idx} 使用缓存值: ${cached.value.toLocaleString()} 百万美元`);
+            return cached.value;
           }
+          try {
+            log(`[market-amv] 开始计算 ${idx} 0AMV...`);
+            const result = await marketAmvService.computeMarket0amv({ index: idx, limit: sampleLimit });
+            state[cacheKey] = { value: result.value, date: result.date, timestamp: nowMs };
+            log(`[market-amv] ${idx} 计算完成: ${result.value.toLocaleString()} 百万美元`);
+            return result.value;
+          } catch (err) {
+            log(`[market-amv] ${idx} 计算失败: ${err.message}`);
+            try {
+              const hist = await loadDesktopMarketAmvHistory(dataPaths, { index: idx });
+              if (hist.length > 0) return hist[hist.length - 1].value;
+            } catch {}
+            return null;
+          }
+        }
+        async function loadFromHistory(idx) {
+          try {
+            const hist = await loadDesktopMarketAmvHistory(dataPaths, { index: idx });
+            return hist.length > 0 ? hist[hist.length - 1].value : null;
+          } catch { return null; }
+        }
+        if (primaryIndex === "nasdaq") {
+          marketAmvNasdaq = await resolveAmv("nasdaq");
+          marketAmvSp500 = await loadFromHistory("sp500");
+          marketAmv = marketAmvNasdaq;
+        } else {
+          marketAmvSp500 = await resolveAmv("sp500");
+          marketAmvNasdaq = await loadFromHistory("nasdaq");
+          marketAmv = marketAmvSp500;
         }
       }
 

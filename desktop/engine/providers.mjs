@@ -169,3 +169,43 @@ export async function finnhubUSSymbols({ baseUrl, apiKey }) {
   }
   return Array.from(new Set(symbols));
 }
+
+export async function fmpSp500Constituents({ baseUrl, apiKey }) {
+  const data = await fmpFetchJSON({
+    baseUrl,
+    pathName: "/stable/sp500-constituent",
+    apiKey,
+    params: {}
+  });
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((row) => ({
+      symbol: String(row?.symbol || "").trim().toUpperCase(),
+      name: String(row?.name || row?.companyName || ""),
+      sector: String(row?.sector || ""),
+      subSector: String(row?.subSector || row?.subIndustry || ""),
+      headQuarter: String(row?.headQuarter || ""),
+      dateAdded: String(row?.dateAdded || "")
+    }))
+    .filter((row) => /^[A-Z0-9.\-]+$/.test(row.symbol));
+}
+
+export async function fmpNasdaqConstituents({ baseUrl, apiKey }) {
+  const data = await fmpFetchJSON({
+    baseUrl,
+    pathName: "/stable/nasdaq-constituent",
+    apiKey,
+    params: {}
+  });
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((row) => ({
+      symbol: String(row?.symbol || "").trim().toUpperCase(),
+      name: String(row?.name || row?.companyName || ""),
+      sector: String(row?.sector || ""),
+      subSector: String(row?.subSector || row?.subIndustry || ""),
+      headQuarter: String(row?.headQuarter || ""),
+      dateAdded: String(row?.dateAdded || "")
+    }))
+    .filter((row) => /^[A-Z0-9.\-]+$/.test(row.symbol));
+}

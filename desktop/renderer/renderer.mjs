@@ -29,6 +29,12 @@ const el = {
   marketAmvResult: $("marketAmvResult"),
   btnComputeMarketAmv: $("btnComputeMarketAmv"),
   marketAmvHistoryList: $("marketAmvHistoryList"),
+  marketAmvIndex: $("marketAmvIndex"),
+  marketAmvLimit: $("marketAmvLimit"),
+  marketAmvBackfillProgress: $("marketAmvBackfillProgress"),
+  btnBackfillMarketAmv: $("btnBackfillMarketAmv"),
+  btnCancelBackfillMarketAmv: $("btnCancelBackfillMarketAmv"),
+  btnRefreshBackfillState: $("btnRefreshBackfillState"),
 
   dataProvider: $("dataProvider"),
   finnhubApiKey: $("finnhubApiKey"),
@@ -381,8 +387,34 @@ function renderProposalList(proposals) {
     const id = escapeHtml(p?.id || "");
     const expiresAt = p?.expiresAt ? escapeHtml(new Date(p.expiresAt).toLocaleString()) : "";
     const intents = escapeHtml((Array.isArray(p?.intents) ? p.intents : []).map((i) => i?.target || "").join(", "));
-    return `<div class="historyItem"><span>[${status}] ${id}</span>${expiresAt ? `<span class="muted"> | 过期：${expiresAt}</span>` : ""}${intents ? `<span class="muted"> | 目标：${intents}</span>` : ""}</div>`;
+    const isPending = String(p?.status || "").toLowerCase() === "pending";
+    const actions = isPending
+      ? `<button type="button" class="proposalActionBtn" data-action="apply" data-id="${id}">接受</button><button type="button" class="proposalActionBtn" data-action="reject" data-id="${id}">拒绝</button>`
+      : "";
+    return `<div class="historyItem"><span>[${status}] ${id}</span>${expiresAt ? `<span class="muted"> | 过期：${expiresAt}</span>` : ""}${intents ? `<span class="muted"> | 目标：${intents}</span>` : ""}${actions}</div>`;
   }).join("");
+  el.aiProposalList.querySelectorAll(".proposalActionBtn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const action = btn.getAttribute("data-action");
+      const proposalId = btn.getAttribute("data-id");
+      const proposal = proposals.find((item) => String(item?.id || "") === String(proposalId || ""));
+      const token = proposal?.token || "";
+      btn.disabled = true;
+      try {
+        if (action === "apply") {
+          await window.api.agent.applyProposal({ proposalId, token });
+        } else if (action === "reject") {
+          await window.api.agent.rejectProposal({ proposalId });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        appendLog(`Proposal ${action === "apply" ? "接受" : "拒绝"}失败：${message}`);
+        btn.disabled = false;
+        return;
+      }
+      refreshProposalList();
+    });
+  });
 }
 
 function refreshProposalList() {
@@ -436,12 +468,14 @@ function renderMarketAmvHistory(history) {
     el.marketAmvHistoryList.innerHTML = "<div>暂无历史数据</div>";
     return;
   }
+  const indexLabel = (idx) => ({ sp500: "S&P500", nasdaq: "Nasdaq", all: "全市场" })[idx] || "全市场";
   const rows = history.slice().reverse();
   let prevValue = null;
   el.marketAmvHistoryList.innerHTML = rows.map((entry) => {
     const date = String(entry?.date || "-");
     const value = Number(entry?.value || 0);
     const valueStr = value.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+    const idxTag = indexLabel(entry?.index);
     let changeStr = "-";
     if (prevValue !== null && prevValue !== 0) {
       const change = ((value - prevValue) / prevValue) * 100;
@@ -449,13 +483,14 @@ function renderMarketAmvHistory(history) {
       changeStr = `${sign}${change.toFixed(2)}%`;
     }
     prevValue = value;
-    return `<div class="historyItemCompact">${date} | ${valueStr} 百万 | ${changeStr}</div>`;
+    return `<div class="historyItemCompact">[${idxTag}] ${date} | ${valueStr} 百万 | ${changeStr}</div>`;
   }).join("");
 }
 
 function refreshMarketAmvHistory() {
   if (!window.api?.engine?.loadMarketAmvHistory) return;
-  window.api.engine.loadMarketAmvHistory()
+  const index = el.marketAmvIndex?.value || "all";
+  window.api.engine.loadMarketAmvHistory({ index })
     .then((history) => renderMarketAmvHistory(history))
     .catch((err) => {
       if (el.marketAmvHistoryList) {
@@ -844,6 +879,18 @@ async function bootstrapRenderer() {
   showTab("rules");
   refreshAiPanel();
 
+  // 折叠按钮绑定：点击切换 cardBody 的 collapsed 状态
+  document.querySelectorAll(".collapseToggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.getAttribute("data-target");
+      const body = document.getElementById(targetId);
+      if (!body) return;
+      const isCollapsed = body.classList.toggle("collapsed");
+      btn.classList.toggle("collapsed", isCollapsed);
+      btn.setAttribute("aria-expanded", String(!isCollapsed));
+    });
+  });
+
   el.btnAiSend?.addEventListener("click", () => {
     sendCurrentMessage();
   });
@@ -923,29 +970,84 @@ async function bootstrapRenderer() {
     }
   });
 
+  const INDEX_NAME_MAP = { sp500: "标普 500", nasdaq: "纳斯达克", all: "全市场" };
   el.btnComputeMarketAmv?.addEventListener("click", async () => {
     if (!el.marketAmvResult) return;
-    el.marketAmvResult.innerHTML = "计算中，请稍候…";
+    const index = el.marketAmvIndex?.value || "all";
+    const limitRaw = Number(el.marketAmvLimit?.value);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
+    const indexName = INDEX_NAME_MAP[index] || "全市场";
+    el.marketAmvResult.innerHTML = `计算中（${indexName}），请稍候…`;
     el.btnComputeMarketAmv.disabled = true;
     try {
-      const result = await window.api.engine.runMarketAmv();
+      const result = await window.api.engine.runMarketAmv({ index, limit });
       const valueStr = Number(result?.value).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
       const dateStr = result?.date || "-";
       const sample = result?.sampleCount ?? 0;
       const processed = result?.processedCount ?? 0;
       el.marketAmvResult.innerHTML = `
         <div>日期：${dateStr}</div>
-        <div>全市场 0AMV：${valueStr} 百万美元</div>
+        <div>${indexName} 0AMV：${valueStr} 百万美元</div>
         <div>样本：有效 ${processed} / 总计 ${sample}</div>
       `;
-      appendLog(`全市场 0AMV 计算完成：${valueStr} 百万美元（${dateStr}）`);
+      appendLog(`${indexName} 0AMV 计算完成：${valueStr} 百万美元（${dateStr}）`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       el.marketAmvResult.innerHTML = `<span class="error">计算失败：${message}</span>`;
-      appendLog(`全市场 0AMV 计算失败：${message}`);
+      appendLog(`${indexName} 0AMV 计算失败：${message}`);
     } finally {
       refreshMarketAmvHistory();
       el.btnComputeMarketAmv.disabled = false;
+    }
+  });
+
+  el.btnBackfillMarketAmv?.addEventListener("click", async () => {
+    if (!el.marketAmvBackfillProgress) return;
+    const index = el.marketAmvIndex?.value || "all";
+    const limitRaw = Number(el.marketAmvLimit?.value);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
+    const indexName = INDEX_NAME_MAP[index] || "全市场";
+    el.marketAmvBackfillProgress.innerHTML = `开始回填 ${indexName} 0AMV 历史，请勿频繁操作…`;
+    if (el.btnBackfillMarketAmv) el.btnBackfillMarketAmv.disabled = true;
+    try {
+      const result = await window.api.engine.backfillMarketAmv({ index, limit });
+      const count = (Array.isArray(result?.entries) ? result.entries.length : 0);
+      el.marketAmvBackfillProgress.innerHTML = `回填完成：${indexName} 共写入 ${count} 条历史记录。`;
+      appendLog(`${indexName} 0AMV 回填完成：共 ${count} 条`);
+      refreshMarketAmvHistory();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      el.marketAmvBackfillProgress.innerHTML = `<span class="error">回填失败：${message}</span>`;
+      appendLog(`${indexName} 0AMV 回填失败：${message}`);
+    } finally {
+      if (el.btnBackfillMarketAmv) el.btnBackfillMarketAmv.disabled = false;
+    }
+  });
+
+  el.btnCancelBackfillMarketAmv?.addEventListener("click", async () => {
+    try {
+      await window.api.engine.cancelBackfillMarketAmv();
+      if (el.marketAmvBackfillProgress) el.marketAmvBackfillProgress.innerHTML = "已请求取消回填…";
+      appendLog("已请求取消 0AMV 回填");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      appendLog(`取消回填失败：${message}`);
+    }
+  });
+
+  el.btnRefreshBackfillState?.addEventListener("click", async () => {
+    if (!el.marketAmvBackfillProgress) return;
+    try {
+      const stateInfo = await window.api.engine.loadMarketAmvBackfillState();
+      const index = el.marketAmvIndex?.value || "all";
+      const entry = (stateInfo && stateInfo[index]) || {};
+      const symbols = entry.completedSymbols || [];
+      const count = Array.isArray(symbols) ? symbols.length : 0;
+      const indexName = INDEX_NAME_MAP[index] || "全市场";
+      el.marketAmvBackfillProgress.innerHTML = `断点续传状态（${indexName}）：已完成 ${count} 个标的，区间 ${entry.fromDate || "-"} ~ ${entry.toDate || "-"}。`;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      el.marketAmvBackfillProgress.innerHTML = `<span class="error">读取进度失败：${message}</span>`;
     }
   });
 
@@ -990,6 +1092,21 @@ async function bootstrapRenderer() {
           }
           console.log("[agent_proposal_status]", evt);
           refreshProposalList();
+        } else if (evt?.type === "market_amv_progress") {
+          const idx = evt?.index || "all";
+          const indexName = ({ sp500: "标普 500", nasdaq: "纳斯达克", all: "全市场" })[idx] || "全市场";
+          if (el.marketAmvBackfillProgress) {
+            if (evt.phase === "fetch") {
+              const current = evt?.current ?? 0;
+              const total = evt?.total ?? 0;
+              el.marketAmvBackfillProgress.innerHTML = `回填进度（${indexName}）：拉取历史价 ${current} / ${total}`;
+            } else if (evt.phase === "aggregate") {
+              el.marketAmvBackfillProgress.innerHTML = `回填进度（${indexName}）：本地聚合 SMA 中…`;
+            } else if (evt.phase === "done") {
+              const count = evt?.entriesCount ?? 0;
+              el.marketAmvBackfillProgress.innerHTML = `回填完成（${indexName}）：共写入 ${count} 条历史记录。`;
+            }
+          }
         }
       }
     });

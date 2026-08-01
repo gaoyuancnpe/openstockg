@@ -4,6 +4,8 @@ export function conditionFromUI(type, value) {
   if (type === "active_chips_above") return { op: ">=", left: { var: "activeChips" }, right: num };
   if (type === "amv_above") return { op: ">=", left: { var: "amv" }, right: num };
   if (type === "market_0amv_above") return { op: ">=", left: { var: "market0amv" }, right: num };
+  if (type === "market_0amv_sp500_above") return { op: ">=", left: { var: "market0amvSp500" }, right: num };
+  if (type === "market_0amv_nasdaq_above") return { op: ">=", left: { var: "market0amvNasdaq" }, right: num };
   if (type === "price_above") return { op: ">=", left: { var: "price" }, right: num };
   if (type === "price_below") return { op: "<=", left: { var: "price" }, right: num };
   if (type === "change_above") return { op: ">=", left: { var: "changePercent" }, right: num };

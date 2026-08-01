@@ -50,6 +50,11 @@ const DEFAULT_CONFIG_TEMPLATE = {
     allowRemoteApply: false,
     confirmTtlSec: 300
   },
+  marketAmv: {
+    primaryIndex: "sp500",
+    sampleLimit: 100,
+    backfill: { concurrency: 3, delayMs: 200, maxPerIndex: 6000, defaultYears: 20 }
+  },
   defaultWebhookType: "generic",
   defaultWebhookUrl: ""
 };
@@ -60,6 +65,17 @@ function cloneDefaults() {
 
 export function getDefaultDesktopConfig() {
   return cloneDefaults();
+}
+
+function clampInt(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(n)));
+}
+
+function ensureEnum(allowed, value, fallback) {
+  const v = String(value || "").toLowerCase();
+  return allowed.includes(v) ? v : fallback;
 }
 
 export function normalizeDesktopConfig(cfg) {
@@ -78,6 +94,8 @@ export function normalizeDesktopConfig(cfg) {
     ))
     : [];
   const confirmTtlSec = Number.parseInt(String(feishuInput.confirmTtlSec ?? defaults.feishu.confirmTtlSec ?? "300"), 10);
+  const marketAmvInput = input.marketAmv && typeof input.marketAmv === "object" ? input.marketAmv : {};
+  const backfillInput = marketAmvInput.backfill && typeof marketAmvInput.backfill === "object" ? marketAmvInput.backfill : {};
   return {
     ...defaults,
     ...input,
@@ -117,6 +135,20 @@ export function normalizeDesktopConfig(cfg) {
       requireAllowlist: Boolean(feishuInput.requireAllowlist),
       allowRemoteApply: Boolean(feishuInput.allowRemoteApply),
       confirmTtlSec: Number.isFinite(confirmTtlSec) && confirmTtlSec > 0 ? confirmTtlSec : defaults.feishu.confirmTtlSec
+    },
+    marketAmv: {
+      ...defaults.marketAmv,
+      ...marketAmvInput,
+      primaryIndex: ensureEnum(["sp500", "nasdaq", "all"], marketAmvInput.primaryIndex, defaults.marketAmv.primaryIndex),
+      sampleLimit: clampInt(marketAmvInput.sampleLimit, 1, 1000, defaults.marketAmv.sampleLimit),
+      backfill: {
+        ...defaults.marketAmv.backfill,
+        ...backfillInput,
+        concurrency: clampInt(backfillInput.concurrency, 1, 10, defaults.marketAmv.backfill.concurrency),
+        delayMs: clampInt(backfillInput.delayMs, 0, 5000, defaults.marketAmv.backfill.delayMs),
+        maxPerIndex: clampInt(backfillInput.maxPerIndex, 90, 20000, defaults.marketAmv.backfill.maxPerIndex),
+        defaultYears: clampInt(backfillInput.defaultYears, 1, 40, defaults.marketAmv.backfill.defaultYears)
+      }
     }
   };
 }
