@@ -45,7 +45,10 @@ const groupedApi = {
     start: invoke("engine:start"),
     stop: invoke("engine:stop"),
     runMarketAmv: invoke("engine:runMarketAmv"),
-    loadMarketAmvHistory: invoke("engine:loadMarketAmvHistory")
+    loadMarketAmvHistory: invoke("engine:loadMarketAmvHistory"),
+    backfillMarketAmv: invoke("engine:backfillMarketAmv"),
+    cancelBackfillMarketAmv: invoke("engine:cancelBackfillMarketAmv"),
+    loadMarketAmvBackfillState: invoke("engine:loadMarketAmvBackfillState")
   },
   dev: {
     resetTestData: invoke("dev:resetTestData"),

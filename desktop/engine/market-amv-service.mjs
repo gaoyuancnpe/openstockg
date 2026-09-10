@@ -66,7 +66,7 @@ async function resolveConstituents({ baseUrl, apiKey, index, limit, dataPaths, l
   for (const r of screenerRows) capMap.set(String(r.symbol || "").toUpperCase(), Number(r.marketCap) || null);
   const merged = symbols.map((sym) => ({ symbol: sym, marketCap: capMap.get(sym) ?? null }));
   const sorted = merged.sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
-  return sorted.slice(0, limit || DEFAULT_SAMPLE_LIMIT);
+  return sorted;
 }
 
 export function createMarketAmvService({ dataPaths, loadConfig, log, emitEvent }) {
@@ -77,16 +77,15 @@ export function createMarketAmvService({ dataPaths, loadConfig, log, emitEvent }
     const baseUrl = normalizeHttpBaseUrl(cfg.fmpBaseUrl, "https://financialmodelingprep.com");
     const apiKey = cfg.fmpApiKey;
     if (!apiKey) throw new Error("FMP API key is required for market 0AMV");
-    const effectiveLimit = limit || cfg?.marketAmv?.sampleLimit || DEFAULT_SAMPLE_LIMIT;
     const idx = String(index || "all").toLowerCase();
 
-    log(`[market-amv] 计算 ${idx} 0AMV，Top-N=${effectiveLimit}...`);
-    const constituents = await resolveConstituents({ baseUrl, apiKey, index: idx, limit: effectiveLimit, dataPaths, log });
+    log(`[market-amv] 计算 ${idx} 0AMV（全部成分股）...`);
+    const constituents = await resolveConstituents({ baseUrl, apiKey, index: idx, dataPaths, log });
     if (constituents.length === 0) throw new Error(`No constituents for index ${idx}`);
 
     let totalAmv = 0;
     let processed = 0;
-    const today = isoDateToday();
+    let lastEodDate = null;
 
     for (const { symbol } of constituents) {
       if (!symbol) continue;
@@ -95,7 +94,9 @@ export function createMarketAmvService({ dataPaths, loadConfig, log, emitEvent }
         if (!Array.isArray(hist) || hist.length < SMA_PERIOD) continue;
         const sorted = hist.sort((a, b) => String(a.date).localeCompare(String(b.date)));
         const volumes = sorted.map((h) => h.volume);
-        const lastClose = sorted[sorted.length - 1].close;
+        const lastEntry = sorted[sorted.length - 1];
+        const lastClose = lastEntry.close;
+        if (lastEntry.date) lastEodDate = lastEntry.date;
         const volSma = sma(volumes, SMA_PERIOD);
         if (volSma !== null && lastClose != null) {
           totalAmv += volSma * lastClose;
@@ -107,7 +108,7 @@ export function createMarketAmvService({ dataPaths, loadConfig, log, emitEvent }
     }
 
     const result = {
-      date: today,
+      date: lastEodDate || isoDateToday(),
       index: idx,
       value: totalAmv / 1e6,
       sampleCount: constituents.length,
@@ -139,7 +140,6 @@ export function createMarketAmvService({ dataPaths, loadConfig, log, emitEvent }
     const apiKey = cfg.fmpApiKey;
     if (!apiKey) throw new Error("FMP API key is required for market 0AMV backfill");
     const idx = String(index || cfg?.marketAmv?.primaryIndex || "sp500").toLowerCase();
-    const effectiveLimit = limit || cfg?.marketAmv?.sampleLimit || DEFAULT_SAMPLE_LIMIT;
     const backfillCfg = cfg?.marketAmv?.backfill || {};
     const concurrency = Math.max(1, backfillCfg.concurrency || 3);
     const delayMs = backfillCfg.delayMs || 200;
@@ -148,9 +148,9 @@ export function createMarketAmvService({ dataPaths, loadConfig, log, emitEvent }
 
     const today = toDate || isoDateToday();
     const from = fromDate || isoDateShiftYears(today, -defaultYears);
-    log(`[market-amv] 回填 ${idx} 0AMV：${from} → ${today}，Top-N=${effectiveLimit}`);
+    log(`[market-amv] 回填 ${idx} 0AMV：${from} → ${today}（全部成分股）`);
 
-    const constituents = await resolveConstituents({ baseUrl, apiKey, index: idx, limit: effectiveLimit, dataPaths, log });
+    const constituents = await resolveConstituents({ baseUrl, apiKey, index: idx, dataPaths, log });
     if (constituents.length === 0) throw new Error(`No constituents for index ${idx}`);
     const total = constituents.length;
 
