@@ -42,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# yuren-harness 应用壳（Web 工作台）
+/yuren-harness/web/node_modules

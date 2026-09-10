@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'">
+<title>Yuren Harness</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #101319; color: #d7dce6; height: 100vh; overflow: hidden;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .wrap { width: min(640px, 90vw); text-align: center; }
+  .logo { display: inline-flex; gap: 4px; align-items: flex-end; height: 44px; margin-bottom: 18px; }
+  .logo span { width: 34px; border-radius: 5px; display: inline-block; }
+  .logo .b1 { height: 12px; background: #3557d8; }
+  .logo .b2 { height: 20px; background: #4f7cff; }
+  .logo .b3 { height: 28px; background: #6f90ff; }
+  .logo .b4 { height: 36px; background: #93b0ff; }
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: 2px; }
+  .sub { font-size: 11px; color: #5d6a80; letter-spacing: 4px; margin: 6px 0 34px; }
+  .status { font-size: 15px; color: #93a1b8; min-height: 22px; }
+  .status.failed { color: #e08a8a; white-space: pre-wrap; }
+  .bar { height: 3px; background: #1c2129; border-radius: 2px; margin: 22px auto 0; width: 70%; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 40%; background: #4f7cff; border-radius: 2px;
+    animation: slide 1.2s ease-in-out infinite; }
+  @keyframes slide { 0% { transform: translateX(-100%);} 100% { transform: translateX(280%);} }
+  .log {
+    margin-top: 26px; text-align: left; font-family: Consolas, monospace; font-size: 11px;
+    line-height: 17px; color: #6c7888; background: #161a22;
+    border: 1px solid #2b3240; border-radius: 8px; padding: 10px 12px;
+    height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  button {
+    margin-top: 22px; padding: 9px 26px; font-size: 14px; cursor: pointer; color: #fff;
+    background: #3557d8; border: 0; border-radius: 8px;
+  }
+  button:hover { background: #4f7cff; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo"><span class="b1"></span><span class="b2"></span><span class="b3"></span><span class="b4"></span></div>
+    <h1>Yuren Harness</h1>
+    <div class="sub">CUSTOMIZABLE AGENT WORKSPACE</div>
+    <div class="status" id="status">正在启动…</div>
+    <div class="bar" id="bar"><i></i></div>
+    <div class="log" id="log"></div>
+    <button id="retry" style="display:none" onclick="window.yuren && window.yuren.retry()">重试</button>
+  </div>
+<script>
+  const el = document.getElementById('status');
+  const bar = document.getElementById('bar');
+  const logBox = document.getElementById('log');
+  const retryBtn = document.getElementById('retry');
+  if (window.yuren) {
+    window.yuren.onStatus((msg) => {
+      el.textContent = msg.text || '';
+      el.className = 'status' + (msg.phase === 'failed' ? ' failed' : '');
+      if (msg.log) logBox.textContent = msg.log.join('\n');
+      const failed = msg.phase === 'failed';
+      bar.style.display = failed ? 'none' : '';
+      retryBtn.style.display = failed ? '' : 'none';
+    });
+  }
+</script>
+</body>
+</html>

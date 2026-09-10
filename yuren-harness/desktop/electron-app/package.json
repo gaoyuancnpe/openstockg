@@ -1,0 +1,29 @@
+{
+  "name": "yuren-harness-desktop",
+  "version": "1.0.0",
+  "description": "Yuren Harness 桌面分支(Electron 自包含形态)",
+  "main": "main.js",
+  "scripts": { "start": "electron ." },
+  "license": "UNLICENSED",
+  "dependencies": { "@deepseek-ai/dsh": "0.1.1-rc.2" },
+  "devDependencies": { "electron": "^44.0.0" },
+  "build": {
+    "appId": "com.yuren.harness",
+    "productName": "Yuren Harness",
+    "asar": false,
+    "npmRebuild": false,
+    "compression": "normal",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "loader.html", "package.json"],
+    "afterPack": "hooks.js",
+    "win": { "target": [{ "target": "dir" }, { "target": "nsis" }], "icon": "build/icon.ico" },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "YurenHarness-Setup.exe",
+      "shortcutName": "Yuren Harness"
+    }
+  }
+}

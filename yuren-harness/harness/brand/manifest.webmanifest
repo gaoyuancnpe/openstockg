@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "盈宝选矿助手",
+  "short_name": "盈宝助手",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+*.log
+*.pyc
+.DS_Store
+.dsh/
+__pycache__/
+dist/
+node_modules/
+vendor/

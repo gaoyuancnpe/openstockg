@@ -1,0 +1,53 @@
+# Yuren Harness — Web 形态补丁模板
+# 占位符(BRAND_PKG/MEMORY_SCRIPT)由 web/serve.js 在每次启动时按本机路径填充;
+# 注意: 占位符只应出现在结构位置,别写进注释——replaceAll 不分场合。
+# 领域产品在此追加自己的 MCP 行(- insert: - id: mcp-xxx ...)与技能。
+# 语法: 新增行用 - insert:;覆盖已有行用裸 - id: 条目(name 是防呆校验);
+#       禁用行用 disabled: true;config 为整值替换(不做深度合并)。
+
+- insert:
+    - id: mcp-memory
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: memory
+        transport: stdio
+        command: 'node'
+        args:
+          - '{{MEMORY_SCRIPT}}'
+
+    # ── 领域 MCP: OpenStock(美股行情研究)
+    #    数据目录与桌面端共享(~/.config/openstock-alerts-desktop);密钥读取侧脱敏;
+    #    run_rules_once 默认 dry_run,真实通知需显式 dry_run=false。
+    - id: mcp-openstock
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: openstock
+        transport: stdio
+        command: 'node'
+        args:
+          - '/home/gaoyuan/projects/openstock-g/OpenStock/desktop/mcp/mcp-server.mjs'
+
+    # ── 领域 MCP 示例(python/uv 方式,服务器需 python3 + uv):
+    # - id: mcp-mydomain
+    #   name: '@deepseek-ai/dsh-mcp-client'
+    #   config:
+    #     serverName: mydomain
+    #     transport: stdio
+    #     command: 'python3'
+    #     args: ['-m', 'uv', 'run', '/abs/path/harness/mcp-servers/example_server.py']
+
+# 品牌替换: 禁用默认品牌行,接入本地品牌插件(标题/图标/侧栏标识/首启引导)
+- id: ui-brand-official
+  disabled: true
+
+- insert:
+    - id: ui-brand-yuren
+      name: '{{BRAND_PKG}}'
+
+# 默认人设(编程助手)替换 —— 领域产品改写为自家专家人设
+- id: system-prompt
+  config:
+    persona: |
+      你是"Yuren Harness"——一个可定制的智能体工作台。
+      严格遵循工作守则(见项目根目录 AGENTS.md): 数据不全先列清单追问、禁止编造;
+      数值结论只来自所接入的领域工具;引用出处;交付物写入 workspace/outputs/。

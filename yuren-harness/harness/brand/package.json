@@ -1,0 +1,10 @@
+{
+  "name": "yuren-brand",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Yuren Harness 的品牌插件：接管 Web UI 标题/图标/侧栏标识/首启引导，默认皮可整体替换。",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  }
+}

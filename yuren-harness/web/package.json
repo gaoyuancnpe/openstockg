@@ -1,0 +1,14 @@
+{
+  "name": "yuren-harness-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Yuren Harness 主形态:Web 前后端服务(浏览器访问)",
+  "main": "serve.js",
+  "scripts": {
+    "start": "node serve.js"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.1-rc.2",
+    "@modelcontextprotocol/server-memory": "2026.8.31"
+  }
+}

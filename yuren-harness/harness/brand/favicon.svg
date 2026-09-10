@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 48 48" fill="none">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      rect { fill: #7ea2ff; }
+      rect:nth-of-type(1) { fill: #4f7cff; }
+    }
+  </style>
+  <rect x="8" y="34" width="32" height="6" rx="2" fill="#3557d8"/>
+  <rect x="12" y="26" width="24" height="6" rx="2" fill="#4f7cff"/>
+  <rect x="16" y="18" width="16" height="6" rx="2" fill="#6f90ff"/>
+  <rect x="20" y="10" width="8" height="6" rx="2" fill="#93b0ff"/>
+</svg>

@@ -1,0 +1,36 @@
+# Yuren Harness — 桌面分支补丁模板(自包含形态)
+# 与 web 模板的区别: 记忆 MCP 用本 exe 的 Electron-as-Node 直跑(vendor-memory),
+# 目标机零依赖(无需 Node/npm)。领域产品如需 Python 类 MCP,另行构建
+# vendor-python(tools/make_vendor.py --with-python)并在下方追加对应行。
+# 占位符(BRAND_PKG/EXE/MEMORY_ENTRY/MEMORY_ROW/PY_EXE/DOMAIN_SERVER)
+# 由 Electron 主进程(desktop/electron-app/main.js)每次启动填充;
+# 注意: 占位符只应出现在结构位置,别写进注释——replaceAll 不分场合。
+
+- insert:
+{{MEMORY_ROW}}
+
+    # ── 领域 MCP 示例(需 --with-python 构建 vendor-python 后启用):
+    # - id: mcp-mydomain
+    #   name: '@deepseek-ai/dsh-mcp-client'
+    #   config:
+    #     serverName: mydomain
+    #     transport: stdio
+    #     command: '{{PY_EXE}}'
+    #     args:
+    #       - '{{DOMAIN_SERVER}}'
+
+# 品牌替换: 禁用默认品牌行,接入本地品牌插件(标题/图标/侧栏标识/首启引导)
+- id: ui-brand-official
+  disabled: true
+
+- insert:
+    - id: ui-brand-yuren
+      name: '{{BRAND_PKG}}'
+
+# 默认人设(编程助手)替换 —— 领域产品改写为自家专家人设
+- id: system-prompt
+  config:
+    persona: |
+      你是"Yuren Harness"——一个可定制的智能体工作台。
+      严格遵循工作守则(见项目根目录 AGENTS.md): 数据不全先列清单追问、禁止编造;
+      数值结论只来自所接入的领域工具;引用出处;交付物写入 workspace/outputs/。
