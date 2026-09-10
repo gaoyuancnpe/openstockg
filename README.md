@@ -2,8 +2,8 @@
 
 ## 版权与许可证
 
-- 本仓库保留根目录中的 [LICENSE](file:///home/gaoyuan/openstock-g/OpenStock/LICENSE)，当前按 `AGPL-3.0-or-later` 分发
-- 上游与修改说明见 [NOTICE.md](file:///home/gaoyuan/openstock-g/OpenStock/NOTICE.md)
+- 本仓库保留根目录中的 [LICENSE](file:///home/gaoyuan/projects/yuren-markets/LICENSE)，当前按 `AGPL-3.0-or-later` 分发
+- 上游与修改说明见 [NOTICE.md](file:///home/gaoyuan/projects/yuren-markets/NOTICE.md)
 - 如果你继续修改并分发，建议显著标注“你修改过哪些内容、修改时间是什么”
 - 如果你将 Web 版本对外提供网络服务，还需要按 `AGPL` 的要求向用户提供对应源码获取方式
 - 本项目与输出结果不提供任何担保，也不构成投资建议
@@ -142,7 +142,7 @@ npm install
 - `scripts/legacy-cli/`：保留中的命令行提醒脚本
 - `scripts/legacy-web/`：历史 Web、Kit、调试与迁移脚本
 
-完整清单见 [scripts/README.md](file:///home/gaoyuan/openstock-g/OpenStock/scripts/README.md)。
+完整清单见 [scripts/README.md](file:///home/gaoyuan/projects/yuren-markets/scripts/README.md)。
 
 ## 环境变量
 
@@ -385,7 +385,7 @@ npm run desktop:dist:win
 示例：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-22.04\home\gaoyuan\openstock-g\OpenStock\scripts\desktop\build-win-zip-to-f.ps1" -SourceDesktopPath "\\wsl.localhost\Ubuntu-22.04\home\gaoyuan\openstock-g\OpenStock\desktop" -DestDir "F:\OpenStockAlerts\dist"
+powershell -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-22.04\home\gaoyuan\projects\yuren-markets\scripts\desktop\build-win-zip-to-f.ps1" -SourceDesktopPath "\\wsl.localhost\Ubuntu-22.04\home\gaoyuan\projects\yuren-markets\desktop" -DestDir "F:\OpenStockAlerts\dist"
 ```
 
 说明：
