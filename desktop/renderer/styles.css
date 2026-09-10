@@ -485,3 +485,49 @@ details.meta summary {
 
 .error { color: #ff6b6b; font-size: 12px; }
 .fin-cb-cell { text-align: center; width: 36px; }
+
+/* 智能体协作轨迹 */
+.aiOrchestrationTrace {
+  font-size: 12px;
+  margin: 6px 0;
+}
+.aiOrchestrationSummary {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.aiOrchestrationWarning {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-left: 2px solid #f0b429;
+  background: rgba(240, 180, 41, 0.08);
+  border-radius: 4px;
+  white-space: pre-line;
+  line-height: 1.5;
+}
+.aiOrchestrationDetails {
+  margin-top: 4px;
+}
+.aiOrchestrationDetails summary {
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+}
+.aiOrchestrationSteps {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aiOrchestrationStep {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  line-height: 1.5;
+}
+.aiOrchestrationStep.failed { border-left: 2px solid #ff6b6b; }
+.aiOrchestrationStep.skipped { opacity: 0.55; }
+.aiOrchestrationStepNote {
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: pre-line;
+}

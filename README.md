@@ -287,6 +287,20 @@ npm run desktop:dev
 
 当前调用方式使用 DeepSeek 的 OpenAI 兼容 `chat/completions`，AI 只负责解释结构化结果与规则配置，不直接替代筛选是否通过。
 
+#### 智能体协作（已解封）
+
+配置页 `智能体协作` 区可将 AI 从单次调用升级为多角色协作流水线（默认已启用，存量配置会在启动时自动迁移）：
+
+- `生成规则`类任务：主角色产出结构化草案 → 校验器角色复核 → 必要时主角色带反馈自动重试一次；与源数据矛盾或缺少有效条件的草案会被拦截，不再进入表单或 proposal
+- 开放助手附加上下文提问：可并行派出规则评审员、诊断顾问分支分析，再由综合器汇总
+- 每次执行都会在 AI 面板留下协作轨迹（角色链、每步状态与耗时、校验结论），被拦截的建议会注明拦截原因与来源
+- `最大执行步数`（1-6）控制单次任务的模型调用预算；`单任务` 模式可随时切回升级前的旧行为
+- 校验器、综合器可单独指定模型档位（flash/pro），实现“重活用 pro、复核用 flash”的分档协作
+
+#### 助手自主查现场（工具调用）
+
+开放助手聊天模式支持自主调用只读工具（`list_rules`、`get_config_summary`、`get_scheduler_status`、`get_last_run`、`get_recent_events`、`get_diagnostics`），直接问“我现在有哪些规则”“昨天为什么没触发”即可；工具均为只读，写操作仍走 proposal 确认闭环。
+
 ### 3.3 0AMV 活跃市值指标
 
 桌面端支持 `0AMV`（活跃市值，Active Market Value）指标，用于衡量个股与全市场的活跃资金参与度，包含三个层级：
@@ -298,6 +312,36 @@ npm run desktop:dev
 这三项均可作为规则条件使用（`活筹 ActiveChips ≥`、`活筹市值 AMV ≥`、`全市场 0AMV ≥`），也可在桌面端顶部 `0AMV` 标签页点击「计算 0AMV」单独查看全市场指数。
 
 注意：全市场 0AMV 计算依赖 `FMP API Key`（调用 `stock-screener` 与历史价格接口）；个股活筹 / 活筹市值基于 K 线数据，FMP 与 Finnhub 均支持。规则运行时全市场 0AMV 有 24 小时缓存。
+
+### 3.4 MCP 服务（供外部智能体调用）
+
+桌面端的引擎与 AI 编排能力已封装为无头 MCP 服务器（stdio 传输，零依赖手写 JSON-RPC，不需要 Electron）：
+
+```bash
+cd desktop
+npm run mcp        # 启动 MCP 服务器
+npm run test:mcp   # 回归测试（握手/工具清单/读写/脱敏）
+```
+
+- 数据目录默认与桌面端共享（`~/.config/openstock-alerts-desktop`），配置、规则、密钥互通；可用 `OPENSTOCK_USER_DATA_DIR` 覆盖
+- 暴露 12 个工具：`list_rules` / `get_config` / `update_config` / `add_rule` / `save_rules` / `run_screener` / `run_financial_screener` / `run_rules_once` / `get_status` / `get_recent_events` / `get_amv_history` / `compute_amv`
+- 设计原则：MCP 只暴露确定性能力（数据与动作），分析推理交给调用方智能体自己的 LLM——不提供“再包一层 LLM”的工具；桌面端内部的多智能体编排（校验器、并行扇出等）继续服务桌面 UI
+- 安全约定：密钥读取永远脱敏（写入用 `update_config`）；`run_rules_once` 默认 `dry_run=true`，真实通知需显式传 `dry_run=false`
+- 在编码智能体（如 ZCode）中注册即可直接调用，用户级配置示例（`~/.zcode/cli/config.json`）：
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "openstock": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/绝对路径/OpenStock/desktop/mcp/mcp-server.mjs"]
+      }
+    }
+  }
+}
+```
 
 ### 4. 打包 Windows 安装包
 
@@ -543,6 +587,7 @@ npm install
 npm run dist:win:check-env
 npm run dev
 npm run dist:win
+npm run test:ai
 ```
 
 ### 仓库根目录（桌面端快捷入口）

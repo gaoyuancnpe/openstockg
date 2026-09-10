@@ -22,7 +22,9 @@
     "alerts:worker:dry": "node scripts/legacy-cli/alerts-worker.mjs --once --dry-run",
     "fmp:test": "node scripts/shared/fmp-default-rule-test.mjs",
     "fmp:financial:test": "node scripts/shared/fmp-financial-screener-test.mjs",
-    "amv:index": "node scripts/shared/amv-index.mjs"
+    "amv:index": "node scripts/shared/amv-index.mjs",
+    "desktop:mcp": "npm --prefix desktop run mcp",
+    "desktop:test:mcp": "npm --prefix desktop run test:mcp"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

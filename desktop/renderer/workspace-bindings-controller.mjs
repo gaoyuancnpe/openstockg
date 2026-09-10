@@ -263,6 +263,7 @@ export function createWorkspaceBindingsController({
   function bindUiStateEvents() {
     el.scheduleMode.addEventListener("change", updateScheduleUI);
     el.aiThinkingEnabled.addEventListener("change", updateAiConfigUI);
+    el.aiOrchestrationMode?.addEventListener("change", updateAiConfigUI);
     el.dataProvider.addEventListener("change", () => {
       updateScreenerUI();
       updateUniverseUI();

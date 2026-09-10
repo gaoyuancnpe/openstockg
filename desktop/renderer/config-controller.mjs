@@ -14,6 +14,18 @@ export function createConfigController({ el }) {
     if (el.aiReasoningEffort) {
       el.aiReasoningEffort.disabled = !thinkingEnabled;
     }
+    const agentMode = String(el.aiOrchestrationMode?.value || "agent_pipeline") === "agent_pipeline";
+    const orchestrationInputs = [
+      el.aiOrchestrationPlanner,
+      el.aiOrchestrationMaxSteps,
+      el.aiOrchestrationFanOut,
+      el.aiOrchestrationValidator,
+      el.aiRoleModelValidator,
+      el.aiRoleModelSynthesizer
+    ];
+    orchestrationInputs.forEach((input) => {
+      if (input) input.disabled = !agentMode;
+    });
   }
 
   function getConfigFromInputs() {
@@ -35,7 +47,20 @@ export function createConfigController({ el }) {
         apiKey: String(el.deepseekApiKey.value || ""),
         model: String(el.aiModel.value || defaults.ai.model),
         thinkingEnabled: String(el.aiThinkingEnabled.value || "false") === "true",
-        reasoningEffort: String(el.aiReasoningEffort.value || defaults.ai.reasoningEffort)
+        reasoningEffort: String(el.aiReasoningEffort.value || defaults.ai.reasoningEffort),
+        orchestration: {
+          mode: String(el.aiOrchestrationMode?.value || defaults.ai.orchestration.mode),
+          planner: String(el.aiOrchestrationPlanner?.value || defaults.ai.orchestration.planner),
+          maxSteps: Number.parseInt(String(el.aiOrchestrationMaxSteps?.value || ""), 10),
+          fanOutEnabled: String(el.aiOrchestrationFanOut?.value || "true") === "true",
+          validatorEnabled: String(el.aiOrchestrationValidator?.value || "true") === "true",
+          roleModels: {
+            primary: "",
+            planner: defaults.ai.orchestration.roleModels.planner,
+            validator: String(el.aiRoleModelValidator?.value || defaults.ai.orchestration.roleModels.validator),
+            synthesizer: String(el.aiRoleModelSynthesizer?.value || defaults.ai.orchestration.roleModels.synthesizer)
+          }
+        }
       },
       pollIntervalSec: Number.isFinite(intervalSec) ? intervalSec : defaults.pollIntervalSec,
       scheduler: {
@@ -83,6 +108,16 @@ export function createConfigController({ el }) {
     el.aiModel.value = normalized.ai.model;
     el.aiThinkingEnabled.value = String(Boolean(normalized.ai.thinkingEnabled));
     el.aiReasoningEffort.value = normalized.ai.reasoningEffort;
+    const orchestration = normalized.ai.orchestration || {};
+    if (el.aiOrchestrationMode) el.aiOrchestrationMode.value = orchestration.mode || "agent_pipeline";
+    if (el.aiOrchestrationPlanner) el.aiOrchestrationPlanner.value = orchestration.planner || "role_pipeline";
+    if (el.aiOrchestrationMaxSteps) el.aiOrchestrationMaxSteps.value = String(orchestration.maxSteps ?? 4);
+    if (el.aiOrchestrationFanOut) el.aiOrchestrationFanOut.value = String(Boolean(orchestration.fanOutEnabled));
+    if (el.aiOrchestrationValidator) el.aiOrchestrationValidator.value = String(Boolean(orchestration.validatorEnabled));
+    if (el.aiRoleModelValidator) el.aiRoleModelValidator.value = orchestration.roleModels?.validator || "deepseek-v4-flash";
+    if (el.aiRoleModelSynthesizer) {
+      el.aiRoleModelSynthesizer.value = orchestration.roleModels?.synthesizer || "deepseek-v4-flash";
+    }
     el.feishuEnabled.value = String(Boolean(normalized.feishu?.enabled));
     el.feishuAppId.value = String(normalized.feishu?.appId || "");
     el.feishuAppSecret.value = String(normalized.feishu?.appSecret || "");

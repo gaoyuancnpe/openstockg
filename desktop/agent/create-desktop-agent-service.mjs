@@ -31,7 +31,7 @@ function buildAssistantPayload({ prompt, attachments = [] }) {
   };
 }
 
-export function createDesktopAgentService({ dataPaths, log, emitEvent }) {
+export function createDesktopAgentService({ dataPaths, log, emitEvent, agentTools = null }) {
   function writeLog(line) {
     if (typeof log === "function") log(String(line || ""));
   }
@@ -44,13 +44,30 @@ export function createDesktopAgentService({ dataPaths, log, emitEvent }) {
     return loadDesktopConfig(dataPaths);
   }
 
+  function getAssistantToolHooks() {
+    if (!agentTools || !Array.isArray(agentTools.schemas) || agentTools.schemas.length === 0) {
+      return { tools: null, executeToolCall: null };
+    }
+    return {
+      tools: agentTools.schemas,
+      executeToolCall: async (call) => {
+        const result = await agentTools.executeCall(call);
+        writeLog(`Agent 工具调用 ${call?.name || "-"}：${result?.ok ? "成功" : `失败 ${result?.error || ""}`}`);
+        return result;
+      }
+    };
+  }
+
   async function chat({ prompt, attachments = [] }) {
     const cfg = await loadConfig();
+    const { tools, executeToolCall } = getAssistantToolHooks();
     return explainAiWithDeepSeek({
       cfg,
       kind: "assistant",
       mode: "chat",
-      payload: buildAssistantPayload({ prompt, attachments })
+      payload: buildAssistantPayload({ prompt, attachments }),
+      tools,
+      executeToolCall
     });
   }
 

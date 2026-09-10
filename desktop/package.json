@@ -10,13 +10,16 @@
   "scripts": {
     "dev": "electron .",
     "check:boundaries": "node ../scripts/desktop/check-desktop-boundaries.mjs",
+    "test:ai": "node ./ai/ai-orchestration.test.mjs",
     "dist:win:check-env": "node ../scripts/desktop/run-desktop-windows-build.mjs --check dist:win",
     "dist:win": "node ../scripts/desktop/run-desktop-windows-build.mjs dist:win",
     "dist:win:f": "node ../scripts/desktop/run-desktop-windows-build.mjs dist:win:f",
     "dist:win:f:zip": "node ../scripts/desktop/run-desktop-windows-build.mjs dist:win:f:zip",
     "dist:win:zip:check-env": "node ../scripts/desktop/run-desktop-windows-build.mjs --check dist:win:zip",
     "dist:win:zip": "node ../scripts/desktop/run-desktop-windows-build.mjs dist:win:zip",
-    "dist:win:zip:toF": "npm run dist:win:zip && node ./copy-artifacts-to-f.mjs"
+    "dist:win:zip:toF": "npm run dist:win:zip && node ./copy-artifacts-to-f.mjs",
+    "mcp": "node ./mcp/mcp-server.mjs",
+    "test:mcp": "node ./mcp/mcp-server.test.mjs"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.39.0",

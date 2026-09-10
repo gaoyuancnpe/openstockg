@@ -80,7 +80,7 @@ function buildRuleMetrics(payload) {
   };
 }
 
-function extractAiSessionContext(payload) {
+export function extractAiSessionContext(payload) {
   const ai = payload && typeof payload.__ai === "object" ? payload.__ai : null;
   const prompt = typeof ai?.prompt === "string" ? ai.prompt.trim() : "";
   const history = Array.isArray(ai?.history)
@@ -98,7 +98,7 @@ function extractAiSessionContext(payload) {
   };
 }
 
-function extractAssistantContext(payload) {
+export function extractAssistantContext(payload) {
   const assistant = payload && typeof payload.__assistant === "object" ? payload.__assistant : null;
   const attachments = Array.isArray(assistant?.attachments)
     ? assistant.attachments
@@ -206,6 +206,7 @@ function createFinancialChatTask(payload) {
     mode: "chat",
     subject,
     payload,
+    metrics,
     mappingTargets: [],
     schema: null,
     orchestrationHints: {
@@ -241,6 +242,7 @@ function createFinancialBuilderTask(payload) {
     mode: "builder",
     subject,
     payload,
+    metrics,
     mappingTargets,
     schema: getAiStructuredOutputSchema("financial"),
     orchestrationHints: {
@@ -269,6 +271,7 @@ function createScreenerChatTask(payload) {
     mode: "chat",
     subject,
     payload,
+    metrics,
     mappingTargets: [],
     schema: null,
     orchestrationHints: {
@@ -304,6 +307,7 @@ function createScreenerBuilderTask(payload) {
     mode: "builder",
     subject,
     payload,
+    metrics,
     mappingTargets,
     schema: getAiStructuredOutputSchema("screener"),
     orchestrationHints: {
@@ -332,6 +336,7 @@ function createRuleChatTask(payload) {
     mode: "chat",
     subject,
     payload,
+    metrics,
     mappingTargets: [],
     schema: null,
     orchestrationHints: {
@@ -367,6 +372,7 @@ function createRuleBuilderTask(payload) {
     mode: "builder",
     subject,
     payload,
+    metrics,
     mappingTargets,
     schema: getAiStructuredOutputSchema("rule"),
     orchestrationHints: {
@@ -411,9 +417,10 @@ function createAssistantChatTask(payload) {
           "回答规则：\n" +
           "1. 先区分哪些结论来自用户附加的应用上下文，哪些只是通用知识或经验判断。\n" +
           "2. 没有附加上下文时，不要假装自己已经看到了规则、日志、配置或运行结果。\n" +
-          "3. 允许使用通用知识回答，不必被现有规则对象限制住。\n" +
-          "4. 如果用户要你基于当前应用现场做判断，但上下文不足，直接指出还缺什么上下文。\n" +
-          "5. 输出保持中文、直接、控制台风格，优先给可执行建议。"
+          "3. 如果系统为你提供了可调用的工具（function calling），优先调用工具获取当前应用现场（规则、调度、最近运行、事件），再下判断；工具没给到的信息才按缺口的处理方式明确指出。\n" +
+          "4. 允许使用通用知识回答，不必被现有规则对象限制住。\n" +
+          "5. 如果用户要你基于当前应用现场做判断，但上下文和工具都不足，直接指出还缺什么。\n" +
+          "6. 输出保持中文、直接、控制台风格，优先给可执行建议。"
       },
       {
         role: "user",

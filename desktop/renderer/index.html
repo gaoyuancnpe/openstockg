@@ -20,10 +20,10 @@
           <div class="tabs">
             <button id="tabRules" class="tab active">规则</button>
             <button id="tabSchedule" class="tab">定时</button>
+            <button id="tabMarketAmv" class="tab">0AMV</button>
             <button id="tabScreener" class="tab">筛选</button>
             <button id="tabFinancial" class="tab">财报</button>
             <button id="tabConfig" class="tab">配置</button>
-            <button id="tabMarketAmv" class="tab">0AMV</button>
           </div>
 
           <div id="panelRules" class="panel active">
@@ -275,6 +275,55 @@
                 <option value="max">max</option>
               </select>
             </div>
+            <div class="configSectionTitle">智能体协作</div>
+            <div class="hint">解封后的编排能力：`生成规则`类任务由主角色产出草案后，交校验器复核（必要时自动重试一次）；开放助手附加上下文时可并行多角色分析再汇总。`单任务`模式保持旧的单次调用行为。</div>
+            <div class="row">
+              <label>协作模式</label>
+              <select id="aiOrchestrationMode">
+                <option value="agent_pipeline">智能体协作</option>
+                <option value="single_task">单任务（旧行为）</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>规划策略</label>
+              <select id="aiOrchestrationPlanner">
+                <option value="role_pipeline">内置流水线（推荐）</option>
+                <option value="llm_planner">LLM 动态规划</option>
+                <option value="passthrough">直通主角色</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>最大执行步数</label>
+              <input id="aiOrchestrationMaxSteps" type="number" min="1" max="6" step="1" placeholder="4" />
+            </div>
+            <div class="row">
+              <label>并行扇出</label>
+              <select id="aiOrchestrationFanOut">
+                <option value="true">开启</option>
+                <option value="false">关闭</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>校验器复核</label>
+              <select id="aiOrchestrationValidator">
+                <option value="true">开启</option>
+                <option value="false">关闭</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>校验器模型</label>
+              <select id="aiRoleModelValidator">
+                <option value="deepseek-v4-flash">deepseek-v4-flash（快）</option>
+                <option value="deepseek-v4-pro">deepseek-v4-pro（强）</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>综合器模型</label>
+              <select id="aiRoleModelSynthesizer">
+                <option value="deepseek-v4-flash">deepseek-v4-flash（快）</option>
+                <option value="deepseek-v4-pro">deepseek-v4-pro（强）</option>
+              </select>
+            </div>
             <div class="configSectionTitle">飞书通知</div>
             <div class="hint">这里配置“飞书聊天 -> 桌面端智能体 -> 规则/定时 proposal -> 飞书确认应用”链路。当前第一版采用文本确认命令，不走卡片回调。</div>
             <div class="row">
@@ -357,25 +406,33 @@
             <div class="row">
               <label>指数</label>
               <select id="marketAmvIndex">
-                <option value="all" selected>全市场（默认）</option>
-                <option value="sp500">标普 500</option>
-                <option value="nasdaq">纳斯达克</option>
+                <option value="sp500" selected>标普 500</option>
+                <option value="nasdaq">纳斯达克 100</option>
               </select>
-            </div>
-            <div class="row">
-              <label>取前 N 市值</label>
-              <input id="marketAmvLimit" type="number" min="1" max="1000" step="10" value="100" />
             </div>
             <div id="marketAmvResult" class="meta"></div>
             <div class="actions">
               <button id="btnComputeMarketAmv" type="button" class="primary">计算 0AMV</button>
             </div>
             <div class="cardTitle">历史趋势</div>
+            <div class="row">
+              <label>显示区间</label>
+              <select id="marketAmvChartRange">
+                <option value="1">近 1 年</option>
+                <option value="3">近 3 年</option>
+                <option value="5">近 5 年</option>
+                <option value="10">近 10 年</option>
+                <option value="all" selected>全部</option>
+              </select>
+            </div>
+            <canvas id="marketAmvChart" style="width:100%;max-width:640px;height:220px;display:block;margin:8px 0;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:rgba(255,255,255,0.02);"></canvas>
+            <div id="marketAmvTooltip" style="position:fixed;display:none;pointer-events:none;background:rgba(255,255,255,0.97);border:1px solid #555;border-radius:4px;padding:6px 10px;font-size:12px;color:#1a1a1a;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.35);white-space:nowrap;"></div>
             <div id="marketAmvHistoryList" class="meta scrollList"></div>
-            <div class="cardTitle">历史回填（最长 20 年）</div>
+            <div class="cardTitle">历史回填</div>
             <div id="marketAmvBackfillProgress" class="meta"></div>
             <div class="actions">
               <button id="btnBackfillMarketAmv" type="button" class="primary">开始回填</button>
+              <button id="btnBackfillAllMarketAmv" type="button" class="primary">回填全部指数</button>
               <button id="btnCancelBackfillMarketAmv" type="button">取消回填</button>
               <button id="btnRefreshBackfillState" type="button">查看进度</button>
             </div>
@@ -453,6 +510,7 @@
             <div id="aiPanelAttachmentMeta" class="meta">未附加应用上下文，当前为开放聊天。</div>
             <div id="aiPanelMeta" class="meta">当前模式：开放助手。</div>
             <div id="aiPanelStatus" class="meta"></div>
+            <div id="aiPanelOrchestrationTrace" class="aiOrchestrationTrace hidden"></div>
             <div id="aiPanelIntentHint" class="hint hidden"></div>
             <div id="aiPanelIntentActions" class="actions hidden"></div>
             <div id="aiPanelMessages" class="aiPanelMessages"></div>

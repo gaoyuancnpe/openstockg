@@ -1,9 +1,14 @@
 import path from "node:path";
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { getDefaultDesktopConfig, normalizeDesktopConfig } from "../shared-config.mjs";
+import {
+  DEFAULT_AI_ORCHESTRATION,
+  isLegacySealedOrchestration
+} from "../ai/ai-orchestration-config.mjs";
 
 const STORAGE_META_SCHEMA_VERSION = 1;
-const DESKTOP_STORAGE_SCHEMA_VERSION = 1;
+// v2：解封 AI 编排封印占位值，历史上由代码写死、从未暴露给用户选择
+const DESKTOP_STORAGE_SCHEMA_VERSION = 2;
 const LAST_GOOD_SUFFIX = ".last-good.json";
 
 function isPlainObject(value) {
@@ -104,11 +109,23 @@ function valuesDiffer(left, right) {
   return JSON.stringify(left) !== JSON.stringify(right);
 }
 
+function unsealLegacyOrchestration(value) {
+  const aiInput = isPlainObject(value.ai) ? value.ai : {};
+  if (!isLegacySealedOrchestration(aiInput.orchestration)) return value;
+  return {
+    ...value,
+    ai: {
+      ...aiInput,
+      orchestration: JSON.parse(JSON.stringify(DEFAULT_AI_ORCHESTRATION))
+    }
+  };
+}
+
 function normalizeLegacyConfig(value) {
   if (!isPlainObject(value)) {
     return { value: getDefaultDesktopConfig(), repaired: true };
   }
-  const normalized = normalizeDesktopConfig(value);
+  const normalized = normalizeDesktopConfig(unsealLegacyOrchestration(value));
   return {
     value: normalized,
     repaired: valuesDiffer(value, normalized)
@@ -329,8 +346,7 @@ export async function writeJSON(filePath, data) {
   await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
 }
 
-export function getDataPaths(app) {
-  const base = app.getPath("userData");
+export function getDataPathsFromBase(base) {
   return {
     base,
     storageMeta: path.join(base, "storage-meta.json"),
@@ -349,6 +365,10 @@ export function getDataPaths(app) {
     marketAmvConstituentsNasdaq: path.join(base, "market-amv-constituents-nasdaq.json"),
     marketAmvBackfillState: path.join(base, "market-amv-backfill-state.json")
   };
+}
+
+export function getDataPaths(app) {
+  return getDataPathsFromBase(app.getPath("userData"));
 }
 
 export async function initializeDesktopStorage(paths, logger = null) {
@@ -499,7 +519,7 @@ function groupAndTrimByIndex(entries, maxPerIndex) {
   return result;
 }
 
-export async function appendDesktopMarketAmvHistory(paths, entry, { maxPerIndex = 90 } = {}) {
+export async function appendDesktopMarketAmvHistory(paths, entry, { maxPerIndex = 6000 } = {}) {
   const normalizedEntry = { ...entry, index: entry && entry.index ? String(entry.index) : "all" };
   const history = await loadDesktopMarketAmvHistory(paths);
   const filtered = history.filter((h) => !(h && h.date === normalizedEntry.date && h.index === normalizedEntry.index));

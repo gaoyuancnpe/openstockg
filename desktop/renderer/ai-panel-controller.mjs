@@ -161,7 +161,83 @@ function buildRuleSnapshot(rule) {
   };
 }
 
-export function createAiPanelController({
+export function formatStepStatusLabel(status) {
+  if (status === "ok") return "完成";
+  if (status === "failed") return "失败";
+  if (status === "skipped") return "跳过";
+  return String(status || "-");
+}
+
+function formatOrchestrationSummary(orchestration, validation) {
+  const parts = [];
+  const roleChain = (Array.isArray(orchestration?.steps) ? orchestration.steps : [])
+    .map((step) => step?.label || step?.role || "?")
+    .join(" → ");
+  if (roleChain) parts.push(roleChain);
+  if (orchestration?.executedStepCount) {
+    parts.push(`${orchestration.executedStepCount} 步`);
+  }
+  const totalMs = (Array.isArray(orchestration?.steps) ? orchestration.steps : [])
+    .reduce((sum, step) => sum + (Number(step?.durationMs) || 0), 0);
+  if (totalMs > 0) parts.push(`${(totalMs / 1000).toFixed(1)}s`);
+  if (validation && validation.checked) {
+    const verdictLabel = validation.verdict === "approved"
+      ? "校验通过"
+      : validation.verdict === "deterministic_only"
+        ? "确定性校验"
+        : `校验=${validation.verdict}`;
+    parts.push(validation.rejectedCount > 0 ? `${verdictLabel}（拒绝 ${validation.rejectedCount} 项）` : verdictLabel);
+  }
+  return parts.join(" · ");
+}
+
+function renderOrchestrationTraceInto(container, orchestration, validation) {
+  container.innerHTML = "";
+
+  const summaryLine = document.createElement("div");
+  summaryLine.className = "aiOrchestrationSummary";
+  summaryLine.textContent = `智能体协作：${formatOrchestrationSummary(orchestration, validation) || "无轨迹"}`;
+  container.appendChild(summaryLine);
+
+  if (validation?.rejectedCount > 0 && Array.isArray(validation.reasons)) {
+    const warning = document.createElement("div");
+    warning.className = "aiOrchestrationWarning";
+    warning.textContent = `以下建议被拦截未进入表单：\n${validation.reasons.map((line) => `- ${line}`).join("\n")}`;
+    container.appendChild(warning);
+  }
+
+  const steps = Array.isArray(orchestration?.steps) ? orchestration.steps : [];
+  if (steps.length === 0) return;
+  const details = document.createElement("details");
+  details.className = "aiOrchestrationDetails";
+  const summary = document.createElement("summary");
+  summary.textContent = "展开执行轨迹";
+  details.appendChild(summary);
+
+  const list = document.createElement("div");
+  list.className = "aiOrchestrationSteps";
+  steps.forEach((step) => {
+    const item = document.createElement("div");
+    item.className = `aiOrchestrationStep ${String(step?.status || "")}`;
+    item.textContent = [
+      step?.label || step?.role || "?",
+      formatStepStatusLabel(step?.status),
+      step?.durationMs ? `${(step.durationMs / 1000).toFixed(1)}s` : "",
+      step?.model ? `· ${step.model}` : ""
+    ].filter(Boolean).join(" ");
+    if (step?.summary) {
+      const note = document.createElement("div");
+      note.className = "aiOrchestrationStepNote";
+      note.textContent = step.summary;
+      item.appendChild(note);
+    }
+    list.appendChild(item);
+  });
+  details.appendChild(list);
+  container.appendChild(details);
+}
+
+function createAiPanelController({
   el,
   state,
   appendLog,
@@ -240,6 +316,19 @@ export function createAiPanelController({
     el.aiPanelAttachmentMeta.textContent = `已附加 ${attachments.length} 份应用上下文：${attachments.map((item) => item.label).join("、")}`;
   }
 
+  function renderOrchestrationTrace() {
+    const container = el.aiPanelOrchestrationTrace;
+    if (!container) return;
+    const orchestration = state.aiPanelResult?.orchestration;
+    if (!orchestration || orchestration.mode !== "agent_pipeline" || !Array.isArray(orchestration.steps)) {
+      container.classList.add("hidden");
+      container.innerHTML = "";
+      return;
+    }
+    container.classList.remove("hidden");
+    renderOrchestrationTraceInto(container, orchestration, state.aiPanelResult?.formMapping?.validation);
+  }
+
   function renderPanelMeta() {
     if (!el.aiPanelMeta) return;
     const context = state.aiPanelContext || getAssistantContext();
@@ -304,6 +393,7 @@ export function createAiPanelController({
     renderAttachmentMeta();
     renderAiMessages();
     renderIntentActions();
+    renderOrchestrationTrace();
     updateComposerState();
   }
 
@@ -329,6 +419,7 @@ export function createAiPanelController({
     state.aiPanelMessages = [];
     renderAiMessages();
     renderIntentActions();
+    renderOrchestrationTrace();
     updateComposerState();
   }
 
@@ -353,6 +444,7 @@ export function createAiPanelController({
     renderAttachmentMeta();
     renderAiMessages();
     renderIntentActions();
+    renderOrchestrationTrace();
     updateComposerState();
     return changed;
   }
@@ -469,6 +561,7 @@ export function createAiPanelController({
     state.aiPanelResult = null;
     renderAttachmentMeta();
     renderIntentActions();
+    renderOrchestrationTrace();
     if (el.aiPanelStatus) {
       el.aiPanelStatus.textContent = `已附加应用上下文：${snapshot.label}`;
     }
@@ -484,6 +577,7 @@ export function createAiPanelController({
     state.aiPanelResult = null;
     renderAttachmentMeta();
     renderIntentActions();
+    renderOrchestrationTrace();
     if (el.aiPanelStatus) {
       el.aiPanelStatus.textContent = "已清空附加的应用上下文。";
     }
@@ -554,6 +648,7 @@ export function createAiPanelController({
       }
       pushAiMessage("assistant", String(res?.text || "未返回内容"), meta.taskMode || mode);
       renderIntentActions();
+      renderOrchestrationTrace();
       if (typeof onAiResult === "function") {
         onAiResult(res);
       }
@@ -563,6 +658,7 @@ export function createAiPanelController({
     } catch (e) {
       state.aiPanelResult = null;
       renderIntentActions();
+      renderOrchestrationTrace();
       const errorText = e instanceof Error ? e.message : String(e);
       if (el.aiPanelStatus) {
         el.aiPanelStatus.textContent = `${formatAiModeLabel(mode)}失败：${subject}`;

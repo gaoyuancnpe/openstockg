@@ -1,4 +1,5 @@
 import { normalizeHttpBaseUrl } from "../shared-runtime.mjs";
+import { normalizeOrchestrationConfig } from "./ai-orchestration-config.mjs";
 
 const STRUCTURED_OUTPUT_SCHEMA_VERSION = "openstock.desktop.ai.v1";
 
@@ -46,13 +47,7 @@ export function normalizeAiRuntimeConfig(ai) {
     model: normalizeDeepSeekModel(input.model),
     thinkingEnabled,
     reasoningEffort,
-    orchestration: {
-      mode: "single_task",
-      planner: "passthrough",
-      maxSteps: 1,
-      fanOutEnabled: false,
-      ...inputOrchestration
-    },
+    orchestration: normalizeOrchestrationConfig(inputOrchestration),
     structuredOutput: {
       enabled: true,
       responseMode: "json_markdown",

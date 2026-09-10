@@ -6,6 +6,7 @@ import {
 } from "./ai-shared.mjs";
 import { getAiStructuredOutputSchema } from "./ai-task-registry.mjs";
 import { buildAiFormMapping } from "./ai-form-mapping.mjs";
+import { applyValidatorVerdict, runDeterministicIntentChecks } from "./ai-validator.mjs";
 
 function fallbackSectionsForTask(taskKind, text) {
   const cleanText = String(text || "").trim();
@@ -181,7 +182,7 @@ function normalizeStructuredPayload({ task, rawText, strict }) {
   return normalized;
 }
 
-export function normalizeAiTaskResult({ task, runtimeConfig, providerResult }) {
+export function normalizeAiTaskResult({ task, runtimeConfig, providerResult, pipeline = null }) {
   const rawText = String(providerResult?.text || "").trim();
   if (!rawText) {
     throw new Error("DeepSeek 未返回可读内容");
@@ -218,7 +219,25 @@ export function normalizeAiTaskResult({ task, runtimeConfig, providerResult }) {
   }
 
   const structured = normalizeStructuredPayload({ task, rawText, strict: true });
-  const formMapping = buildAiFormMapping({ structured });
+
+  let effectiveStructured = structured;
+  let validationSummary = null;
+  if (pipeline) {
+    const deterministicFindings = runDeterministicIntentChecks(structured);
+    const applied = applyValidatorVerdict({
+      structured,
+      verdict: pipeline.verdictApplies === false ? null : pipeline.validatorVerdict,
+      deterministicFindings,
+      refineUsed: Boolean(pipeline.refineUsed)
+    });
+    effectiveStructured = applied.structured;
+    validationSummary = applied.validation;
+  }
+
+  const formMapping = buildAiFormMapping({ structured: effectiveStructured });
+  if (validationSummary) {
+    formMapping.validation = validationSummary;
+  }
 
   return {
     text: structured.summaryMarkdown,

@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, shell } from "electron";
 import { appendFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createAgentTools } from "./agent/agent-tools.mjs";
 import { createDesktopAgentService } from "./agent/create-desktop-agent-service.mjs";
 import { createAlertsEngine } from "./engine.mjs";
 import { createFeishuBridgeService } from "./feishu/feishu-bridge-service.mjs";
@@ -216,6 +217,7 @@ async function main() {
   const agentService = createDesktopAgentService({
     dataPaths: paths,
     log: publishLog,
+    agentTools: createAgentTools({ dataPaths: paths }),
     emitEvent: async (event) => {
       if (event?.type === "agent_proposal_status") {
         win.webContents.send("event", event);

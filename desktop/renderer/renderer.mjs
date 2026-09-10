@@ -29,10 +29,13 @@ const el = {
   marketAmvResult: $("marketAmvResult"),
   btnComputeMarketAmv: $("btnComputeMarketAmv"),
   marketAmvHistoryList: $("marketAmvHistoryList"),
+  marketAmvChart: $("marketAmvChart"),
+  marketAmvTooltip: $("marketAmvTooltip"),
   marketAmvIndex: $("marketAmvIndex"),
-  marketAmvLimit: $("marketAmvLimit"),
   marketAmvBackfillProgress: $("marketAmvBackfillProgress"),
+  marketAmvChartRange: $("marketAmvChartRange"),
   btnBackfillMarketAmv: $("btnBackfillMarketAmv"),
+  btnBackfillAllMarketAmv: $("btnBackfillAllMarketAmv"),
   btnCancelBackfillMarketAmv: $("btnCancelBackfillMarketAmv"),
   btnRefreshBackfillState: $("btnRefreshBackfillState"),
 
@@ -46,6 +49,13 @@ const el = {
   aiModel: $("aiModel"),
   aiThinkingEnabled: $("aiThinkingEnabled"),
   aiReasoningEffort: $("aiReasoningEffort"),
+  aiOrchestrationMode: $("aiOrchestrationMode"),
+  aiOrchestrationPlanner: $("aiOrchestrationPlanner"),
+  aiOrchestrationMaxSteps: $("aiOrchestrationMaxSteps"),
+  aiOrchestrationFanOut: $("aiOrchestrationFanOut"),
+  aiOrchestrationValidator: $("aiOrchestrationValidator"),
+  aiRoleModelValidator: $("aiRoleModelValidator"),
+  aiRoleModelSynthesizer: $("aiRoleModelSynthesizer"),
   feishuEnabled: $("feishuEnabled"),
   feishuAppId: $("feishuAppId"),
   feishuAppSecret: $("feishuAppSecret"),
@@ -136,6 +146,7 @@ const el = {
   financialTable: $("financialTable"),
   aiPanelMeta: $("aiPanelMeta"),
   aiPanelStatus: $("aiPanelStatus"),
+  aiPanelOrchestrationTrace: $("aiPanelOrchestrationTrace"),
   aiPanelIntentHint: $("aiPanelIntentHint"),
   aiPanelIntentActions: $("aiPanelIntentActions"),
   aiPanelMessages: $("aiPanelMessages"),
@@ -462,6 +473,91 @@ function refreshAlertHistory() {
     });
 }
 
+let marketAmvFullHistory = [];
+let chartState = null;
+let chartHoverRaf = 0;
+
+function drawMarketAmvChart(history) {
+  const canvas = el.marketAmvChart;
+  if (!canvas) return;
+  const chartRange = el.marketAmvChartRange?.value || "all";
+  if (chartRange !== "all" && Array.isArray(history)) {
+    const yrs = Number(chartRange);
+    if (Number.isFinite(yrs) && yrs > 0) {
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - yrs);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      history = history.filter((e) => String(e?.date || "") >= cutoffStr);
+    }
+  }
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 640;
+  const cssH = canvas.clientHeight || 220;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  if (!Array.isArray(history) || history.length < 2) {
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.font = "13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("暂无足够历史数据（回填后显示曲线）", cssW / 2, cssH / 2);
+    return;
+  }
+  const rows = history.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const values = rows.map((r) => Number(r.value || 0));
+  const dates = rows.map((r) => String(r.date || ""));
+  let minV = Infinity, maxV = -Infinity;
+  for (const v of values) { if (v < minV) minV = v; if (v > maxV) maxV = v; }
+  if (minV === maxV) { minV -= 1; maxV += 1; }
+  const range = maxV - minV;
+  const ml = 56, mr = 14, mt = 18, mb = 30;
+  const plotW = cssW - ml - mr;
+  const plotH = cssH - mt - mb;
+  const xAt = (i) => ml + (i / (rows.length - 1)) * plotW;
+  const yAt = (v) => mt + plotH - ((v - minV) / range) * plotH;
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "right";
+  for (let t = 0; t <= 4; t++) {
+    const y = mt + (t / 4) * plotH;
+    const val = maxV - (t / 4) * range;
+    ctx.beginPath();
+    ctx.moveTo(ml, y);
+    ctx.lineTo(cssW - mr, y);
+    ctx.stroke();
+    ctx.fillText(val.toLocaleString("zh-CN", { maximumFractionDigits: 0 }), ml - 4, y + 3);
+  }
+  ctx.textAlign = "center";
+  const xLabels = [0, Math.floor(rows.length / 2), rows.length - 1];
+  for (const idx of xLabels) {
+    if (dates[idx]) ctx.fillText(dates[idx], xAt(idx), cssH - 10);
+  }
+  ctx.strokeStyle = "#3b82f6";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < rows.length; i++) {
+    const x = xAt(i);
+    const y = yAt(values[i]);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  const lastIdx = rows.length - 1;
+  const lx = xAt(lastIdx), ly = yAt(values[lastIdx]);
+  ctx.fillStyle = "#3b82f6";
+  ctx.beginPath();
+  ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#60a5fa";
+  ctx.font = "bold 11px sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(values[lastIdx].toLocaleString("zh-CN", { maximumFractionDigits: 1 }), cssW - mr - 2, ly - 6);
+  chartState = { rows, values, dates, cssW, cssH, ml, mr, mt, mb, plotW, plotH, minV, maxV, range };
+}
+
 function renderMarketAmvHistory(history) {
   if (!el.marketAmvHistoryList) return;
   if (!Array.isArray(history) || history.length === 0) {
@@ -489,9 +585,13 @@ function renderMarketAmvHistory(history) {
 
 function refreshMarketAmvHistory() {
   if (!window.api?.engine?.loadMarketAmvHistory) return;
-  const index = el.marketAmvIndex?.value || "all";
+  const index = el.marketAmvIndex?.value || "sp500";
   window.api.engine.loadMarketAmvHistory({ index })
-    .then((history) => renderMarketAmvHistory(history))
+    .then((history) => {
+      marketAmvFullHistory = Array.isArray(history) ? history : [];
+      renderMarketAmvHistory(marketAmvFullHistory);
+      requestAnimationFrame(() => drawMarketAmvChart(marketAmvFullHistory));
+    })
     .catch((err) => {
       if (el.marketAmvHistoryList) {
         el.marketAmvHistoryList.textContent = `加载失败：${err instanceof Error ? err.message : String(err)}`;
@@ -970,17 +1070,15 @@ async function bootstrapRenderer() {
     }
   });
 
-  const INDEX_NAME_MAP = { sp500: "标普 500", nasdaq: "纳斯达克", all: "全市场" };
+  const INDEX_NAME_MAP = { sp500: "标普 500", nasdaq: "纳斯达克 100", all: "全市场" };
   el.btnComputeMarketAmv?.addEventListener("click", async () => {
     if (!el.marketAmvResult) return;
-    const index = el.marketAmvIndex?.value || "all";
-    const limitRaw = Number(el.marketAmvLimit?.value);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
+    const index = el.marketAmvIndex?.value || "sp500";
     const indexName = INDEX_NAME_MAP[index] || "全市场";
     el.marketAmvResult.innerHTML = `计算中（${indexName}），请稍候…`;
     el.btnComputeMarketAmv.disabled = true;
     try {
-      const result = await window.api.engine.runMarketAmv({ index, limit });
+      const result = await window.api.engine.runMarketAmv({ index });
       const valueStr = Number(result?.value).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
       const dateStr = result?.date || "-";
       const sample = result?.sampleCount ?? 0;
@@ -1003,14 +1101,13 @@ async function bootstrapRenderer() {
 
   el.btnBackfillMarketAmv?.addEventListener("click", async () => {
     if (!el.marketAmvBackfillProgress) return;
-    const index = el.marketAmvIndex?.value || "all";
-    const limitRaw = Number(el.marketAmvLimit?.value);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
+    const index = el.marketAmvIndex?.value || "sp500";
     const indexName = INDEX_NAME_MAP[index] || "全市场";
-    el.marketAmvBackfillProgress.innerHTML = `开始回填 ${indexName} 0AMV 历史，请勿频繁操作…`;
+    const fromDate = "2000-01-01";
+    el.marketAmvBackfillProgress.innerHTML = `开始回填 ${indexName} 0AMV 全部历史，请勿频繁操作…`;
     if (el.btnBackfillMarketAmv) el.btnBackfillMarketAmv.disabled = true;
     try {
-      const result = await window.api.engine.backfillMarketAmv({ index, limit });
+      const result = await window.api.engine.backfillMarketAmv({ index, fromDate });
       const count = (Array.isArray(result?.entries) ? result.entries.length : 0);
       el.marketAmvBackfillProgress.innerHTML = `回填完成：${indexName} 共写入 ${count} 条历史记录。`;
       appendLog(`${indexName} 0AMV 回填完成：共 ${count} 条`);
@@ -1020,6 +1117,35 @@ async function bootstrapRenderer() {
       el.marketAmvBackfillProgress.innerHTML = `<span class="error">回填失败：${message}</span>`;
       appendLog(`${indexName} 0AMV 回填失败：${message}`);
     } finally {
+      if (el.btnBackfillMarketAmv) el.btnBackfillMarketAmv.disabled = false;
+    }
+  });
+
+  el.btnBackfillAllMarketAmv?.addEventListener("click", async () => {
+    if (!el.marketAmvBackfillProgress) return;
+    const fromDate = "2000-01-01";
+    const indices = ["sp500", "nasdaq"];
+    let total = 0;
+    el.marketAmvBackfillProgress.innerHTML = `开始回填全部指数 0AMV 全部历史（共 ${indices.length} 个指数）…`;
+    if (el.btnBackfillAllMarketAmv) el.btnBackfillAllMarketAmv.disabled = true;
+    if (el.btnBackfillMarketAmv) el.btnBackfillMarketAmv.disabled = true;
+    try {
+      for (const idx of indices) {
+        const name = INDEX_NAME_MAP[idx] || idx;
+        el.marketAmvBackfillProgress.innerHTML = `回填 ${name} 0AMV 全部历史…（共 ${indices.length} 个指数）`;
+        const result = await window.api.engine.backfillMarketAmv({ index: idx, fromDate });
+        const count = (Array.isArray(result?.entries) ? result.entries.length : 0);
+        total += count;
+        appendLog(`${name} 0AMV 回填完成：共 ${count} 条`);
+      }
+      el.marketAmvBackfillProgress.innerHTML = `全部回填完成：共写入 ${total} 条历史记录（标普 500 + 纳斯达克 100）。`;
+      refreshMarketAmvHistory();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      el.marketAmvBackfillProgress.innerHTML = `<span class="error">回填失败：${message}</span>`;
+      appendLog(`全部指数 0AMV 回填失败：${message}`);
+    } finally {
+      if (el.btnBackfillAllMarketAmv) el.btnBackfillAllMarketAmv.disabled = false;
       if (el.btnBackfillMarketAmv) el.btnBackfillMarketAmv.disabled = false;
     }
   });
@@ -1035,11 +1161,89 @@ async function bootstrapRenderer() {
     }
   });
 
+  el.marketAmvIndex?.addEventListener("change", () => {
+    refreshMarketAmvHistory();
+  });
+  el.marketAmvChartRange?.addEventListener("change", () => {
+    drawMarketAmvChart(marketAmvFullHistory);
+  });
+  window.addEventListener("resize", () => {
+    if (marketAmvFullHistory.length > 0) drawMarketAmvChart(marketAmvFullHistory);
+  });
+
+  el.marketAmvChart?.addEventListener("mousemove", (event) => {
+    if (!chartState || !el.marketAmvTooltip) return;
+    if (chartHoverRaf) return;
+    chartHoverRaf = requestAnimationFrame(() => {
+      chartHoverRaf = 0;
+      const canvas = el.marketAmvChart;
+      const tip = el.marketAmvTooltip;
+      const rect = canvas.getBoundingClientRect();
+      const mx = event.clientX - rect.left;
+      const my = event.clientY - rect.top;
+      const s = chartState;
+      if (mx < s.ml - 5 || mx > s.cssW - s.mr + 5 || my < s.mt - 5 || my > s.cssH - s.mb + 5) {
+        tip.style.display = "none";
+        drawMarketAmvChart(marketAmvFullHistory);
+        return;
+      }
+      const idx = Math.max(0, Math.min(s.rows.length - 1, Math.round((mx - s.ml) / s.plotW * (s.rows.length - 1))));
+      const px = s.ml + (idx / (s.rows.length - 1)) * s.plotW;
+      const py = s.mt + s.plotH - ((s.values[idx] - s.minV) / s.range) * s.plotH;
+      drawMarketAmvChart(marketAmvFullHistory);
+      const dpr = window.devicePixelRatio || 1;
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(px, s.mt);
+      ctx.lineTo(px, s.cssH - s.mb);
+      ctx.moveTo(s.ml, py);
+      ctx.lineTo(s.cssW - s.mr, py);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#3b82f6";
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      const date = s.dates[idx];
+      const val = s.values[idx];
+      const prev = idx > 0 ? s.values[idx - 1] : null;
+      const chg = prev !== null && prev !== 0 ? ((val - prev) / prev * 100) : 0;
+      const chgAbs = prev !== null ? (val - prev) : 0;
+      const cColor = chg >= 0 ? "#16a34a" : "#dc2626";
+      const cSign = chg >= 0 ? "+" : "";
+      const idxLabel = ({ sp500: "标普 500", nasdaq: "纳斯达克 100", all: "全市场" })[el.marketAmvIndex?.value] || "";
+      const weekday = ["日","一","二","三","四","五","六"][new Date(date + "T00:00:00Z").getUTCDay()];
+      tip.innerHTML = '<div style="font-weight:bold;margin-bottom:3px;">' + date + ' 周' + weekday + '</div>' +
+        '<div style="color:#555;">' + idxLabel + ' 0AMV</div>' +
+        '<div style="font-size:15px;font-weight:bold;margin:2px 0;">' + val.toLocaleString("zh-CN", { maximumFractionDigits: 1 }) + ' 百万</div>' +
+        (prev !== null ? '<div style="color:' + cColor + ';">日变动: ' + cSign + chgAbs.toLocaleString("zh-CN", { maximumFractionDigits: 1 }) + ' (' + cSign + chg.toFixed(2) + '%)</div>' : "");
+      const tipW = 200;
+      let tipX = rect.left + px + 14;
+      if (tipX + tipW > window.innerWidth) tipX = rect.left + px - tipW - 14;
+      tip.style.left = tipX + "px";
+      tip.style.top = Math.max(0, rect.top + py - 30) + "px";
+      tip.style.display = "block";
+    });
+  });
+
+  el.marketAmvChart?.addEventListener("mouseleave", () => {
+    if (chartHoverRaf) { cancelAnimationFrame(chartHoverRaf); chartHoverRaf = 0; }
+    if (el.marketAmvTooltip) el.marketAmvTooltip.style.display = "none";
+    drawMarketAmvChart(marketAmvFullHistory);
+  });
+
   el.btnRefreshBackfillState?.addEventListener("click", async () => {
     if (!el.marketAmvBackfillProgress) return;
     try {
       const stateInfo = await window.api.engine.loadMarketAmvBackfillState();
-      const index = el.marketAmvIndex?.value || "all";
+      const index = el.marketAmvIndex?.value || "sp500";
       const entry = (stateInfo && stateInfo[index]) || {};
       const symbols = entry.completedSymbols || [];
       const count = Array.isArray(symbols) ? symbols.length : 0;

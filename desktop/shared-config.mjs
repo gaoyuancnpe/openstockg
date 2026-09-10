@@ -1,3 +1,5 @@
+import { DEFAULT_AI_ORCHESTRATION, normalizeOrchestrationConfig } from "./ai/ai-orchestration-config.mjs";
+
 const DEFAULT_CONFIG_TEMPLATE = {
   dataProvider: "fmp",
   finnhubBaseUrl: "https://finnhub.io/api/v1",
@@ -11,12 +13,7 @@ const DEFAULT_CONFIG_TEMPLATE = {
     model: "deepseek-v4-flash",
     thinkingEnabled: false,
     reasoningEffort: "high",
-    orchestration: {
-      mode: "single_task",
-      planner: "passthrough",
-      maxSteps: 1,
-      fanOutEnabled: false
-    },
+    orchestration: JSON.parse(JSON.stringify(DEFAULT_AI_ORCHESTRATION)),
     structuredOutput: {
       enabled: true,
       responseMode: "json_markdown",
@@ -53,7 +50,7 @@ const DEFAULT_CONFIG_TEMPLATE = {
   marketAmv: {
     primaryIndex: "sp500",
     sampleLimit: 100,
-    backfill: { concurrency: 3, delayMs: 200, maxPerIndex: 6000, defaultYears: 20 }
+    backfill: { concurrency: 3, delayMs: 300, maxPerIndex: 6000, defaultYears: 10 }
   },
   defaultWebhookType: "generic",
   defaultWebhookUrl: ""
@@ -104,10 +101,10 @@ export function normalizeDesktopConfig(cfg) {
     ai: {
       ...defaults.ai,
       ...(input.ai && typeof input.ai === "object" ? input.ai : {}),
-      orchestration: {
+      orchestration: normalizeOrchestrationConfig({
         ...defaults.ai.orchestration,
         ...(input?.ai?.orchestration && typeof input.ai.orchestration === "object" ? input.ai.orchestration : {})
-      },
+      }),
       structuredOutput: {
         ...defaults.ai.structuredOutput,
         ...(input?.ai?.structuredOutput && typeof input.ai.structuredOutput === "object" ? input.ai.structuredOutput : {})
