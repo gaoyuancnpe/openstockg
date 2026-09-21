@@ -343,6 +343,26 @@ npm run test:mcp   # 回归测试（握手/工具清单/读写/脱敏）
 }
 ```
 
+### 3.5 多实例隔离（门户上跑多个智能体）
+
+门户后续会挂多个基于 dsh 的智能体实例，为避免互相污染（工作区注册表、会话、密钥、技能同步串台），统一用实例管理器启动：
+
+```bash
+cd yuren-harness/web
+./instance.sh start market 3080   # 启动 market 实例（端口 3080）
+./instance.sh list                # 查看全部实例与运行状态
+./instance.sh log market          # 跟踪实例日志
+./instance.sh stop market         # 停止（连带 dsh 与 MCP 子进程）
+```
+
+每个实例完全独占：
+
+- 数据目录 `~/.yuren-instances/<name>/`（AGENTS.md、workspace、技能、补丁、日志）
+- 会话与密钥仓 `~/.yuren-instances/<name>/dsh-home/`（模型 Key、会话、工作区注册表）
+- 端口与 MCP 子进程（openstock、memory 等按补丁声明各自拉起）
+
+新实例起一个新名字和新端口即可（如 `./instance.sh start paper 3081`）；模型 Key 在各实例首启引导里独立配置，也可用其 `provision/profile.yaml` 预置。直接裸跑 `node serve.js` 不设 `YUREN_INSTANCE` 时会回落到共享默认目录并打警告，仅用于一次性调试。
+
 ### 4. 打包 Windows 安装包
 
 支持环境：

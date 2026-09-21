@@ -7,12 +7,17 @@
  *       -> 拉起 dsh web 服务(前后端一进程,浏览器访问;可用 nginx 分离部署,见 README)。
  *
  * 常用环境变量:
+ *   YUREN_INSTANCE=market        实例名:数据目录自动落到 ~/.yuren-instances/<name>,
+ *                                DSH_HOME 自动落到 <数据目录>/dsh-home,与其他实例完全隔离;
+ *                                多实例请用 web/instance.sh 启动(自动设置本变量与端口)
  *   YUREN_HOST=0.0.0.0        监听地址(默认 127.0.0.1;对外/容器部署改 0.0.0.0)
  *   YUREN_PORT=3080           监听端口
  *   YUREN_TRUSTED_HOSTS=api.example.com,localhost:3080
  *                             /api 浏览器信任域(前端从其它域名访问时必须加)
- *   YUREN_DATA_DIR=~/.yuren-harness   项目数据目录(AGENTS.md/workspace/技能/补丁)
- *   DSH_HOME=~/.dsh           会话与密钥目录(dsh 原生约定)
+ *   YUREN_DATA_DIR=~/.yuren-harness   项目数据目录(AGENTS.md/workspace/技能/补丁;设置
+ *                                YUREN_INSTANCE 时被忽略,除非显式指定本变量)
+ *   DSH_HOME=~/.dsh          会话与密钥目录(dsh 原生约定;设置 YUREN_INSTANCE 时
+ *                                自动改为 <数据目录>/dsh-home,避免多实例共仓互污)
  *   YUREN_DSH=<node_modules 路径>  复用别处安装的 dsh 运行时(默认 ./node_modules)
  */
 const { spawn } = require('child_process');
@@ -36,10 +41,16 @@ function dshRoot() {
 }
 function dataDir() {
   if (process.env.YUREN_DATA_DIR) return path.resolve(process.env.YUREN_DATA_DIR);
+  if (process.env.YUREN_INSTANCE) {
+    return path.join(os.homedir(), '.yuren-instances', process.env.YUREN_INSTANCE);
+  }
   return path.join(os.homedir(), '.yuren-harness');
 }
 function dshHome() {
-  return process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+  if (process.env.DSH_HOME) return process.env.DSH_HOME;
+  // 实例模式独占会话/密钥仓;默认模式沿用全局 ~/.dsh(可能与其他 dsh 使用者共享)
+  if (process.env.YUREN_INSTANCE) return path.join(dataDir(), 'dsh-home');
+  return path.join(os.homedir(), '.dsh');
 }
 function pick(root, rel) {
   const p = path.join(root, ...rel);
@@ -144,7 +155,7 @@ function seedWorkspace(D) {
         if (i >= 0) ids.splice(i, 1);
       }
     }
-    if (![...data.tables.workspaces.values()].some((r) => canon(r.path) === canon(D))) {
+    if (!Object.values(data.tables.workspaces).some((r) => canon(r.path) === canon(D))) {
       const id = randomUUID();
       const now = new Date().toISOString();
       data.tables.workspaces[id] = { id, path: D, title: APP_TITLE, createdAt: now, updatedAt: now, sessionIds: [] };
@@ -216,6 +227,10 @@ async function main() {
   const patch = generatePatch(D);
   seedWorkspace(D);
   importProvision();
+  if (!process.env.YUREN_INSTANCE && !process.env.YUREN_DATA_DIR && !process.env.DSH_HOME) {
+    log('提示: 未设置 YUREN_INSTANCE,正在使用共享默认目录(~/.yuren-harness + ~/.dsh);'
+      + '多实例部署请用 web/instance.sh,避免实例间互相污染');
+  }
   log(`数据目录: ${D}`);
 
   const host = process.env.YUREN_HOST || '127.0.0.1';
