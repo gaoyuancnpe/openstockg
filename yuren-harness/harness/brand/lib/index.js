@@ -8,11 +8,20 @@
  *     而 client-modules 扫描器用 require.resolve(仅接受 Windows 路径),二者互斥,
  *     所以浏览器半通过 tapIndex 注入 boot 图 + 自定义路由提供。
  */
-import { readFile } from "node:fs/promises";
+import { readFile, appendFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { createAlertsEngine } from "../../../../desktop/engine.mjs";
+import {
+  getDataPathsFromBase,
+  initializeDesktopStorage,
+  loadDesktopConfig,
+  loadDesktopEvents,
+  loadDesktopRules,
+  saveDesktopRules
+} from "../../../../desktop/main/data-store.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = dirname(HERE);
@@ -99,6 +108,205 @@ async function serveRules(_req, res) {
   }
 }
 
+/* ───────── 引擎接入(筛选/调度/运行,与 MCP 子进程共用同一数据目录) ───────── */
+
+let openstockPaths = null;
+let enginePromise = null;
+
+function getOpenstockPaths() {
+  if (!openstockPaths) {
+    openstockPaths = getDataPathsFromBase(openstockDataDir());
+  }
+  return openstockPaths;
+}
+
+async function persistEngineEvent(event) {
+  const paths = getOpenstockPaths();
+  await appendFile(paths.events, `${JSON.stringify(event)}\n`, "utf-8").catch(() => {});
+}
+
+async function getEngine() {
+  if (!enginePromise) {
+    enginePromise = (async () => {
+      const paths = getOpenstockPaths();
+      await initializeDesktopStorage(paths);
+      return createAlertsEngine({
+        dataPaths: paths,
+        onLog: () => {},
+        onEvent: persistEngineEvent
+      });
+    })();
+  }
+  return enginePromise;
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => {
+      data += chunk;
+      if (data.length > 100000) {
+        reject(new Error("请求体过大"));
+        req.destroy();
+      }
+    });
+    req.on("end", () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch (error) {
+        reject(new Error("请求体不是合法 JSON"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function replyJson(res, code, payload) {
+  res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+  res.end(JSON.stringify(payload));
+}
+
+function toNumOrNull(value) {
+  if (value === undefined || value === null || String(value).trim() === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+/* 统一筛选入口: 手动列表或全量美股(与规则共用同一套 criteria 形状) */
+async function serveScreen(req, res) {
+  try {
+    const paths = getOpenstockPaths();
+    const cfg = await loadDesktopConfig(paths);
+    const provider = String(cfg.dataProvider || "finnhub").toLowerCase();
+    const providerKey = provider === "fmp" ? cfg.fmpApiKey : cfg.finnhubApiKey;
+    if (!String(providerKey || "").trim()) {
+      return replyJson(res, 400, {
+        error: `数据源 ${provider} 的 API Key 未配置——先让智能体执行 update_config 填入 fmpApiKey,再回来筛选`
+      });
+    }
+    const body = await readJsonBody(req);
+    const engine = await getEngine();
+    const symbols = Array.isArray(body.symbols)
+      ? body.symbols.map((s) => String(s || "").trim().toUpperCase()).filter(Boolean)
+      : [];
+    const c = body.criteria && typeof body.criteria === "object" ? body.criteria : {};
+    const criteria = {
+      universe: symbols.length > 0 ? "manual" : String(c.universe || "us_all"),
+      symbols,
+      maxScan: toNumOrNull(c.maxScan) ?? 300,
+      minPrice: toNumOrNull(c.minPrice),
+      maxPrice: toNumOrNull(c.maxPrice),
+      minMarketCap: toNumOrNull(c.minMarketCap),
+      maxMarketCap: toNumOrNull(c.maxMarketCap),
+      minTurnoverM: toNumOrNull(c.minTurnoverM),
+      minVolumeRatio: toNumOrNull(c.minVolumeRatio),
+      requireRecent5dCloseAth: Boolean(c.requireRecent5dCloseAth)
+    };
+    const rows = await engine.runScreener({ symbols, criteria });
+    const list = Array.isArray(rows) ? rows : [];
+    replyJson(res, 200, {
+      total: list.length,
+      truncated: list.length > 100,
+      rows: list.slice(0, 100)
+    });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "筛选失败" });
+  }
+}
+
+/* 规则写操作: toggle / delete / add(与桌面端同源,经 data-store 归一化落盘) */
+async function serveRulesUpdate(req, res) {
+  try {
+    const body = await readJsonBody(req);
+    const action = String(body.action || "");
+    const paths = getOpenstockPaths();
+    const rules = await loadDesktopRules(paths);
+
+    if (action === "toggle" || action === "delete") {
+      const index = Number(body.index);
+      if (!Number.isInteger(index) || index < 0 || index >= rules.length) {
+        return replyJson(res, 400, { error: "规则下标非法" });
+      }
+      if (action === "toggle") {
+        rules[index] = { ...rules[index], enabled: !rules[index]?.enabled };
+      } else {
+        rules.splice(index, 1);
+      }
+    } else if (action === "add") {
+      const rule = body.rule;
+      if (!rule || typeof rule !== "object" || !String(rule.name || "").trim()) {
+        return replyJson(res, 400, { error: "规则缺少名称" });
+      }
+      rules.push(rule);
+    } else {
+      return replyJson(res, 400, { error: "未知操作" });
+    }
+
+    await saveDesktopRules(paths, rules);
+    const list = await loadDesktopRules(paths);
+    replyJson(res, 200, {
+      ok: true,
+      total: list.length,
+      enabledCount: list.filter((rule) => rule?.enabled).length,
+      rules: list.map(describeRule)
+    });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "规则更新失败" });
+  }
+}
+
+async function serveStatus(_req, res) {
+  try {
+    const engine = await getEngine();
+    const scheduler = typeof engine.getSchedulerStatus === "function" ? engine.getSchedulerStatus() : null;
+    replyJson(res, 200, { scheduler });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "状态读取失败" });
+  }
+}
+
+async function serveScheduler(req, res) {
+  try {
+    const body = await readJsonBody(req);
+    const engine = await getEngine();
+    if (body.action === "start") {
+      const status = await engine.start();
+      return replyJson(res, 200, { ok: true, scheduler: status || engine.getSchedulerStatus() });
+    }
+    if (body.action === "stop") {
+      const status = engine.stop();
+      return replyJson(res, 200, { ok: true, scheduler: status || engine.getSchedulerStatus() });
+    }
+    replyJson(res, 400, { error: "action 仅支持 start/stop" });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "调度操作失败" });
+  }
+}
+
+/* 模拟跑一轮: 异步执行,前端轮询事件流看结果;真实通知仍只走 MCP 对话确认 */
+async function serveRunOnce(req, res) {
+  try {
+    const body = await readJsonBody(req);
+    if (body.dryRun === false) {
+      return replyJson(res, 403, { error: "面板只允许模拟运行;真实发送通知请走智能体对话确认" });
+    }
+    const engine = await getEngine();
+    replyJson(res, 202, { started: true, dryRun: true });
+    engine.runOnce({ dryRun: true, ignoreCooldown: Boolean(body.ignoreCooldown) }).catch(() => {});
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "启动运行失败" });
+  }
+}
+
+async function serveEvents(_req, res) {
+  try {
+    const events = await loadDesktopEvents(getOpenstockPaths(), { limit: 30 });
+    replyJson(res, 200, { count: events.length, events });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "事件读取失败" });
+  }
+}
+
 /* 静态资源路由: 精确路由优先于前端 dist 的 fallback 静态服务 */
 const STATIC_ROUTES = [
   ["/favicon.svg", join(PKG_ROOT, "favicon.svg"), "image/svg+xml"],
@@ -167,6 +375,12 @@ async function apply(ctx) {
     ctx.webServer.register({ kind: "exact", path: route, handler: serve(file, type) });
   }
   ctx.webServer.register({ kind: "exact", path: "/branding/api/rules.json", handler: serveRules });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/screen", handler: serveScreen });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/rules/update", handler: serveRulesUpdate });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/status.json", handler: serveStatus });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/scheduler", handler: serveScheduler });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/run-once", handler: serveRunOnce });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/events.json", handler: serveEvents });
 }
 
 export { apply, inject };

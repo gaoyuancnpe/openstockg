@@ -464,21 +464,39 @@ window.__ModuleLoader__.load({
 				"  border-radius:8px 0 0 8px;background:rgba(28,29,34,.92);color:#d8d9de;font-size:12px;user-select:none;",
 				"  box-shadow:-2px 2px 10px rgba(0,0,0,.25);transition:background .15s}",
 				".ya-tab:hover{background:rgba(44,46,54,.96);color:#fff}",
-				".ya-drawer{position:fixed;right:0;top:0;height:100vh;width:min(380px,92vw);pointer-events:auto;",
+				".ya-drawer{position:fixed;right:0;top:0;height:100vh;width:min(420px,94vw);pointer-events:auto;",
 				"  background:rgba(28,29,34,.985);color:#d8d9de;border-left:1px solid rgba(255,255,255,.14);",
 				"  box-shadow:-6px 0 24px rgba(0,0,0,.35);display:flex;flex-direction:column;",
 				"  transform:translateX(100%);transition:transform .22s ease}",
 				".ya-drawer.open{transform:translateX(0)}",
-				".ya-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.1)}",
+				".ya-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.1)}",
 				".ya-title{font-weight:600;color:#fff;flex:1}",
 				".ya-count{font-size:11px;color:#9a9ba3}",
 				".ya-btn{cursor:pointer;background:rgba(255,255,255,.08);color:#d8d9de;border:1px solid rgba(255,255,255,.14);",
 				"  border-radius:6px;padding:4px 10px;font-size:12px}",
 				".ya-btn:hover{background:rgba(255,255,255,.14);color:#fff}",
-				".ya-body{flex:1;overflow-y:auto;padding:12px 14px}",
-				".ya-state{color:#9a9ba3;padding:24px 8px;text-align:center;line-height:1.7}",
+				".ya-btn.primary{background:rgba(64,120,220,.35);border-color:rgba(110,160,240,.5);color:#cfe0ff}",
+				".ya-btn.primary:hover{background:rgba(64,120,220,.5)}",
+				".ya-btn.danger:hover{background:rgba(200,70,70,.35);border-color:rgba(230,110,110,.5);color:#ffd9d9}",
+				".ya-btn:disabled{opacity:.45;cursor:not-allowed}",
+				".ya-tabbar{display:flex;gap:4px;padding:8px 14px 0}",
+				".ya-tabbtn{flex:1;text-align:center;cursor:pointer;padding:6px 0;border-radius:6px 6px 0 0;font-size:12px;",
+				"  background:rgba(255,255,255,.04);color:#9a9ba3;border:1px solid transparent;border-bottom:none}",
+				".ya-tabbtn.active{background:rgba(255,255,255,.09);color:#fff;border-color:rgba(255,255,255,.14)}",
+				".ya-body{flex:1;overflow-y:auto;padding:12px 14px;display:none}",
+				".ya-body.active{display:block}",
 				".ya-card{border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;margin-bottom:10px;",
-				"  background:rgba(255,255,255,.04);line-height:1.65}",
+				"  background:rgba(255,255,255,.04);line-height:1.6}",
+				".ya-card-title{display:flex;align-items:center;gap:8px;font-weight:600;color:#fff;margin-bottom:8px}",
+				".ya-state{color:#9a9ba3;padding:20px 8px;text-align:center;line-height:1.7}",
+				".ya-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}",
+				".ya-field{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#9a9ba3}",
+				".ya-field.wide{grid-column:1 / -1}",
+				".ya-input{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.16);border-radius:6px;color:#e8e8ea;",
+				"  padding:5px 8px;font-size:12px;width:100%;outline:none}",
+				".ya-input:focus{border-color:rgba(110,160,240,.6)}",
+				".ya-check{display:flex;align-items:center;gap:6px;font-size:12px;color:#d8d9de;padding-top:14px}",
+				".ya-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}",
 				".ya-card-name{display:flex;align-items:center;gap:8px;font-weight:600;color:#fff}",
 				".ya-badge{font-size:10px;padding:1px 7px;border-radius:99px;font-weight:400}",
 				".ya-badge.on{background:rgba(56,178,122,.18);color:#5fd3a0;border:1px solid rgba(95,211,160,.4)}",
@@ -486,6 +504,19 @@ window.__ModuleLoader__.load({
 				".ya-row{margin-top:6px;font-size:12px;color:#b9bac1}",
 				".ya-k{color:#8b8c94;margin-right:6px}",
 				".ya-cond{display:inline-block;background:rgba(255,255,255,.06);border-radius:4px;padding:0 6px;margin:2px 4px 2px 0}",
+				".ya-switch{position:relative;width:34px;height:18px;border-radius:99px;background:rgba(255,255,255,.15);",
+				"  cursor:pointer;transition:background .15s;flex-shrink:0}",
+				".ya-switch.on{background:rgba(56,178,122,.55)}",
+				".ya-switch::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;",
+				"  background:#d8d9de;transition:left .15s}",
+				".ya-switch.on::after{left:18px}",
+				".ya-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}",
+				".ya-table th{color:#8b8c94;font-weight:500;text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.12)}",
+				".ya-table td{text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.06);color:#d8d9de}",
+				".ya-table th:first-child,.ya-table td:first-child{text-align:left}",
+				".ya-evt{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;line-height:1.55}",
+				".ya-evt-time{color:#8b8c94;font-size:11px;margin-right:6px}",
+				".ya-hint{font-size:11px;color:#8b8c94;margin-top:6px;line-height:1.6}",
 			].join("\n");
 			document.head.appendChild(css);
 
@@ -501,109 +532,446 @@ window.__ModuleLoader__.load({
 			drawer.className = "ya-drawer";
 			drawer.innerHTML = [
 				'<div class="ya-head">',
-				'  <div class="ya-title">资产 · 提醒规则</div>',
+				'  <div class="ya-title">资产区</div>',
 				'  <div class="ya-count"></div>',
 				'  <button class="ya-btn ya-refresh">刷新</button>',
 				'  <button class="ya-btn ya-close">收起</button>',
 				'</div>',
-				'<div class="ya-body"></div>'
+				'<div class="ya-tabbar">',
+				'  <div class="ya-tabbtn active" data-tab="main">筛选与规则</div>',
+				'  <div class="ya-tabbtn" data-tab="run">运行</div>',
+				'</div>',
+				'<div class="ya-body active" data-body="main">',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">临时筛选',
+				'      <button class="ya-btn ya-preset" style="margin-left:auto">默认预设</button></div>',
+				'    <div class="ya-grid">',
+				'      <label class="ya-field">扫描数量(全量美股前N)<input class="ya-input" data-k="maxScan" type="number" placeholder="300"></label>',
+				'      <label class="ya-field">市值 ≥(百万$)<input class="ya-input" data-k="minMarketCap" type="number" placeholder="如 10000"></label>',
+				'      <label class="ya-field">成交额 ≥(百万$)<input class="ya-input" data-k="minTurnoverM" type="number" placeholder="如 500"></label>',
+				'      <label class="ya-field">价格 ≥($)<input class="ya-input" data-k="minPrice" type="number" placeholder="可选"></label>',
+				'      <label class="ya-field">量比 ≥<input class="ya-input" data-k="minVolumeRatio" type="number" step="0.1" placeholder="可选"></label>',
+				'      <label class="ya-check"><input type="checkbox" data-k="requireRecent5dCloseAth">近 5 日收盘新高</label>',
+				'      <label class="ya-field wide">手动代码(逗号分隔,留空=全量美股)',
+				'        <input class="ya-input" data-k="symbols" placeholder="如 AAPL, MSFT, NVDA"></label>',
+				'    </div>',
+				'    <div class="ya-actions">',
+				'      <button class="ya-btn primary ya-scan-run">立即筛选</button>',
+				'      <button class="ya-btn ya-scan-save">存为规则</button>',
+				'    </div>',
+				'    <div class="ya-savebox hidden" style="display:none;margin-top:10px;border-top:1px dashed rgba(255,255,255,.15);padding-top:10px">',
+				'      <div class="ya-grid">',
+				'        <label class="ya-field wide">规则名称<input class="ya-input" data-s="name" placeholder="如 放量新高观察"></label>',
+				'        <label class="ya-field">冷却(秒)<input class="ya-input" data-s="cooldownSec" type="number" value="86400"></label>',
+				'        <label class="ya-field">通知邮箱(可选)<input class="ya-input" data-s="email" placeholder="命中时邮件提醒"></label>',
+				'      </div>',
+				'      <div class="ya-actions">',
+				'        <button class="ya-btn primary ya-save-confirm">确认保存</button>',
+				'        <button class="ya-btn ya-save-cancel">取消</button>',
+				'      </div>',
+				'    </div>',
+				'  </div>',
+				'  <div class="ya-card ya-results" style="display:none">',
+				'    <div class="ya-card-title">筛选结果<span class="ya-res-count" style="font-weight:400;color:#9a9ba3;font-size:11px"></span></div>',
+				'    <div class="ya-res-body"></div>',
+				'  </div>',
+				'  <div class="ya-rules-section"></div>',
+				'</div>',
+				'<div class="ya-body" data-body="run">',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">调度器</div>',
+				'    <div class="ya-sched-state ya-state">读取中…</div>',
+				'    <div class="ya-actions">',
+				'      <button class="ya-btn primary ya-sched-start">启动调度</button>',
+				'      <button class="ya-btn ya-sched-stop">停止调度</button>',
+				'    </div>',
+				'    <div class="ya-hint">调度随本实例进程常驻:实例停止时调度一并停止。</div>',
+				'  </div>',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">手动运行</div>',
+				'    <div class="ya-actions"><button class="ya-btn primary ya-run-once">现在跑一次(模拟)</button></div>',
+				'    <div class="ya-hint">按当前启用的规则完整评估一轮,只记录不通知;结果看下方事件流。真实发送通知请走智能体对话确认。</div>',
+				'  </div>',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">最近事件</div>',
+				'    <div class="ya-events"></div>',
+				'  </div>',
+				'</div>'
 			].join("");
 
 			root.appendChild(tab);
 			root.appendChild(drawer);
 			document.body.appendChild(root);
 
-			const body = drawer.querySelector(".ya-body");
+			const body = drawer;
 			const count = drawer.querySelector(".ya-count");
-			let open = false;
-			let loading = false;
 
-			const setOpen = (next) => {
-				open = next;
-				drawer.classList.toggle("open", open);
-				if (open) loadRules();
-			};
+			async function api(path, payload) {
+				const res = await fetch(path, payload
+					? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }
+					: { cache: "no-store" });
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+				return data;
+			}
 
-			const renderRules = (data) => {
-				count.textContent = `${data.enabledCount}/${data.total} 启用`;
-				if (!data.rules.length) {
-					body.innerHTML = '<div class="ya-state">还没有规则。<br>对智能体说「帮我加一条提醒规则」即可。</div>';
+			function collectCriteria() {
+				const get = (k) => body.querySelector(`[data-k="${k}"]`);
+				const symbols = String(get("symbols")?.value || "")
+					.split(/[,，\s]+/)
+					.map((s) => s.trim().toUpperCase())
+					.filter(Boolean);
+				const num = (k) => {
+					const raw = String(get(k)?.value || "").trim();
+					if (!raw) return undefined;
+					const n = Number(raw);
+					return Number.isFinite(n) ? n : undefined;
+				};
+				return {
+					symbols,
+					criteria: {
+						universe: symbols.length > 0 ? "manual" : "us_all",
+						maxScan: num("maxScan"),
+						minMarketCap: num("minMarketCap"),
+						minTurnoverM: num("minTurnoverM"),
+						minPrice: num("minPrice"),
+						minVolumeRatio: num("minVolumeRatio"),
+						requireRecent5dCloseAth: get("requireRecent5dCloseAth")?.checked === true
+					}
+				};
+			}
+
+			function fillCriteria(criteria, symbols) {
+				const set = (k, v) => {
+					const el = body.querySelector(`[data-k="${k}"]`);
+					if (!el) return;
+					if (el.type === "checkbox") el.checked = Boolean(v);
+					else el.value = v === null || v === undefined ? "" : String(v);
+				};
+				set("maxScan", criteria.maxScan);
+				set("minMarketCap", criteria.minMarketCap);
+				set("minTurnoverM", criteria.minTurnoverM);
+				set("minPrice", criteria.minPrice);
+				set("minVolumeRatio", criteria.minVolumeRatio);
+				set("requireRecent5dCloseAth", criteria.requireRecent5dCloseAth);
+				set("symbols", Array.isArray(symbols) && symbols.length ? symbols.join(", ") : "");
+			}
+
+			function formatNum(value, digits = 0) {
+				const n = Number(value);
+				if (!Number.isFinite(n)) return "-";
+				return n.toLocaleString("zh-CN", { maximumFractionDigits: digits });
+			}
+
+			function renderResults(data, titleNote) {
+				const box = body.querySelector(".ya-results");
+				const resBody = body.querySelector(".ya-res-body");
+				const resCount = body.querySelector(".ya-res-count");
+				box.style.display = "";
+				resCount.textContent = ` ${titleNote || ""} 共 ${data.total} 条${data.truncated ? "(仅显示前 100)" : ""}`;
+				resBody.innerHTML = "";
+				if (!data.rows?.length) {
+					resBody.innerHTML = '<div class="ya-state">没有命中。放宽门槛或增大扫描数量再试。</div>';
 					return;
 				}
-				body.innerHTML = "";
-				for (const rule of data.rules) {
+				const table = document.createElement("table");
+				table.className = "ya-table";
+				table.innerHTML = [
+					"<tr><th>代码</th><th>价格</th><th>市值(百万$)</th><th>成交额(百万$)</th><th>量比</th></tr>",
+					...data.rows.map((row) => [
+						"<tr>",
+						`<td>${escapeAssetsHtml(row.symbol)}</td>`,
+						`<td>${escapeAssetsHtml(formatNum(row.price, 2))}</td>`,
+						`<td>${escapeAssetsHtml(formatNum(row.marketCap))}</td>`,
+						`<td>${escapeAssetsHtml(formatNum(row.turnoverM))}</td>`,
+						`<td>${escapeAssetsHtml(formatNum(row.volumeRatio, 1))}</td>`,
+						"</tr>"
+					].join(""))
+				].join("");
+				resBody.appendChild(table);
+				box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+			}
+
+			async function runScreen(payload, titleNote) {
+				const btn = body.querySelector(".ya-scan-run");
+				btn.disabled = true;
+				btn.textContent = "筛选中…";
+				try {
+					const data = await api("/branding/api/screen", payload);
+					renderResults(data, titleNote);
+				} catch (error) {
+					renderResults({ rows: [], total: 0 }, `读取失败:${error.message}`);
+				} finally {
+					btn.disabled = false;
+					btn.textContent = "立即筛选";
+				}
+			}
+
+			function renderRulesList(data) {
+				count.textContent = `规则 ${data.enabledCount}/${data.total}`;
+				const section = body.querySelector(".ya-rules-section");
+				section.innerHTML = "";
+				const head = document.createElement("div");
+				head.className = "ya-card-title";
+				head.textContent = `规则(${data.total})`;
+				head.style.margin = "4px 2px 8px";
+				section.appendChild(head);
+				if (!data.rules?.length) {
+					section.insertAdjacentHTML("beforeend", '<div class="ya-state">还没有规则。用上方「临时筛选」试好后点「存为规则」。</div>');
+					return;
+				}
+				data.rules.forEach((rule, index) => {
 					const card = document.createElement("div");
 					card.className = "ya-card";
 
 					const nameRow = document.createElement("div");
 					nameRow.className = "ya-card-name";
+					const sw = document.createElement("div");
+					sw.className = `ya-switch ${rule.enabled ? "on" : "off"}`;
+					sw.title = rule.enabled ? "点击停用" : "点击启用";
+					sw.addEventListener("click", () => rulesUpdate({ action: "toggle", index }));
 					const name = document.createElement("span");
 					name.textContent = rule.name;
 					const badge = document.createElement("span");
 					badge.className = `ya-badge ${rule.enabled ? "on" : "off"}`;
 					badge.textContent = rule.enabled ? "启用" : "停用";
-					nameRow.append(name, badge);
+					nameRow.append(sw, name, badge);
 
-					const universe = rule.universe?.type === "us_all"
-						? `全量美股（按市值前 ${rule.universe.maxScan ?? "-"}）`
-						: `手动列表（${rule.universe?.symbols?.length ?? 0} 支）`;
-					// FMP 规则包的门槛在 universe 层,与 conditions 一起作为条件芯片展示
-					const conditionItems = rule.conditions.map((item) => ({ __raw: item }));
 					const u = rule.universe || {};
+					const universe = u.type === "us_all"
+						? `全量美股(按市值前 ${u.maxScan ?? "-"})`
+						: `手动列表(${u.symbols?.length ?? 0} 支)`;
+					const conditionItems = (rule.conditions || []).map((item) => ({ __raw: item }));
 					if (u.type === "us_all") {
-						if (u.minPrice != null) conditionItems.push({ __raw: { type: "price_above", value: u.minPrice } });
 						if (u.minMarketCap != null) conditionItems.push({ __raw: { type: "market_cap_above", value: u.minMarketCap } });
 						if (u.minTurnoverM != null) conditionItems.push({ __raw: { type: "turnover_m_above", value: u.minTurnoverM } });
 						if (u.minVolumeRatio != null) conditionItems.push({ __raw: { type: "volume_ratio_above", value: u.minVolumeRatio } });
+						if (u.minPrice != null) conditionItems.push({ __raw: { type: "price_above", value: u.minPrice } });
 						if (u.requireRecent5dCloseAth) conditionItems.push({ __raw: { type: "recent_5d_close_ath" } });
 					}
-					const conditions = conditionItems.length
+					const chips = conditionItems.length
 						? conditionItems.map((item) => `<span class="ya-cond">${escapeAssetsHtml(formatAssetsCondition(item.__raw))}</span>`).join("")
 						: '<span class="ya-cond">无条件</span>';
-					const groupOp = rule.groupOp === "or" ? "任一满足（OR）" : "全部满足（AND）";
 					const cooldown = rule.cooldownSec != null ? `${rule.cooldownSec} 秒` : "-";
 					const notifyParts = [];
 					if (rule.notify?.email) notifyParts.push(`邮件 ${rule.notify.email}`);
 					if (rule.notify?.webhookUrl) notifyParts.push(`${rule.notify.webhookType === "feishu" ? "飞书" : "Webhook"} ${rule.notify.webhookUrl}`);
-					const notify = notifyParts.length ? notifyParts.join("；") : "未配置";
+					const notify = notifyParts.length ? notifyParts.join(";") : "未配置";
 
 					card.appendChild(nameRow);
 					card.insertAdjacentHTML("beforeend", [
 						`<div class="ya-row"><span class="ya-k">范围</span>${escapeAssetsHtml(universe)}</div>`,
-						`<div class="ya-row"><span class="ya-k">条件</span>${conditions}<span style="color:#8b8c94">（${escapeAssetsHtml(groupOp)}）</span></div>`,
-						`<div class="ya-row"><span class="ya-k">冷却</span>${escapeAssetsHtml(cooldown)}</div>`,
-						`<div class="ya-row"><span class="ya-k">通知</span>${escapeAssetsHtml(notify)}</div>`
+						`<div class="ya-row"><span class="ya-k">条件</span>${chips}</div>`,
+						`<div class="ya-row"><span class="ya-k">冷却</span>${escapeAssetsHtml(cooldown)}<span class="ya-k" style="margin-left:10px">通知</span>${escapeAssetsHtml(notify)}</div>`,
+						'<div class="ya-actions">',
+						`  <button class="ya-btn ya-rule-run" data-index="${index}">筛一次</button>`,
+						`  <button class="ya-btn danger ya-rule-del" data-index="${index}">删除</button>`,
+						'</div>'
 					].join(""));
-					body.appendChild(card);
-				}
-			};
+					section.appendChild(card);
+				});
 
-			const renderState = (text) => {
-				count.textContent = "";
-				body.innerHTML = `<div class="ya-state">${escapeAssetsHtml(text)}</div>`;
-			};
+				section.querySelectorAll(".ya-rule-run").forEach((btn) => {
+					btn.addEventListener("click", async () => {
+						const rule = data.rules[Number(btn.dataset.index)];
+						if (!rule) return;
+						const u = rule.universe || {};
+						btn.disabled = true;
+						btn.textContent = "筛选中…";
+						try {
+							const result = await api("/branding/api/screen", {
+								symbols: u.type === "manual" ? (u.symbols || []) : [],
+								criteria: {
+									universe: u.type,
+									maxScan: u.maxScan ?? undefined,
+									minMarketCap: u.minMarketCap ?? undefined,
+									minTurnoverM: u.minTurnoverM ?? undefined,
+									minPrice: u.minPrice ?? undefined,
+									minVolumeRatio: u.minVolumeRatio ?? undefined,
+									requireRecent5dCloseAth: u.requireRecent5dCloseAth === true
+								}
+							});
+							renderResults(result, `[${rule.name}] `);
+						} catch (error) {
+							renderResults({ rows: [], total: 0 }, `[${rule.name}] 读取失败:${error.message}`);
+						} finally {
+							btn.disabled = false;
+							btn.textContent = "筛一次";
+						}
+					});
+				});
+				section.querySelectorAll(".ya-rule-del").forEach((btn) => {
+					btn.addEventListener("click", async () => {
+						const rule = data.rules[Number(btn.dataset.index)];
+						if (!rule) return;
+						if (!window.confirm(`确认删除规则「${rule.name}」?`)) return;
+						await rulesUpdate({ action: "delete", index: Number(btn.dataset.index) });
+					});
+				});
+			}
 
-			async function loadRules() {
-				if (loading) return;
-				loading = true;
-				renderState("读取中…");
+			async function rulesUpdate(payload) {
 				try {
-					const res = await fetch(`/branding/api/rules.json?t=${Date.now()}`);
-					const data = await res.json();
-					if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-					renderRules(data);
+					const data = await api("/branding/api/rules/update", payload);
+					renderRulesList(data);
 				} catch (error) {
-					renderState(`读取失败：${error?.message || error}\n点击「刷新」重试`);
-				} finally {
-					loading = false;
+					window.alert(`规则更新失败:${error.message}`);
 				}
 			}
 
+			async function loadRules() {
+				try {
+					renderRulesList(await api("/branding/api/rules.json"));
+				} catch (error) {
+					const section = body.querySelector(".ya-rules-section");
+					section.innerHTML = `<div class="ya-state">规则读取失败:${escapeAssetsHtml(error.message)}</div>`;
+				}
+			}
+
+			async function loadScheduler() {
+				const el = body.querySelector(".ya-sched-state");
+				try {
+					const data = await api("/branding/api/status.json");
+					const s = data.scheduler;
+					if (!s) {
+						el.textContent = "状态未知";
+						return;
+					}
+					el.className = "ya-sched-state";
+					el.style.color = s.isRunning ? "#5fd3a0" : "#9a9ba3";
+					el.textContent = s.isRunning
+						? `运行中 · ${s.mode === "daily" ? `每日 ${s.dailyTime || "-"}${s.weekdaysOnly ? "(工作日)" : ""}` : `每 ${s.intervalSec ?? "-"} 秒`}`
+						: "已停止";
+				} catch (error) {
+					el.textContent = `读取失败:${error.message}`;
+				}
+			}
+
+			async function loadEvents() {
+				const el = body.querySelector(".ya-events");
+				try {
+					const data = await api("/branding/api/events.json");
+					el.innerHTML = "";
+					if (!data.events?.length) {
+						el.innerHTML = '<div class="ya-state">还没有事件。</div>';
+						return;
+					}
+					for (const event of data.events.slice().reverse()) {
+						const div = document.createElement("div");
+						div.className = "ya-evt";
+						const time = event?.at || event?.timestamp || "";
+						const brief = String(event?.type || "") + (event?.ruleName ? ` · ${event.ruleName}` : "") +
+							(event?.message ? ` · ${event.message}` : "");
+						div.innerHTML = `<span class="ya-evt-time">${escapeAssetsHtml(String(time).slice(5, 19))}</span>${escapeAssetsHtml(brief)}`;
+						el.appendChild(div);
+					}
+				} catch (error) {
+					el.innerHTML = `<div class="ya-state">事件读取失败:${escapeAssetsHtml(error.message)}</div>`;
+				}
+			}
+
+			let open = false;
+			let activeTab = "main";
+
+			const setOpen = (next) => {
+				open = next;
+				drawer.classList.toggle("open", open);
+				if (open) refreshActiveTab();
+			};
+
+			function refreshActiveTab() {
+				if (activeTab === "main") loadRules();
+				else { loadScheduler(); loadEvents(); }
+			}
+
+			function switchTab(name) {
+				activeTab = name;
+				body.querySelectorAll(".ya-tabbtn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+				body.querySelectorAll(".ya-body").forEach((b) => b.classList.toggle("active", b.dataset.body === name));
+				refreshActiveTab();
+			}
+
+			body.querySelectorAll(".ya-tabbtn").forEach((btn) => {
+				btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+			});
+
 			tab.addEventListener("click", () => setOpen(!open));
-			drawer.querySelector(".ya-close").addEventListener("click", () => setOpen(false));
-			drawer.querySelector(".ya-refresh").addEventListener("click", loadRules);
+			body.querySelector(".ya-close").addEventListener("click", () => setOpen(false));
+			body.querySelector(".ya-refresh").addEventListener("click", refreshActiveTab);
 			document.addEventListener("keydown", (event) => {
 				if (event.key === "Escape" && open) setOpen(false);
+			});
+
+			body.querySelector(".ya-preset").addEventListener("click", () => {
+				fillCriteria({
+					maxScan: 2000, minMarketCap: 10000, minTurnoverM: 500,
+					minPrice: null, minVolumeRatio: null, requireRecent5dCloseAth: true
+				}, []);
+			});
+
+			body.querySelector(".ya-scan-run").addEventListener("click", () => runScreen(collectCriteria()));
+			body.querySelector(".ya-scan-save").addEventListener("click", () => {
+				body.querySelector(".ya-savebox").style.display = "";
+				const nameInput = body.querySelector('[data-s="name"]');
+				if (!nameInput.value) nameInput.value = `面板规则 ${new Date().toLocaleDateString("zh-CN")}`;
+			});
+			body.querySelector(".ya-save-cancel").addEventListener("click", () => {
+				body.querySelector(".ya-savebox").style.display = "none";
+			});
+			body.querySelector(".ya-save-confirm").addEventListener("click", async () => {
+				const { symbols, criteria } = collectCriteria();
+				const s = (k) => String(body.querySelector(`[data-s="${k}"]`)?.value || "").trim();
+				const cooldown = Number(s("cooldownSec")) || 86400;
+				const rule = {
+					name: s("name") || "未命名规则",
+					enabled: true,
+					symbols,
+					universe: {
+						type: symbols.length > 0 ? "manual" : "us_all",
+						maxScan: criteria.maxScan ?? 300,
+						minMarketCap: criteria.minMarketCap ?? null,
+						minTurnoverM: criteria.minTurnoverM ?? null,
+						minPrice: criteria.minPrice ?? null,
+						minVolumeRatio: criteria.minVolumeRatio ?? null,
+						requireRecent5dCloseAth: criteria.requireRecent5dCloseAth === true
+					},
+					conditions: [],
+					cooldownSec: cooldown,
+					notify: s("email") ? { email: s("email") } : {}
+				};
+				await rulesUpdate({ action: "add", rule });
+				body.querySelector(".ya-savebox").style.display = "none";
+			});
+
+			body.querySelector(".ya-sched-start").addEventListener("click", async () => {
+				await api("/branding/api/scheduler", { action: "start" }).catch((e) => window.alert(`启动失败:${e.message}`));
+				loadScheduler();
+			});
+			body.querySelector(".ya-sched-stop").addEventListener("click", async () => {
+				await api("/branding/api/scheduler", { action: "stop" }).catch((e) => window.alert(`停止失败:${e.message}`));
+				loadScheduler();
+			});
+			body.querySelector(".ya-run-once").addEventListener("click", async () => {
+				const btn = body.querySelector(".ya-run-once");
+				btn.disabled = true;
+				btn.textContent = "已启动,评估中…";
+				try {
+					await api("/branding/api/run-once", {});
+					let polls = 0;
+					const timer = setInterval(() => {
+						polls += 1;
+						loadEvents();
+						if (polls >= 20) {
+							clearInterval(timer);
+							btn.disabled = false;
+							btn.textContent = "现在跑一次(模拟)";
+						}
+					}, 3000);
+				} catch (error) {
+					window.alert(`启动失败:${error.message}`);
+					btn.disabled = false;
+					btn.textContent = "现在跑一次(模拟)";
+				}
 			});
 		}
 
