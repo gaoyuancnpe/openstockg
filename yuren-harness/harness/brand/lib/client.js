@@ -425,12 +425,201 @@ window.__ModuleLoader__.load({
 
 		/** Required services: 插槽注册 + 词条表 + 连接 API + 设置镜像。 */
 		const inject = ["slots", "locale", "connection", "settingsScope"];
+
+		/* ───────── 右侧资产区: 平时隐藏的可召唤抽屉(vanilla DOM,不依赖 slots/React) ───────── */
+
+		const ASSETS_CONDITION_LABELS = {
+			price_above: "价格 ≥", price_below: "价格 ≤",
+			change_above: "涨幅 ≥", change_below: "跌幅 ≤",
+			cross_above_sma20: "上穿 SMA20", cross_below_sma20: "下穿 SMA20",
+			rsi_above: "RSI ≥", rsi_below: "RSI ≤",
+			volume_ratio_above: "量比 ≥",
+			market_cap_above: "市值 ≥", turnover_m_above: "成交额 ≥",
+			recent_5d_close_ath: "近 5 日收盘新高"
+		};
+		const ASSETS_CONDITION_UNITS = {
+			change_above: "%", change_below: "%",
+			market_cap_above: " 百万$", turnover_m_above: " 百万$"
+		};
+
+		function formatAssetsCondition(item) {
+			const type = String(item?.type || "");
+			const label = ASSETS_CONDITION_LABELS[type] || type;
+			if (type === "cross_above_sma20" || type === "cross_below_sma20" || type === "recent_5d_close_ath") {
+				return label;
+			}
+			const value = item?.value;
+			return `${label} ${value ?? "?"}${ASSETS_CONDITION_UNITS[type] || ""}`;
+		}
+
+		function mountAssetsDrawer() {
+			if (document.getElementById("yuren-assets-root")) return;
+
+			const css = document.createElement("style");
+			css.textContent = [
+				"#yuren-assets-root{position:fixed;z-index:2147483000;inset:0 auto 0 0;pointer-events:none;font-size:13px}",
+				"#yuren-assets-root *{box-sizing:border-box}",
+				".ya-tab{position:fixed;right:0;top:50%;transform:translateY(-50%);pointer-events:auto;cursor:pointer;",
+				"  writing-mode:vertical-rl;letter-spacing:4px;padding:14px 8px;border:1px solid rgba(255,255,255,.18);border-right:none;",
+				"  border-radius:8px 0 0 8px;background:rgba(28,29,34,.92);color:#d8d9de;font-size:12px;user-select:none;",
+				"  box-shadow:-2px 2px 10px rgba(0,0,0,.25);transition:background .15s}",
+				".ya-tab:hover{background:rgba(44,46,54,.96);color:#fff}",
+				".ya-drawer{position:fixed;right:0;top:0;height:100vh;width:min(380px,92vw);pointer-events:auto;",
+				"  background:rgba(28,29,34,.985);color:#d8d9de;border-left:1px solid rgba(255,255,255,.14);",
+				"  box-shadow:-6px 0 24px rgba(0,0,0,.35);display:flex;flex-direction:column;",
+				"  transform:translateX(100%);transition:transform .22s ease}",
+				".ya-drawer.open{transform:translateX(0)}",
+				".ya-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.1)}",
+				".ya-title{font-weight:600;color:#fff;flex:1}",
+				".ya-count{font-size:11px;color:#9a9ba3}",
+				".ya-btn{cursor:pointer;background:rgba(255,255,255,.08);color:#d8d9de;border:1px solid rgba(255,255,255,.14);",
+				"  border-radius:6px;padding:4px 10px;font-size:12px}",
+				".ya-btn:hover{background:rgba(255,255,255,.14);color:#fff}",
+				".ya-body{flex:1;overflow-y:auto;padding:12px 14px}",
+				".ya-state{color:#9a9ba3;padding:24px 8px;text-align:center;line-height:1.7}",
+				".ya-card{border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;margin-bottom:10px;",
+				"  background:rgba(255,255,255,.04);line-height:1.65}",
+				".ya-card-name{display:flex;align-items:center;gap:8px;font-weight:600;color:#fff}",
+				".ya-badge{font-size:10px;padding:1px 7px;border-radius:99px;font-weight:400}",
+				".ya-badge.on{background:rgba(56,178,122,.18);color:#5fd3a0;border:1px solid rgba(95,211,160,.4)}",
+				".ya-badge.off{background:rgba(255,255,255,.07);color:#8b8c94;border:1px solid rgba(255,255,255,.15)}",
+				".ya-row{margin-top:6px;font-size:12px;color:#b9bac1}",
+				".ya-k{color:#8b8c94;margin-right:6px}",
+				".ya-cond{display:inline-block;background:rgba(255,255,255,.06);border-radius:4px;padding:0 6px;margin:2px 4px 2px 0}",
+			].join("\n");
+			document.head.appendChild(css);
+
+			const root = document.createElement("div");
+			root.id = "yuren-assets-root";
+
+			const tab = document.createElement("div");
+			tab.className = "ya-tab";
+			tab.textContent = "资产";
+			tab.title = "打开/收起资产区";
+
+			const drawer = document.createElement("div");
+			drawer.className = "ya-drawer";
+			drawer.innerHTML = [
+				'<div class="ya-head">',
+				'  <div class="ya-title">资产 · 提醒规则</div>',
+				'  <div class="ya-count"></div>',
+				'  <button class="ya-btn ya-refresh">刷新</button>',
+				'  <button class="ya-btn ya-close">收起</button>',
+				'</div>',
+				'<div class="ya-body"></div>'
+			].join("");
+
+			root.appendChild(tab);
+			root.appendChild(drawer);
+			document.body.appendChild(root);
+
+			const body = drawer.querySelector(".ya-body");
+			const count = drawer.querySelector(".ya-count");
+			let open = false;
+			let loading = false;
+
+			const setOpen = (next) => {
+				open = next;
+				drawer.classList.toggle("open", open);
+				if (open) loadRules();
+			};
+
+			const renderRules = (data) => {
+				count.textContent = `${data.enabledCount}/${data.total} 启用`;
+				if (!data.rules.length) {
+					body.innerHTML = '<div class="ya-state">还没有规则。<br>对智能体说「帮我加一条提醒规则」即可。</div>';
+					return;
+				}
+				body.innerHTML = "";
+				for (const rule of data.rules) {
+					const card = document.createElement("div");
+					card.className = "ya-card";
+
+					const nameRow = document.createElement("div");
+					nameRow.className = "ya-card-name";
+					const name = document.createElement("span");
+					name.textContent = rule.name;
+					const badge = document.createElement("span");
+					badge.className = `ya-badge ${rule.enabled ? "on" : "off"}`;
+					badge.textContent = rule.enabled ? "启用" : "停用";
+					nameRow.append(name, badge);
+
+					const universe = rule.universe?.type === "us_all"
+						? `全量美股（按市值前 ${rule.universe.maxScan ?? "-"}）`
+						: `手动列表（${rule.universe?.symbols?.length ?? 0} 支）`;
+					// FMP 规则包的门槛在 universe 层,与 conditions 一起作为条件芯片展示
+					const conditionItems = rule.conditions.map((item) => ({ __raw: item }));
+					const u = rule.universe || {};
+					if (u.type === "us_all") {
+						if (u.minPrice != null) conditionItems.push({ __raw: { type: "price_above", value: u.minPrice } });
+						if (u.minMarketCap != null) conditionItems.push({ __raw: { type: "market_cap_above", value: u.minMarketCap } });
+						if (u.minTurnoverM != null) conditionItems.push({ __raw: { type: "turnover_m_above", value: u.minTurnoverM } });
+						if (u.minVolumeRatio != null) conditionItems.push({ __raw: { type: "volume_ratio_above", value: u.minVolumeRatio } });
+						if (u.requireRecent5dCloseAth) conditionItems.push({ __raw: { type: "recent_5d_close_ath" } });
+					}
+					const conditions = conditionItems.length
+						? conditionItems.map((item) => `<span class="ya-cond">${escapeAssetsHtml(formatAssetsCondition(item.__raw))}</span>`).join("")
+						: '<span class="ya-cond">无条件</span>';
+					const groupOp = rule.groupOp === "or" ? "任一满足（OR）" : "全部满足（AND）";
+					const cooldown = rule.cooldownSec != null ? `${rule.cooldownSec} 秒` : "-";
+					const notifyParts = [];
+					if (rule.notify?.email) notifyParts.push(`邮件 ${rule.notify.email}`);
+					if (rule.notify?.webhookUrl) notifyParts.push(`${rule.notify.webhookType === "feishu" ? "飞书" : "Webhook"} ${rule.notify.webhookUrl}`);
+					const notify = notifyParts.length ? notifyParts.join("；") : "未配置";
+
+					card.appendChild(nameRow);
+					card.insertAdjacentHTML("beforeend", [
+						`<div class="ya-row"><span class="ya-k">范围</span>${escapeAssetsHtml(universe)}</div>`,
+						`<div class="ya-row"><span class="ya-k">条件</span>${conditions}<span style="color:#8b8c94">（${escapeAssetsHtml(groupOp)}）</span></div>`,
+						`<div class="ya-row"><span class="ya-k">冷却</span>${escapeAssetsHtml(cooldown)}</div>`,
+						`<div class="ya-row"><span class="ya-k">通知</span>${escapeAssetsHtml(notify)}</div>`
+					].join(""));
+					body.appendChild(card);
+				}
+			};
+
+			const renderState = (text) => {
+				count.textContent = "";
+				body.innerHTML = `<div class="ya-state">${escapeAssetsHtml(text)}</div>`;
+			};
+
+			async function loadRules() {
+				if (loading) return;
+				loading = true;
+				renderState("读取中…");
+				try {
+					const res = await fetch(`/branding/api/rules.json?t=${Date.now()}`);
+					const data = await res.json();
+					if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+					renderRules(data);
+				} catch (error) {
+					renderState(`读取失败：${error?.message || error}\n点击「刷新」重试`);
+				} finally {
+					loading = false;
+				}
+			}
+
+			tab.addEventListener("click", () => setOpen(!open));
+			drawer.querySelector(".ya-close").addEventListener("click", () => setOpen(false));
+			drawer.querySelector(".ya-refresh").addEventListener("click", loadRules);
+			document.addEventListener("keydown", (event) => {
+				if (event.key === "Escape" && open) setOpen(false);
+			});
+		}
+
+		function escapeAssetsHtml(text) {
+			return String(text).replace(/[&<>"']/g, (ch) => ({
+				"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+			}[ch]));
+		}
+
 		/**
 		 * 填充品牌插槽、覆盖首页标语,并注册自由配置引导步骤。
 		 * @param ctx - 客户端根上下文。
 		 */
 		function apply(ctx) {
 			installTitleInterceptor();
+			mountAssetsDrawer();
 			ctx.slots.inject("sidebar.brand.mark", () => ctx.slots.inject("sidebar.brand.name", () => ctx.slots.inject("conversation.hero.brand.mark", function* () {
 				yield ctx.slots.register({ name: "sidebar.brand.mark" }, TailingsBrandMark);
 				yield ctx.slots.register({ name: "sidebar.brand.name" }, TailingsBrandName);
