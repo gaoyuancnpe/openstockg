@@ -14,12 +14,16 @@ import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createAlertsEngine } from "../../../../desktop/engine.mjs";
+import { buildTransport, sendEmail, sendNotificationWebhook } from "../../../../desktop/engine/notification-domain.mjs";
+import { normalizeDesktopConfig } from "../../../../desktop/shared-config.mjs";
 import {
   getDataPathsFromBase,
   initializeDesktopStorage,
   loadDesktopConfig,
   loadDesktopEvents,
+  loadDesktopMarketAmvHistory,
   loadDesktopRules,
+  saveDesktopConfig,
   saveDesktopRules
 } from "../../../../desktop/main/data-store.mjs";
 
@@ -307,6 +311,145 @@ async function serveEvents(_req, res) {
   }
 }
 
+/* ───────── 设置与 0AMV ───────── */
+
+function describeConfigMasked(cfg) {
+  return {
+    dataProvider: cfg.dataProvider,
+    fmpApiKeySet: Boolean(String(cfg.fmpApiKey || "").trim()),
+    finnhubApiKeySet: Boolean(String(cfg.finnhubApiKey || "").trim()),
+    defaultEmailTo: cfg.defaultEmailTo || "",
+    emailUserSet: Boolean(String(cfg.email?.user || "").trim()),
+    defaultWebhookType: cfg.defaultWebhookType || "generic",
+    defaultWebhookUrlSet: Boolean(String(cfg.defaultWebhookUrl || "").trim()),
+    scheduler: {
+      mode: cfg.scheduler?.mode || "interval",
+      intervalSec: cfg.scheduler?.intervalSec ?? null,
+      dailyTime: cfg.scheduler?.dailyTime || "09:30",
+      weekdaysOnly: cfg.scheduler?.weekdaysOnly !== false
+    },
+    ai: {
+      orchestration: {
+        mode: cfg.ai?.orchestration?.mode || "agent_pipeline",
+        planner: cfg.ai?.orchestration?.planner || "role_pipeline",
+        validatorEnabled: cfg.ai?.orchestration?.validatorEnabled !== false,
+        maxSteps: cfg.ai?.orchestration?.maxSteps ?? 4
+      }
+    }
+  };
+}
+
+async function serveConfig(_req, res) {
+  try {
+    const cfg = await loadDesktopConfig(getOpenstockPaths());
+    replyJson(res, 200, describeConfigMasked(cfg));
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "配置读取失败" });
+  }
+}
+
+function deepMergePatch(target, patch) {
+  const next = { ...target };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value && typeof value === "object" && !Array.isArray(value)
+      && next[key] && typeof next[key] === "object" && !Array.isArray(next[key])) {
+      next[key] = deepMergePatch(next[key], value);
+    } else {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+
+const CONFIG_PATCHABLE_KEYS = new Set([
+  "fmpApiKey", "finnhubApiKey", "defaultEmailTo", "defaultWebhookType", "defaultWebhookUrl",
+  "email", "scheduler", "pollIntervalSec", "ai"
+]);
+
+async function serveConfigUpdate(req, res) {
+  try {
+    const body = await readJsonBody(req);
+    const patch = body.patch && typeof body.patch === "object" ? body.patch : {};
+    const illegal = Object.keys(patch).filter((key) => !CONFIG_PATCHABLE_KEYS.has(key));
+    if (illegal.length > 0) {
+      return replyJson(res, 400, { error: `面板仅允许改这些字段:${[...CONFIG_PATCHABLE_KEYS].join("/")};${illegal.join(",")} 不在其中` });
+    }
+    const paths = getOpenstockPaths();
+    const current = await loadDesktopConfig(paths);
+    const next = normalizeDesktopConfig(deepMergePatch(current, patch));
+    await saveDesktopConfig(paths, next);
+    replyJson(res, 200, { ok: true, config: describeConfigMasked(next) });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "配置更新失败" });
+  }
+}
+
+async function serveTestEmail(_req, res) {
+  try {
+    const paths = getOpenstockPaths();
+    const cfg = await loadDesktopConfig(paths);
+    const to = String(cfg.defaultEmailTo || "");
+    if (!to) return replyJson(res, 400, { error: "默认收件人未配置" });
+    if (!String(cfg.email?.user || "")) return replyJson(res, 400, { error: "发件邮箱(Gmail 账号)未配置" });
+    const transport = buildTransport(cfg.email);
+    await sendEmail(transport, {
+      fromUser: String(cfg.email.user || ""),
+      to,
+      subject: "OpenStock 面板测试邮件",
+      text: `这是来自资产区「设置」页签的测试邮件。\n时间: ${new Date().toISOString()}`
+    });
+    replyJson(res, 200, { ok: true, to: maskEmail(to) });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "测试邮件发送失败" });
+  }
+}
+
+async function serveTestWebhook(_req, res) {
+  try {
+    const paths = getOpenstockPaths();
+    const cfg = await loadDesktopConfig(paths);
+    const url = String(cfg.defaultWebhookUrl || "");
+    if (!url) return replyJson(res, 400, { error: "默认回调地址未配置" });
+    const result = await sendNotificationWebhook({
+      target: { type: String(cfg.defaultWebhookType || "generic"), url },
+      payload: { type: "panel_webhook_test", sentAt: new Date().toISOString() },
+      title: "OpenStock 面板测试回调",
+      lines: [`时间: ${new Date().toISOString()}`]
+    });
+    replyJson(res, 200, { ok: true, partsSent: result?.partsSent || 1 });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "测试回调发送失败" });
+  }
+}
+
+async function serveAmvHistory(_req, res) {
+  try {
+    const url = new URL(_req.url, "http://local");
+    const index = url.searchParams.get("index") || undefined;
+    const history = await loadDesktopMarketAmvHistory(getOpenstockPaths(), { index });
+    replyJson(res, 200, { count: history.length, history: history.slice(-60) });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "0AMV 历史读取失败" });
+  }
+}
+
+/* 0AMV 计算: 异步执行(全成分股扫描较慢),前端轮询 history 看结果 */
+async function serveAmvCompute(req, res) {
+  try {
+    const body = await readJsonBody(req);
+    const engine = await getEngine();
+    const cfg = await loadDesktopConfig(getOpenstockPaths());
+    if (!String(cfg.fmpApiKey || "").trim()) {
+      return replyJson(res, 400, { error: "FMP API Key 未配置,无法计算 0AMV" });
+    }
+    const index = ["sp500", "nasdaq", "all"].includes(body.index) ? body.index : "sp500";
+    replyJson(res, 202, { started: true, index });
+    engine.runMarketAmv({ index, limit: body.limit == null ? undefined : Number(body.limit), useFmp: true }).catch(() => {});
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "0AMV 计算启动失败" });
+  }
+}
+
 /* 静态资源路由: 精确路由优先于前端 dist 的 fallback 静态服务 */
 const STATIC_ROUTES = [
   ["/favicon.svg", join(PKG_ROOT, "favicon.svg"), "image/svg+xml"],
@@ -381,6 +524,12 @@ async function apply(ctx) {
   ctx.webServer.register({ kind: "exact", path: "/branding/api/scheduler", handler: serveScheduler });
   ctx.webServer.register({ kind: "exact", path: "/branding/api/run-once", handler: serveRunOnce });
   ctx.webServer.register({ kind: "exact", path: "/branding/api/events.json", handler: serveEvents });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/config.json", handler: serveConfig });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/config/update", handler: serveConfigUpdate });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/test-email", handler: serveTestEmail });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/test-webhook", handler: serveTestWebhook });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/amv/history.json", handler: serveAmvHistory });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/amv/compute", handler: serveAmvCompute });
 }
 
 export { apply, inject };

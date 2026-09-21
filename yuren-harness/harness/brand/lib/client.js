@@ -457,71 +457,106 @@ window.__ModuleLoader__.load({
 
 			const css = document.createElement("style");
 			css.textContent = [
-				"#yuren-assets-root{position:fixed;z-index:2147483000;inset:0 auto 0 0;pointer-events:none;font-size:13px}",
+				"#yuren-assets-root{position:fixed;z-index:2147483000;inset:0 auto 0 0;pointer-events:none;font-size:13px;",
+				"  --ya-border:color-mix(in srgb,var(--ya-fg) 16%,transparent);",
+				"  --ya-soft:color-mix(in srgb,var(--ya-fg) 7%,transparent);",
+				"  --ya-softer:color-mix(in srgb,var(--ya-fg) 4%,transparent);",
+				"  --ya-muted:color-mix(in srgb,var(--ya-fg) 55%,var(--ya-bg));",
+				"  --ya-accent:var(--dsw-alias-state-business-primary,#3b82f6);",
+				"  --ya-success:var(--dsw-alias-state-success-primary,#34d399);",
+				"  --ya-error:var(--dsw-alias-state-error-primary,#f87171);}",
 				"#yuren-assets-root *{box-sizing:border-box}",
 				".ya-tab{position:fixed;right:0;top:50%;transform:translateY(-50%);pointer-events:auto;cursor:pointer;",
-				"  writing-mode:vertical-rl;letter-spacing:4px;padding:14px 8px;border:1px solid rgba(255,255,255,.18);border-right:none;",
-				"  border-radius:8px 0 0 8px;background:rgba(28,29,34,.92);color:#d8d9de;font-size:12px;user-select:none;",
-				"  box-shadow:-2px 2px 10px rgba(0,0,0,.25);transition:background .15s}",
-				".ya-tab:hover{background:rgba(44,46,54,.96);color:#fff}",
+				"  writing-mode:vertical-rl;letter-spacing:4px;padding:14px 8px;border:1px solid var(--ya-border);border-right:none;",
+				"  border-radius:8px 0 0 8px;background:color-mix(in srgb,var(--ya-bg) 92%,transparent);color:var(--ya-muted);",
+				"  font-size:12px;user-select:none;box-shadow:-2px 2px 10px rgba(0,0,0,.18);transition:background .15s}",
+				".ya-tab:hover{background:var(--ya-soft);color:var(--ya-fg)}",
 				".ya-drawer{position:fixed;right:0;top:0;height:100vh;width:min(420px,94vw);pointer-events:auto;",
-				"  background:rgba(28,29,34,.985);color:#d8d9de;border-left:1px solid rgba(255,255,255,.14);",
-				"  box-shadow:-6px 0 24px rgba(0,0,0,.35);display:flex;flex-direction:column;",
-				"  transform:translateX(100%);transition:transform .22s ease}",
+				"  background:color-mix(in srgb,var(--ya-bg) 97%,transparent);color:var(--ya-fg);",
+				"  border-left:1px solid var(--ya-border);box-shadow:-6px 0 24px rgba(0,0,0,.25);",
+				"  display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease}",
 				".ya-drawer.open{transform:translateX(0)}",
-				".ya-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.1)}",
-				".ya-title{font-weight:600;color:#fff;flex:1}",
-				".ya-count{font-size:11px;color:#9a9ba3}",
-				".ya-btn{cursor:pointer;background:rgba(255,255,255,.08);color:#d8d9de;border:1px solid rgba(255,255,255,.14);",
+				".ya-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--ya-border)}",
+				".ya-title{font-weight:600;color:var(--ya-fg);flex:1}",
+				".ya-count{font-size:11px;color:var(--ya-muted)}",
+				".ya-btn{cursor:pointer;background:var(--ya-soft);color:var(--ya-fg);border:1px solid var(--ya-border);",
 				"  border-radius:6px;padding:4px 10px;font-size:12px}",
-				".ya-btn:hover{background:rgba(255,255,255,.14);color:#fff}",
-				".ya-btn.primary{background:rgba(64,120,220,.35);border-color:rgba(110,160,240,.5);color:#cfe0ff}",
-				".ya-btn.primary:hover{background:rgba(64,120,220,.5)}",
-				".ya-btn.danger:hover{background:rgba(200,70,70,.35);border-color:rgba(230,110,110,.5);color:#ffd9d9}",
+				".ya-btn:hover{background:color-mix(in srgb,var(--ya-fg) 12%,transparent)}",
+				".ya-btn.primary{background:color-mix(in srgb,var(--ya-accent) 22%,transparent);",
+				"  border-color:color-mix(in srgb,var(--ya-accent) 55%,transparent);color:var(--ya-accent)}",
+				".ya-btn.primary:hover{background:color-mix(in srgb,var(--ya-accent) 32%,transparent)}",
+				".ya-btn.danger:hover{background:color-mix(in srgb,var(--ya-error) 22%,transparent);",
+				"  border-color:color-mix(in srgb,var(--ya-error) 55%,transparent);color:var(--ya-error)}",
 				".ya-btn:disabled{opacity:.45;cursor:not-allowed}",
 				".ya-tabbar{display:flex;gap:4px;padding:8px 14px 0}",
 				".ya-tabbtn{flex:1;text-align:center;cursor:pointer;padding:6px 0;border-radius:6px 6px 0 0;font-size:12px;",
-				"  background:rgba(255,255,255,.04);color:#9a9ba3;border:1px solid transparent;border-bottom:none}",
-				".ya-tabbtn.active{background:rgba(255,255,255,.09);color:#fff;border-color:rgba(255,255,255,.14)}",
+				"  background:var(--ya-softer);color:var(--ya-muted);border:1px solid transparent;border-bottom:none}",
+				".ya-tabbtn.active{background:var(--ya-soft);color:var(--ya-fg);border-color:var(--ya-border)}",
 				".ya-body{flex:1;overflow-y:auto;padding:12px 14px;display:none}",
 				".ya-body.active{display:block}",
-				".ya-card{border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;margin-bottom:10px;",
-				"  background:rgba(255,255,255,.04);line-height:1.6}",
-				".ya-card-title{display:flex;align-items:center;gap:8px;font-weight:600;color:#fff;margin-bottom:8px}",
-				".ya-state{color:#9a9ba3;padding:20px 8px;text-align:center;line-height:1.7}",
+				".ya-card{border:1px solid var(--ya-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;",
+				"  background:var(--ya-softer);line-height:1.6}",
+				".ya-card-title{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--ya-fg);margin-bottom:8px}",
+				".ya-state{color:var(--ya-muted);padding:20px 8px;text-align:center;line-height:1.7}",
 				".ya-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}",
-				".ya-field{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#9a9ba3}",
+				".ya-field{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--ya-muted)}",
 				".ya-field.wide{grid-column:1 / -1}",
-				".ya-input{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.16);border-radius:6px;color:#e8e8ea;",
-				"  padding:5px 8px;font-size:12px;width:100%;outline:none}",
-				".ya-input:focus{border-color:rgba(110,160,240,.6)}",
-				".ya-check{display:flex;align-items:center;gap:6px;font-size:12px;color:#d8d9de;padding-top:14px}",
+				".ya-input{background:color-mix(in srgb,var(--ya-bg) 65%,var(--ya-soft));border:1px solid var(--ya-border);",
+				"  border-radius:6px;color:var(--ya-fg);padding:5px 8px;font-size:12px;width:100%;outline:none}",
+				".ya-input:focus{border-color:color-mix(in srgb,var(--ya-accent) 60%,transparent)}",
+				".ya-check{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ya-fg);padding-top:14px}",
 				".ya-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}",
-				".ya-card-name{display:flex;align-items:center;gap:8px;font-weight:600;color:#fff}",
+				".ya-card-name{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--ya-fg)}",
 				".ya-badge{font-size:10px;padding:1px 7px;border-radius:99px;font-weight:400}",
-				".ya-badge.on{background:rgba(56,178,122,.18);color:#5fd3a0;border:1px solid rgba(95,211,160,.4)}",
-				".ya-badge.off{background:rgba(255,255,255,.07);color:#8b8c94;border:1px solid rgba(255,255,255,.15)}",
-				".ya-row{margin-top:6px;font-size:12px;color:#b9bac1}",
-				".ya-k{color:#8b8c94;margin-right:6px}",
-				".ya-cond{display:inline-block;background:rgba(255,255,255,.06);border-radius:4px;padding:0 6px;margin:2px 4px 2px 0}",
-				".ya-switch{position:relative;width:34px;height:18px;border-radius:99px;background:rgba(255,255,255,.15);",
+				".ya-badge.on{background:color-mix(in srgb,var(--ya-success) 16%,transparent);color:var(--ya-success);",
+				"  border:1px solid color-mix(in srgb,var(--ya-success) 45%,transparent)}",
+				".ya-badge.off{background:var(--ya-soft);color:var(--ya-muted);border:1px solid var(--ya-border)}",
+				".ya-row{margin-top:6px;font-size:12px;color:color-mix(in srgb,var(--ya-fg) 85%,var(--ya-bg))}",
+				".ya-k{color:var(--ya-muted);margin-right:6px}",
+				".ya-cond{display:inline-block;background:var(--ya-soft);border-radius:4px;padding:0 6px;margin:2px 4px 2px 0}",
+				".ya-switch{position:relative;width:34px;height:18px;border-radius:99px;background:color-mix(in srgb,var(--ya-fg) 22%,transparent);",
 				"  cursor:pointer;transition:background .15s;flex-shrink:0}",
-				".ya-switch.on{background:rgba(56,178,122,.55)}",
+				".ya-switch.on{background:color-mix(in srgb,var(--ya-success) 55%,transparent)}",
 				".ya-switch::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;",
-				"  background:#d8d9de;transition:left .15s}",
+				"  background:var(--ya-bg);transition:left .15s}",
 				".ya-switch.on::after{left:18px}",
 				".ya-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}",
-				".ya-table th{color:#8b8c94;font-weight:500;text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.12)}",
-				".ya-table td{text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.06);color:#d8d9de}",
+				".ya-table th{color:var(--ya-muted);font-weight:500;text-align:right;padding:4px 6px;border-bottom:1px solid var(--ya-border)}",
+				".ya-table td{text-align:right;padding:4px 6px;border-bottom:1px solid var(--ya-softer);color:var(--ya-fg)}",
 				".ya-table th:first-child,.ya-table td:first-child{text-align:left}",
-				".ya-evt{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;line-height:1.55}",
-				".ya-evt-time{color:#8b8c94;font-size:11px;margin-right:6px}",
-				".ya-hint{font-size:11px;color:#8b8c94;margin-top:6px;line-height:1.6}",
+				".ya-evt{padding:6px 0;border-bottom:1px solid var(--ya-softer);font-size:12px;line-height:1.55}",
+				".ya-evt-time{color:var(--ya-muted);font-size:11px;margin-right:6px}",
+				".ya-hint{font-size:11px;color:var(--ya-muted);margin-top:6px;line-height:1.6}",
+				".ya-kv{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}",
+				".ya-kv .ya-k{margin:0}",
+				".ya-spark{width:100%;height:48px;margin-top:8px;display:block}",
 			].join("\n");
 			document.head.appendChild(css);
 
 			const root = document.createElement("div");
 			root.id = "yuren-assets-root";
+
+			/* 主题跟随:从宿主实时采样底色/文字色,语义色挂 dsw-alias 变量;明暗切换时重采样 */
+			function applyTheme() {
+				const bodyCs = getComputedStyle(document.body);
+				const htmlCs = getComputedStyle(document.documentElement);
+				const pick = (...values) => {
+					for (const value of values) {
+						if (value && value !== "rgba(0, 0, 0, 0)" && value !== "transparent") return value;
+					}
+					return null;
+				};
+				const dark = document.body.hasAttribute("data-ds-dark-theme");
+				const bg = pick(bodyCs.backgroundColor, htmlCs.backgroundColor, dark ? "#151517" : "#ffffff");
+				const fg = pick(bodyCs.color, dark ? "#f9fafb" : "#0f1115");
+				root.style.setProperty("--ya-bg", bg);
+				root.style.setProperty("--ya-fg", fg);
+			}
+			applyTheme();
+			new MutationObserver(applyTheme).observe(document.body, {
+				attributes: true,
+				attributeFilter: ["data-ds-dark-theme", "class", "style"]
+			});
 
 			const tab = document.createElement("div");
 			tab.className = "ya-tab";
@@ -540,6 +575,7 @@ window.__ModuleLoader__.load({
 				'<div class="ya-tabbar">',
 				'  <div class="ya-tabbtn active" data-tab="main">筛选与规则</div>',
 				'  <div class="ya-tabbtn" data-tab="run">运行</div>',
+				'  <div class="ya-tabbtn" data-tab="settings">设置</div>',
 				'</div>',
 				'<div class="ya-body active" data-body="main">',
 				'  <div class="ya-card">',
@@ -559,7 +595,7 @@ window.__ModuleLoader__.load({
 				'      <button class="ya-btn primary ya-scan-run">立即筛选</button>',
 				'      <button class="ya-btn ya-scan-save">存为规则</button>',
 				'    </div>',
-				'    <div class="ya-savebox hidden" style="display:none;margin-top:10px;border-top:1px dashed rgba(255,255,255,.15);padding-top:10px">',
+				'    <div class="ya-savebox" style="display:none;margin-top:10px;border-top:1px dashed var(--ya-border);padding-top:10px">',
 				'      <div class="ya-grid">',
 				'        <label class="ya-field wide">规则名称<input class="ya-input" data-s="name" placeholder="如 放量新高观察"></label>',
 				'        <label class="ya-field">冷却(秒)<input class="ya-input" data-s="cooldownSec" type="number" value="86400"></label>',
@@ -572,7 +608,7 @@ window.__ModuleLoader__.load({
 				'    </div>',
 				'  </div>',
 				'  <div class="ya-card ya-results" style="display:none">',
-				'    <div class="ya-card-title">筛选结果<span class="ya-res-count" style="font-weight:400;color:#9a9ba3;font-size:11px"></span></div>',
+				'    <div class="ya-card-title">筛选结果<span class="ya-res-count" style="font-weight:400;color:var(--ya-muted);font-size:11px"></span></div>',
 				'    <div class="ya-res-body"></div>',
 				'  </div>',
 				'  <div class="ya-rules-section"></div>',
@@ -585,7 +621,7 @@ window.__ModuleLoader__.load({
 				'      <button class="ya-btn primary ya-sched-start">启动调度</button>',
 				'      <button class="ya-btn ya-sched-stop">停止调度</button>',
 				'    </div>',
-				'    <div class="ya-hint">调度随本实例进程常驻:实例停止时调度一并停止。</div>',
+				'    <div class="ya-hint">调度随本实例进程常驻:实例停止时调度一并停止;间隔在「设置」页签调整。</div>',
 				'  </div>',
 				'  <div class="ya-card">',
 				'    <div class="ya-card-title">手动运行</div>',
@@ -595,6 +631,56 @@ window.__ModuleLoader__.load({
 				'  <div class="ya-card">',
 				'    <div class="ya-card-title">最近事件</div>',
 				'    <div class="ya-events"></div>',
+				'  </div>',
+				'</div>',
+				'<div class="ya-body" data-body="settings">',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">数据源</div>',
+				'    <div class="ya-kv"><span class="ya-k">FMP API Key</span><span class="ya-fmp-state">读取中…</span></div>',
+				'    <label class="ya-field" style="margin-top:6px">填入新 Key(留空=不修改)',
+				'      <input class="ya-input" data-c="fmpApiKey" type="password" placeholder="FMP_API_KEY" autocomplete="off"></label>',
+				'    <div class="ya-actions"><button class="ya-btn primary ya-cfg-save" data-patch="fmp">保存 Key</button></div>',
+				'    <div class="ya-hint">用于筛选、财报筛选与 0AMV 计算;读取侧永远脱敏。</div>',
+				'  </div>',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">通知</div>',
+				'    <label class="ya-field wide">默认收件邮箱<input class="ya-input" data-c="defaultEmailTo" placeholder="you@example.com"></label>',
+				'    <div class="ya-grid" style="margin-top:8px">',
+				'      <label class="ya-field">回调类型<select class="ya-input" data-c="defaultWebhookType">',
+				'        <option value="generic">通用 Webhook</option><option value="feishu">飞书机器人</option></select></label>',
+				'      <label class="ya-field">回调地址<input class="ya-input" data-c="defaultWebhookUrl" placeholder="https://…(留空=不改)"></label>',
+				'    </div>',
+				'    <div class="ya-actions">',
+				'      <button class="ya-btn primary ya-cfg-save" data-patch="notify">保存通知配置</button>',
+				'      <button class="ya-btn ya-test-email">测试邮件</button>',
+				'      <button class="ya-btn ya-test-webhook">测试回调</button>',
+				'    </div>',
+				'    <div class="ya-hint">邮件还需在 Gmail 发件账号配置(邮箱+应用专用密码);当前仅面板按钮与规则命中会用到通知。</div>',
+				'  </div>',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">调度</div>',
+				'    <div class="ya-grid">',
+				'      <label class="ya-field">间隔(秒)<input class="ya-input" data-c="intervalSec" type="number" placeholder="60"></label>',
+				'    </div>',
+				'    <div class="ya-actions"><button class="ya-btn primary ya-cfg-save" data-patch="scheduler">保存调度设置</button></div>',
+				'    <div class="ya-hint">保存后需在「运行」页签重新启动调度才会按新间隔执行。</div>',
+				'  </div>',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">AI 编排</div>',
+				'    <div class="ya-grid">',
+				'      <label class="ya-field">协作模式<select class="ya-input" data-c="aiMode">',
+				'        <option value="agent_pipeline">智能体协作</option><option value="single_task">单任务(旧)</option></select></label>',
+				'      <label class="ya-check"><input type="checkbox" data-c="aiValidator">校验器复核</label>',
+				'    </div>',
+				'    <div class="ya-actions"><button class="ya-btn primary ya-cfg-save" data-patch="ai">保存 AI 设置</button></div>',
+				'    <div class="ya-hint">作用于智能体的「生成规则」类结构化任务。</div>',
+				'  </div>',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">0AMV 活跃市值 <span style="font-weight:400;font-size:11px;color:var(--ya-muted)">S&P500</span>',
+				'      <button class="ya-btn ya-amv-run" style="margin-left:auto">计算</button></div>',
+				'    <div class="ya-amv-state ya-state">读取中…</div>',
+				'    <svg class="ya-spark" viewBox="0 0 300 48" preserveAspectRatio="none"></svg>',
+				'    <div class="ya-hint">衡量全市场活跃资金参与度;计算依赖 FMP Key,结果带 24 小时缓存。</div>',
 				'  </div>',
 				'</div>'
 			].join("");
@@ -838,7 +924,7 @@ window.__ModuleLoader__.load({
 						return;
 					}
 					el.className = "ya-sched-state";
-					el.style.color = s.isRunning ? "#5fd3a0" : "#9a9ba3";
+					el.style.color = s.isRunning ? "var(--ya-success)" : "var(--ya-muted)";
 					el.textContent = s.isRunning
 						? `运行中 · ${s.mode === "daily" ? `每日 ${s.dailyTime || "-"}${s.weekdaysOnly ? "(工作日)" : ""}` : `每 ${s.intervalSec ?? "-"} 秒`}`
 						: "已停止";
@@ -870,6 +956,79 @@ window.__ModuleLoader__.load({
 				}
 			}
 
+			async function loadConfig() {
+				try {
+					const cfg = await api("/branding/api/config.json");
+					const fmpState = body.querySelector(".ya-fmp-state");
+					fmpState.textContent = cfg.fmpApiKeySet ? "已配置" : "未配置";
+					fmpState.style.color = cfg.fmpApiKeySet ? "var(--ya-success)" : "var(--ya-error)";
+					const setIfEmpty = (k, v) => {
+						const el = body.querySelector(`[data-c="${k}"]`);
+						if (el && (k === "defaultWebhookUrl" || k === "fmpApiKey")) {
+							if (v) el.placeholder = k === "fmpApiKey" ? "已配置,留空=不修改" : "已配置,留空=不改";
+							return;
+						}
+						if (el && !el.value && v != null) el.value = String(v);
+					};
+					setIfEmpty("defaultEmailTo", cfg.defaultEmailTo);
+					setIfEmpty("intervalSec", cfg.scheduler?.intervalSec);
+					const typeSel = body.querySelector('[data-c="defaultWebhookType"]');
+					if (typeSel) typeSel.value = cfg.defaultWebhookType || "generic";
+					const modeSel = body.querySelector('[data-c="aiMode"]');
+					if (modeSel) modeSel.value = cfg.ai?.orchestration?.mode || "agent_pipeline";
+					const valChk = body.querySelector('[data-c="aiValidator"]');
+					if (valChk) valChk.checked = cfg.ai?.orchestration?.validatorEnabled !== false;
+				} catch (error) {
+					window.alert(`配置读取失败:${error.message}`);
+				}
+			}
+
+			async function saveConfigPatch(patch) {
+				try {
+					await api("/branding/api/config/update", { patch });
+					await loadConfig();
+				} catch (error) {
+					window.alert(`保存失败:${error.message}`);
+				}
+			}
+
+			function renderSpark(values) {
+				const svg = body.querySelector(".ya-spark");
+				svg.innerHTML = "";
+				if (!values || values.length < 2) return;
+				const min = Math.min(...values);
+				const max = Math.max(...values);
+				const span = max - min || 1;
+				const points = values.map((v, i) => {
+					const x = (i / (values.length - 1)) * 300;
+					const y = 44 - ((v - min) / span) * 40;
+					return `${x.toFixed(1)},${y.toFixed(1)}`;
+				});
+				svg.innerHTML =
+					`<polyline points="${points.join(" ")}" fill="none" stroke="var(--ya-accent)" stroke-width="1.5"/>`;
+			}
+
+			async function loadAmv() {
+				const el = body.querySelector(".ya-amv-state");
+				try {
+					const data = await api("/branding/api/amv/history.json?index=sp500");
+					const list = data.history || [];
+					renderSpark(list.map((h) => Number(h.value)).filter(Number.isFinite));
+					if (!list.length) {
+						el.textContent = "还没有数据,点「计算」生成。";
+						return;
+					}
+					const last = list[list.length - 1];
+					el.className = "ya-amv-state";
+					el.innerHTML =
+						`<div class="ya-kv"><span class="ya-k">最新值</span><span>${escapeAssetsHtml(formatNum(last.value))} 百万$</span></div>` +
+						`<div class="ya-kv"><span class="ya-k">日期</span><span>${escapeAssetsHtml(String(last.date || "-"))}</span></div>` +
+						`<div class="ya-kv"><span class="ya-k">样本数</span><span>${escapeAssetsHtml(formatNum(last.sampleCount))}</span></div>`;
+				} catch (error) {
+					el.textContent = `读取失败:${error.message}`;
+				}
+			}
+
 			let open = false;
 			let activeTab = "main";
 
@@ -881,6 +1040,7 @@ window.__ModuleLoader__.load({
 
 			function refreshActiveTab() {
 				if (activeTab === "main") loadRules();
+				else if (activeTab === "settings") { loadConfig(); loadAmv(); }
 				else { loadScheduler(); loadEvents(); }
 			}
 
@@ -971,6 +1131,89 @@ window.__ModuleLoader__.load({
 					window.alert(`启动失败:${error.message}`);
 					btn.disabled = false;
 					btn.textContent = "现在跑一次(模拟)";
+				}
+			});
+
+			body.querySelectorAll(".ya-cfg-save").forEach((btn) => {
+				btn.addEventListener("click", async () => {
+					const kind = btn.dataset.patch;
+					const val = (k) => String(body.querySelector(`[data-c="${k}"]`)?.value || "").trim();
+					if (kind === "fmp") {
+						const key = val("fmpApiKey");
+						if (!key) return window.alert("请先填入新 Key");
+						await saveConfigPatch({ fmpApiKey: key });
+						body.querySelector('[data-c="fmpApiKey"]').value = "";
+					} else if (kind === "notify") {
+						const patch = {};
+						if (val("defaultEmailTo")) patch.defaultEmailTo = val("defaultEmailTo");
+						patch.defaultWebhookType = body.querySelector('[data-c="defaultWebhookType"]')?.value || "generic";
+						if (val("defaultWebhookUrl")) patch.defaultWebhookUrl = val("defaultWebhookUrl");
+						await saveConfigPatch(patch);
+					} else if (kind === "scheduler") {
+						const interval = Number(val("intervalSec"));
+						if (!Number.isFinite(interval) || interval < 10) return window.alert("间隔至少 10 秒");
+						await saveConfigPatch({ scheduler: { intervalSec: interval } });
+					} else if (kind === "ai") {
+						await saveConfigPatch({
+							ai: {
+								orchestration: {
+									mode: body.querySelector('[data-c="aiMode"]')?.value || "agent_pipeline",
+									validatorEnabled: body.querySelector('[data-c="aiValidator"]')?.checked !== false
+								}
+							}
+						});
+					}
+				});
+			});
+
+			body.querySelector(".ya-test-email").addEventListener("click", async (event) => {
+				const btn = event.target;
+				btn.disabled = true;
+				btn.textContent = "发送中…";
+				try {
+					await api("/branding/api/test-email", {});
+					window.alert("测试邮件已发出,注意查收(含垃圾箱)。");
+				} catch (error) {
+					window.alert(`测试邮件失败:${error.message}`);
+				} finally {
+					btn.disabled = false;
+					btn.textContent = "测试邮件";
+				}
+			});
+			body.querySelector(".ya-test-webhook").addEventListener("click", async (event) => {
+				const btn = event.target;
+				btn.disabled = true;
+				btn.textContent = "发送中…";
+				try {
+					await api("/branding/api/test-webhook", {});
+					window.alert("测试回调已发出。");
+				} catch (error) {
+					window.alert(`测试回调失败:${error.message}`);
+				} finally {
+					btn.disabled = false;
+					btn.textContent = "测试回调";
+				}
+			});
+			body.querySelector(".ya-amv-run").addEventListener("click", async (event) => {
+				const btn = event.target;
+				btn.disabled = true;
+				btn.textContent = "计算中…";
+				try {
+					await api("/branding/api/amv/compute", { index: "sp500" });
+					let polls = 0;
+					const timer = setInterval(async () => {
+						polls += 1;
+						await loadAmv();
+						if (polls >= 15) {
+							clearInterval(timer);
+							btn.disabled = false;
+							btn.textContent = "计算";
+						}
+					}, 4000);
+				} catch (error) {
+					window.alert(`0AMV 启动失败:${error.message}`);
+					btn.disabled = false;
+					btn.textContent = "计算";
 				}
 			});
 		}
