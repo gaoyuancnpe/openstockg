@@ -124,7 +124,9 @@ function generatePatch(D) {
   const tpl = fs.readFileSync(path.join(HARNESS, 'cordis.template.yml'), 'utf8');
   let text = tpl
     .replaceAll('{{BRAND_PKG}}', brandPkg)
-    .replaceAll('{{MEMORY_SCRIPT}}', memoryScript || 'MEMORY_SCRIPT_MISSING');
+    .replaceAll('{{MEMORY_SCRIPT}}', memoryScript || 'MEMORY_SCRIPT_MISSING')
+    // 沙箱可写根 = 实例 workspace 目录,而非程序目录
+    .replaceAll('{{WORKSPACE_ROOT}}', path.join(D, 'workspace'));
   if (!memoryScript) {
     log('警告: 未找到 @modelcontextprotocol/server-memory,记忆 MCP 将不可用(npm install 了吗?)');
   }
@@ -242,8 +244,10 @@ async function main() {
 
   log(`启动 dsh: ${bin} ${args.join(' ')}`);
   // Linux 下 detached+进程组,退出时整组清理(连带 MCP 子进程)
+  // DSH_PERMISSION_MODE 钉死 workspace-write:即使补丁行被误删,默认也回落到工作区写而非全开
   const child = spawn(process.execPath, [bin, ...args], {
-    stdio: ['ignore', 'inherit', 'inherit'], detached: true, env: { ...process.env },
+    stdio: ['ignore', 'inherit', 'inherit'], detached: true,
+    env: { ...process.env, DSH_PERMISSION_MODE: 'workspace-write' },
   });
   const killAll = () => {
     try { process.kill(-child.pid, 'SIGTERM'); } catch { /* 已退出 */ }

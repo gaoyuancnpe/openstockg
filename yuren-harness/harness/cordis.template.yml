@@ -36,6 +36,33 @@
     #     command: 'python3'
     #     args: ['-m', 'uv', 'run', '/abs/path/harness/mcp-servers/example_server.py']
 
+# ── 权限收紧(多实例门户硬约束) ──────────────────────────────────────────
+# 预设表删除 danger-full-access,会话只能 read-only / workspace-write;
+# 沙箱可写根固定为实例 workspace 目录(默认是程序目录 cwd,必须钉死);
+# 审批策略恒为 ask。占位符 WORKSPACE_ROOT 由 serve.js 按实例填充。
+- id: sandbox-policy
+  name: '@deepseek-ai/dsh-sandbox-policy'
+  config:
+    mode: workspace-write
+    workspaceRoot: '{{WORKSPACE_ROOT}}'
+
+- id: approval
+  name: '@deepseek-ai/dsh-user-approval'
+  config:
+    policy: ask
+
+- id: permission
+  name: '@deepseek-ai/dsh-permission-presets'
+  config:
+    defaultPreset: workspace-write
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: ask
+      workspace-write:
+        sandbox: workspace-write
+        approval: ask
+
 # 品牌替换: 禁用默认品牌行,接入本地品牌插件(标题/图标/侧栏标识/首启引导)
 - id: ui-brand-official
   disabled: true
