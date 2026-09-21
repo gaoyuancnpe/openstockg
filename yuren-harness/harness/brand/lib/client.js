@@ -575,6 +575,7 @@ window.__ModuleLoader__.load({
 				'<div class="ya-tabbar">',
 				'  <div class="ya-tabbtn active" data-tab="main">筛选与规则</div>',
 				'  <div class="ya-tabbtn" data-tab="run">运行</div>',
+				'  <div class="ya-tabbtn" data-tab="amv">0AMV</div>',
 				'  <div class="ya-tabbtn" data-tab="settings">设置</div>',
 				'</div>',
 				'<div class="ya-body active" data-body="main">',
@@ -675,12 +676,19 @@ window.__ModuleLoader__.load({
 				'    <div class="ya-actions"><button class="ya-btn primary ya-cfg-save" data-patch="ai">保存 AI 设置</button></div>',
 				'    <div class="ya-hint">作用于智能体的「生成规则」类结构化任务。</div>',
 				'  </div>',
+				'</div>',
+				'<div class="ya-body" data-body="amv">',
 				'  <div class="ya-card">',
-				'    <div class="ya-card-title">0AMV 活跃市值 <span style="font-weight:400;font-size:11px;color:var(--ya-muted)">S&P500</span>',
-				'      <button class="ya-btn ya-amv-run" style="margin-left:auto">计算</button></div>',
+				'    <div class="ya-card-title">0AMV 活跃市值',
+				'      <select class="ya-input ya-amv-index" style="width:auto;margin-left:auto">',
+				'        <option value="sp500">S&P500</option>',
+				'        <option value="nasdaq">纳斯达克</option>',
+				'        <option value="all">全市场</option>',
+				'      </select></div>',
 				'    <div class="ya-amv-state ya-state">读取中…</div>',
 				'    <svg class="ya-spark" viewBox="0 0 300 48" preserveAspectRatio="none"></svg>',
-				'    <div class="ya-hint">衡量全市场活跃资金参与度;计算依赖 FMP Key,结果带 24 小时缓存。</div>',
+				'    <div class="ya-actions"><button class="ya-btn primary ya-amv-run">计算最新 0AMV</button></div>',
+				'    <div class="ya-hint">0AMV = 样本股 10 日均量 × 最新收盘价之和,衡量活跃资金参与度;计算依赖 FMP Key,结果带 24 小时缓存,走势取最近 60 个点。</div>',
 				'  </div>',
 				'</div>'
 			].join("");
@@ -1011,7 +1019,8 @@ window.__ModuleLoader__.load({
 			async function loadAmv() {
 				const el = body.querySelector(".ya-amv-state");
 				try {
-					const data = await api("/branding/api/amv/history.json?index=sp500");
+					const amvIndex = body.querySelector(".ya-amv-index")?.value || "sp500";
+					const data = await api(`/branding/api/amv/history.json?index=${encodeURIComponent(amvIndex)}`);
 					const list = data.history || [];
 					renderSpark(list.map((h) => Number(h.value)).filter(Number.isFinite));
 					if (!list.length) {
@@ -1040,7 +1049,8 @@ window.__ModuleLoader__.load({
 
 			function refreshActiveTab() {
 				if (activeTab === "main") loadRules();
-				else if (activeTab === "settings") { loadConfig(); loadAmv(); }
+				else if (activeTab === "settings") loadConfig();
+				else if (activeTab === "amv") loadAmv();
 				else { loadScheduler(); loadEvents(); }
 			}
 
@@ -1194,12 +1204,13 @@ window.__ModuleLoader__.load({
 					btn.textContent = "测试回调";
 				}
 			});
+			body.querySelector(".ya-amv-index")?.addEventListener("change", () => loadAmv());
 			body.querySelector(".ya-amv-run").addEventListener("click", async (event) => {
 				const btn = event.target;
 				btn.disabled = true;
 				btn.textContent = "计算中…";
 				try {
-					await api("/branding/api/amv/compute", { index: "sp500" });
+					await api("/branding/api/amv/compute", { index: body.querySelector(".ya-amv-index")?.value || "sp500" });
 					let polls = 0;
 					const timer = setInterval(async () => {
 						polls += 1;
