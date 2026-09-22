@@ -8,7 +8,7 @@
  *     而 client-modules 扫描器用 require.resolve(仅接受 Windows 路径),二者互斥,
  *     所以浏览器半通过 tapIndex 注入 boot 图 + 自定义路由提供。
  */
-import { readFile, appendFile } from "node:fs/promises";
+import { readFile, appendFile, writeFile, rename } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -23,6 +23,7 @@ import {
   loadDesktopEvents,
   loadDesktopMarketAmvHistory,
   loadDesktopRules,
+  readJSON,
   saveDesktopConfig,
   saveDesktopRules
 } from "../../../../desktop/main/data-store.mjs";
@@ -129,6 +130,39 @@ function getOpenstockPaths() {
 async function persistEngineEvent(event) {
   const paths = getOpenstockPaths();
   await appendFile(paths.events, `${JSON.stringify(event)}\n`, "utf-8").catch(() => {});
+  // 诊断落盘(镜像桌面端 main.mjs):Web/MCP 部署没有 Electron,MCP 的 get_status
+  // 与面板状态全靠 diagnostics.json,不写就永远是 null。
+  // 注意:调度启停/运行会连发事件,读-合-写必须串行化 + 原子换名,否则并发写会写花文件
+  if (event?.type === "run_status" || event?.type === "scheduler_status") {
+    enqueueDiagnosticsWrite(paths, event);
+  }
+}
+
+let diagnosticsWriteQueue = Promise.resolve();
+function enqueueDiagnosticsWrite(paths, event) {
+  const task = async () => {
+    try {
+      const current = await readJSON(paths.diagnostics, {});
+      const base = current && typeof current === "object" ? current : {};
+      const next = event.type === "run_status"
+        ? {
+          ...base,
+          lastRun: event,
+          scheduler: {
+            ...(base.scheduler && typeof base.scheduler === "object" ? base.scheduler : {}),
+            lastRunAt: event.phase === "finished"
+              ? String(event.finishedAt || new Date().toISOString())
+              : String(base.scheduler?.lastRunAt || "")
+          },
+          updatedAt: new Date().toISOString()
+        }
+        : { ...base, scheduler: event, updatedAt: new Date().toISOString() };
+      const tmp = `${paths.diagnostics}.brand.tmp`;
+      await writeFile(tmp, JSON.stringify(next, null, 2), "utf-8");
+      await rename(tmp, paths.diagnostics);
+    } catch { /* 诊断失败不阻塞事件流 */ }
+  };
+  diagnosticsWriteQueue = diagnosticsWriteQueue.then(task, task);
 }
 
 async function getEngine() {
@@ -271,15 +305,28 @@ async function serveStatus(_req, res) {
   }
 }
 
+/** 调度意图落盘:CI 每次部署都会重启服务,autoStart 让"已启动"状态跨重启存活 */
+async function setSchedulerAutoStart(enabled) {
+  const paths = getOpenstockPaths();
+  const current = await loadDesktopConfig(paths);
+  const next = normalizeDesktopConfig({
+    ...current,
+    scheduler: { ...(current?.scheduler || {}), autoStart: Boolean(enabled) }
+  });
+  await saveDesktopConfig(paths, next);
+}
+
 async function serveScheduler(req, res) {
   try {
     const body = await readJsonBody(req);
     const engine = await getEngine();
     if (body.action === "start") {
+      await setSchedulerAutoStart(true);
       const status = await engine.start();
       return replyJson(res, 200, { ok: true, scheduler: status || engine.getSchedulerStatus() });
     }
     if (body.action === "stop") {
+      await setSchedulerAutoStart(false);
       const status = engine.stop();
       return replyJson(res, 200, { ok: true, scheduler: status || engine.getSchedulerStatus() });
     }
@@ -532,6 +579,19 @@ async function apply(ctx) {
   ctx.webServer.register({ kind: "exact", path: "/branding/api/test-webhook", handler: serveTestWebhook });
   ctx.webServer.register({ kind: "exact", path: "/branding/api/amv/history.json", handler: serveAmvHistory });
   ctx.webServer.register({ kind: "exact", path: "/branding/api/amv/compute", handler: serveAmvCompute });
+
+  // 自启恢复:服务(CI 部署)重启后,若调度意图为开启则自动拉起,避免"静默停摆"
+  getEngine().then(async (engine) => {
+    try {
+      const cfg = await loadDesktopConfig(getOpenstockPaths());
+      if (cfg.scheduler?.autoStart) {
+        await engine.start();
+        console.log("[yuren-brand] 调度器已按 autoStart 自启恢复");
+      }
+    } catch (error) {
+      console.error("[yuren-brand] 调度器自启失败:", error?.message || error);
+    }
+  }).catch(() => { /* 引擎惰性初始化,失败留给首次请求时重试 */ });
 }
 
 export { apply, inject };
