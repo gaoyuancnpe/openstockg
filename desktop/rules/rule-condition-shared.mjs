@@ -40,3 +40,32 @@ export function conditionTypeNeedsValue(type) {
     normalizedType === "operating_outlook_improved_proxy"
   );
 }
+
+/** UI 形状全部受支持的 condition 类型(MCP add_rule 归一化校验用,拒绝未知类型落入 price>=0 兜底) */
+export const UI_CONDITION_TYPES = [
+  "active_chips_above",
+  "amv_above",
+  "market_0amv_above",
+  "market_0amv_sp500_above",
+  "market_0amv_nasdaq_above",
+  "price_above",
+  "price_below",
+  "change_above",
+  "change_below",
+  "cross_above_sma20",
+  "cross_below_sma20",
+  "rsi_above",
+  "rsi_below",
+  "volume_ratio_above",
+  "market_cap_above",
+  "turnover_m_above",
+  "recent_5d_close_ath",
+  "close_ath_250d",
+  "close_change_percent_1d_above",
+  "earnings_within_1_trading_day",
+  "revenue_growth_yoy_above",
+  "ebitda_m_above",
+  "profit_growth_yoy_above",
+  "revenue_growth_yoy_delta_vs_prev_quarter_above",
+  "operating_outlook_improved_proxy"
+];

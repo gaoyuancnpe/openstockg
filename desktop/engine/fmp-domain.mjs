@@ -21,6 +21,13 @@ import {
   fmpProfile
 } from "./providers.mjs";
 
+/** universe_fmp_default.json -> universe_fmp_default_mc2000.json(按市值门槛分缓存文件) */
+function perThresholdCachePath(basePath, minMarketCapM) {
+  if (!basePath) return null;
+  const value = Number.isFinite(Number(minMarketCapM)) ? Number(minMarketCapM) : 0;
+  return String(basePath).replace(/\.json$/, `_mc${Math.round(value)}.json`);
+}
+
 export async function loadUniverseUS({ dataPaths, baseUrl, apiKey, force, maxAgeDays, log, provider }) {
   const filePath = dataPaths?.universeUS;
   const maxAgeMs = (Number.isFinite(maxAgeDays) ? maxAgeDays : 7) * 86400 * 1000;
@@ -62,7 +69,8 @@ export async function loadUniverseUS({ dataPaths, baseUrl, apiKey, force, maxAge
 }
 
 export async function loadFmpDefaultUniverse({ dataPaths, baseUrl, apiKey, force, maxAgeDays, log, minMarketCapM }) {
-  const filePath = dataPaths?.universeFmpDefault || dataPaths?.universeUS;
+  // 缓存按门槛分文件:同一轮内不同 minMarketCap 的规则若共用一个文件,会互相击穿缓存重复全量拉取
+  const filePath = perThresholdCachePath(dataPaths?.universeFmpDefault || dataPaths?.universeUS, minMarketCapM);
   const maxAgeMs = (Number.isFinite(maxAgeDays) ? maxAgeDays : 1) * 86400 * 1000;
   const now = nowMs();
   const minMarketCap = Number.isFinite(Number(minMarketCapM)) ? Number(minMarketCapM) : 10000;
@@ -115,7 +123,7 @@ export async function loadFmpDefaultUniverse({ dataPaths, baseUrl, apiKey, force
 }
 
 export async function loadFmpFinancialUniverse({ dataPaths, baseUrl, apiKey, force, maxAgeDays, log, minMarketCapM }) {
-  const filePath = dataPaths?.universeFmpFinancial || dataPaths?.universeUS;
+  const filePath = perThresholdCachePath(dataPaths?.universeFmpFinancial || dataPaths?.universeUS, minMarketCapM);
   const maxAgeMs = (Number.isFinite(maxAgeDays) ? maxAgeDays : 1) * 86400 * 1000;
   const now = nowMs();
   const minMarketCap = Number.isFinite(Number(minMarketCapM)) ? Number(minMarketCapM) : 0;

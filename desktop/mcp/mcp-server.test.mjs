@@ -131,6 +131,41 @@ try {
   assert(rulesNow.total === 1 && rulesNow.rules[0].name === "MCP 测试规则", "list_rules 应返回新增规则");
   assert(rulesNow.rules[0].symbols[0] === "AAPL", "规则快照应带 symbols");
 
+  // UI 形状 conditions[] 应被归一化成引擎 condition 树(否则会造出永不触发的死规则)
+  const savedRules = JSON.parse(await readFile(path.join(baseDir, "rules.json"), "utf-8"));
+  const savedRule = (Array.isArray(savedRules) ? savedRules : savedRules.rules || [])[0];
+  assert(savedRule?.condition?.left?.var === "price" && savedRule?.condition?.op === ">=", "UI 形状应转换为引擎 condition 树");
+  assert(Array.isArray(savedRule?.ui?.items) && savedRule.ui.items[0].type === "price_above", "转换后应保留 ui.items 供面板渲染");
+
+  // 引擎形状 condition 树应原样收下
+  const engineShape = parseToolText(await request("tools/call", {
+    name: "add_rule",
+    arguments: {
+      rule: {
+        name: "引擎形状规则",
+        enabled: true,
+        symbols: ["MSFT"],
+        condition: { op: ">=", left: { var: "marketCap" }, right: 10000 },
+        cooldownSec: 3600
+      }
+    }
+  }));
+  assert(engineShape.ok === true && engineShape.total === 2, "引擎形状 condition 应原样收下");
+
+  // 无任何有效条件 → 拒收
+  const deadRule = await request("tools/call", {
+    name: "add_rule",
+    arguments: { rule: { name: "死规则", enabled: true, symbols: [] } }
+  });
+  assert(deadRule.result?.isError === true, "缺 condition/conditions 的规则应拒收");
+
+  // 未知条件类型 → 拒收(不得回落 price>=0 全市场兜底)
+  const badType = await request("tools/call", {
+    name: "add_rule",
+    arguments: { rule: { name: "坏类型", enabled: true, conditions: [{ type: "not_a_real_type", value: 1 }] } }
+  });
+  assert(badType.result?.isError === true, "未知条件类型应拒收");
+
   // ---------- 4. 配置脱敏 ----------
   section("配置脱敏与补丁");
   const updated = parseToolText(await request("tools/call", {

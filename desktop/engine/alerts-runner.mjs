@@ -97,7 +97,8 @@ export function createAlertsRunner({
     ignoreCooldown,
     state,
     runtime,
-    marketAmv
+    marketAmv,
+    warnings
   }) {
     const { fmpBaseUrl, fmpApiKey, transport, fromUser, defaultEmailTo, defaultWebhookType, defaultWebhookUrl } = runtime;
     const ruleName = rule.name || "未命名规则";
@@ -164,6 +165,10 @@ export function createAlertsRunner({
       const scanCount = Number.isFinite(maxScan) ? maxScan : 2000;
       fmpRows = list.slice(0, Math.min(list.length, scanCount));
       log(`规则 ${ruleName}：FMP 候选池 ${list.length} 支（按市值从高到低，来源=${meta.source}），本轮固定扫描前 ${fmpRows.length} 支`);
+      // 静默截断是陷阱:门槛低于前 scanCount 名市值的标的永远不被评估,必须显式提醒
+      if (Array.isArray(warnings) && list.length > scanCount) {
+        warnings.push(`规则 ${ruleName}：候选池 ${list.length} 支 > maxScan ${scanCount}，仅评估市值前 ${fmpRows.length} 支——低市值标的永远不会被扫描，请调大 maxScan 或收窄门槛`);
+      }
     } else {
       fmpRows = manualSymbols.map((symbol) => ({ symbol, marketCap: null }));
       log(`规则 ${ruleName}：手动标的 ${fmpRows.length} 支`);
@@ -598,6 +603,8 @@ export function createAlertsRunner({
       let completedRules = 0;
       let failedRules = 0;
       const failedRuleNames = [];
+      const failedRuleErrors = [];
+      const runWarnings = [];
 
       let marketAmv = null;
       let marketAmvSp500 = null;
@@ -658,7 +665,7 @@ export function createAlertsRunner({
               log(`规则完成：${rule.name || "未命名规则"}（已跳过）`);
               continue;
             }
-            await runFmpRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv });
+            await runFmpRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv, warnings: runWarnings });
             completedRules += 1;
             log(`规则完成：${rule.name || "未命名规则"}`);
             continue;
@@ -669,8 +676,12 @@ export function createAlertsRunner({
           log(`规则完成：${rule.name || "未命名规则"}`);
         } catch (ruleError) {
           failedRules += 1;
-          failedRuleNames.push(rule.name || "未命名规则");
-          log(`规则失败：${rule.name || "未命名规则"} -> ${ruleError instanceof Error ? ruleError.message : String(ruleError)}`);
+          const ruleName = rule.name || "未命名规则";
+          const errorMessage = ruleError instanceof Error ? ruleError.message : String(ruleError);
+          failedRuleNames.push(ruleName);
+          // 错误摘要随事件落盘:MCP 模式 log 只进 stderr,事件流是唯一可追溯载体
+          failedRuleErrors.push({ name: ruleName, error: errorMessage.slice(0, 300) });
+          log(`规则失败：${ruleName} -> ${errorMessage}`);
         }
       }
 
@@ -692,7 +703,9 @@ export function createAlertsRunner({
           totalRules: rules.length,
           completedRules,
           failedRules,
-          failedRuleNames
+          failedRuleNames,
+          failedRuleErrors,
+          warnings: runWarnings
         });
       }
       log(`${dryRun ? "dry-run" : "执行"}完成`);

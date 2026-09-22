@@ -3,6 +3,11 @@ import { createAlertsEngine } from "../engine.mjs";
 import { buildRuleSnapshot, maskSensitive } from "../agent/agent-tools.mjs";
 import { normalizeDesktopConfig } from "../shared-config.mjs";
 import {
+  UI_CONDITION_TYPES,
+  conditionFromUI,
+  conditionTypeNeedsValue
+} from "../rules/rule-condition-shared.mjs";
+import {
   initializeDesktopStorage,
   loadDesktopConfig,
   loadDesktopEvents,
@@ -28,6 +33,56 @@ function clampRows(rows, max = MAX_ROWS) {
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isEngineCondition(condition) {
+  if (!isPlainObject(condition) || typeof condition.op !== "string") return false;
+  const hasArgs = Array.isArray(condition.args) && condition.args.length > 0;
+  // right 既可以是字面量(数字/字符串),也可以是 {var:...}
+  const hasLeftRight = isPlainObject(condition.left) && condition.right !== undefined;
+  return hasArgs || hasLeftRight;
+}
+
+/**
+ * 把入参规则归一成引擎可执行形状。
+ * 引擎只读 rule.condition(单数);若原样收下 UI 形状 conditions[],会得到
+ * collectVars=空集 + evaluate=null 的"永不触发的死规则"且不报错——这里强制二选一:
+ *  - 引擎形状 condition 树:原样收下
+ *  - UI 形状 conditions[](类型必须全部受支持,未知类型显式拒绝而非回落 price>=0)
+ * 两者皆缺/皆无效:抛错拒收。
+ */
+function normalizeRuleForEngine(rule) {
+  if (isEngineCondition(rule?.condition)) {
+    return { ...rule };
+  }
+  const items = Array.isArray(rule?.conditions) ? rule.conditions.filter(Boolean) : [];
+  if (items.length === 0) {
+    throw new Error(
+      "规则缺少有效条件：请提供引擎形状的 condition 树（{op:'and',args:[{op:'>=',left:{var:'marketCap'},right:10000}]}），"
+      + "或非空 conditions[] 数组（自动转换）。拒绝创建永不触发的空条件规则。"
+    );
+  }
+  const unknown = items
+    .filter((item) => !UI_CONDITION_TYPES.includes(String(item?.type)))
+    .map((item) => String(item?.type));
+  if (unknown.length > 0) {
+    throw new Error(`conditions 含未知类型：${unknown.join("、")}。受支持类型见 rule-condition-shared 的 UI_CONDITION_TYPES。`);
+  }
+  const groupOp = rule.groupOp === "or" ? "or" : "and";
+  const args = items.map((item) => {
+    const type = String(item.type);
+    return conditionFromUI(type, conditionTypeNeedsValue(type) ? item.value : 0);
+  });
+  const next = {
+    ...rule,
+    condition: args.length === 1 ? args[0] : { op: groupOp, args },
+    ui: isPlainObject(rule.ui)
+      ? rule.ui
+      : { groupOp, items: items.map((item) => ({ type: String(item.type), value: item.value ?? null })) }
+  };
+  delete next.conditions;
+  delete next.groupOp;
+  return next;
 }
 
 function deepMergePatch(target, patch) {
@@ -105,11 +160,14 @@ export function createMcpToolRegistry({ dataPaths, log }) {
     },
     {
       name: "add_rule",
-      description: "追加一条提醒规则。字段结构与桌面端 rules.json 一致：name/enabled/symbols/universe/conditions/groupOp/cooldownSec/notify。",
+      description: "追加一条提醒规则（自动归一化：UI 形状 conditions[] 会转成引擎 condition 树；两者皆缺会拒收，不会造出永不触发的死规则）。",
       inputSchema: {
         type: "object",
         properties: {
-          rule: { type: "object", description: "规则对象，例如 {\"name\":\"新高提醒\",\"enabled\":true,\"symbols\":[\"AAPL\"],\"conditions\":[{\"type\":\"price_above\",\"value\":200}],\"cooldownSec\":86400}" }
+          rule: {
+            type: "object",
+            description: "规则对象。推荐引擎形状：{\"name\":\"新高提醒\",\"enabled\":true,\"symbols\":[\"AAPL\"],\"condition\":{\"op\":\"and\",\"args\":[{\"op\":\">=\",\"left\":{\"var\":\"price\"},\"right\":200}]},\"cooldownSec\":86400}；也接受 UI 形状：{\"conditions\":[{\"type\":\"price_above\",\"value\":200}]}（自动转换）"
+          }
         },
         required: ["rule"]
       },
@@ -118,15 +176,16 @@ export function createMcpToolRegistry({ dataPaths, log }) {
         if (!isPlainObject(rule)) {
           throw new Error("rule 必须是对象");
         }
+        const normalized = normalizeRuleForEngine(rule);
         const rules = await loadDesktopRules(dataPaths);
-        const next = [...rules, rule];
+        const next = [...rules, normalized];
         await saveDesktopRules(dataPaths, next);
-        return { ok: true, total: next.length, added: buildRuleSnapshot(rule) };
+        return { ok: true, total: next.length, added: buildRuleSnapshot(normalized) };
       }
     },
     {
       name: "save_rules",
-      description: "全量替换规则列表（与桌面端保存规则等价）。会整体覆盖，先 list_rules 再改再保存。",
+      description: "全量替换规则列表（与桌面端保存规则等价，逐条归一化：condition 树原样，conditions[] 自动转换，无效拒收）。会整体覆盖，先 list_rules 再改再保存。",
       inputSchema: {
         type: "object",
         properties: {
@@ -139,8 +198,14 @@ export function createMcpToolRegistry({ dataPaths, log }) {
         if (!Array.isArray(rules)) {
           throw new Error("rules 必须是数组");
         }
-        await saveDesktopRules(dataPaths, rules);
-        return { ok: true, total: rules.length };
+        const normalized = rules.map((rule, index) => {
+          if (!isPlainObject(rule)) {
+            throw new Error(`rules[${index}] 必须是对象`);
+          }
+          return normalizeRuleForEngine(rule);
+        });
+        await saveDesktopRules(dataPaths, normalized);
+        return { ok: true, total: normalized.length };
       }
     },
     {
