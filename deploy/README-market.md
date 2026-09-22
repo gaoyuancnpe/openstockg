@@ -7,7 +7,7 @@
              ▼
        127.0.0.1:3080  yuren-market.service(node serve.js)
              ├─ dsh web(补丁:权限锁死 + openstock MCP + memory MCP)
-             └─ 数据 ~/.yuren-instances/market(实例完全隔离)
+             └─ 数据 /srv/yuren/market-data(实例完全隔离)
 ```
 
 为什么不用域名:省掉 DNS、证书签发与续期、SSO 父域 Cookie 三件事。
@@ -61,8 +61,8 @@ curl -s -o /dev/null -w "带令牌 %{http_code}(期望 302)\n" http://$SERVER_IP
 ## 4. 密钥(可选,免首启网页配置)
 
 ```bash
-sudo -u yuren mkdir -p ~/.yuren-instances/market/provision
-sudo -u yuren tee ~/.yuren-instances/market/provision/profile.yaml << 'EOF'
+sudo -u yuren mkdir -p /srv/yuren/market-data/provision
+sudo -u yuren tee /srv/yuren/market-data/provision/profile.yaml << 'EOF'
 --- settings ---
 --- credentials ---
 FMP_API_KEY: <fmp key>
@@ -85,8 +85,8 @@ echo -n "http://<服务器IP>:<MARKET_PORT>/<MARKET_TOKEN>" | base64 -w0
 
 ## 6. 运维备忘
 
-- 日志:`journalctl -u yuren-market -f`;实例日志 `~/.yuren-instances/market/serve.log`
-- 备份:整目录 `~/.yuren-instances/market`
+- 日志:`journalctl -u yuren-market -f`(systemd 模式下 stdout 全进 journal;`serve.log` 仅本地 instance.sh 模式产生)
+- 备份:整目录 `/srv/yuren/market-data`(配置/规则/会话/密钥全在里面)
 - **令牌轮换**:`openssl rand -hex 16` → 同步改服务器 conf(nginx -s reload)与门户常量(重新部署门户)→ 浏览器清 Cookie 或重新走令牌 URL
 - 调度:资产区「运行」页签启停,随 systemd 常驻
 - 多实例:新 systemd 单元(YUREN_INSTANCE=<name> + 新端口 + 新 vhost)

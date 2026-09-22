@@ -1,5 +1,5 @@
 # market 行情智能体实例(Yuren Harness,dsh web):127.0.0.1:3080
-# 数据目录 ~/.yuren-instances/market(yuren 用户),密钥可经 provision 预置。
+# 数据目录 /srv/yuren/market-data(yuren 用户;实例模式 + 显式 DATA_DIR),密钥可经 provision 预置。
 # 安全:仅监听 127.0.0.1,唯一对外入口是 nginx(裸 IP + 端口 + 令牌换 Cookie,
 #       见 deploy/nginx-market-ip.conf);权限已在补丁层锁死(仅工作区读写,
 #       danger-full-access 不存在)。
@@ -15,6 +15,10 @@ Group=yuren
 WorkingDirectory=/srv/yuren/market/yuren-harness/web
 Environment=NODE_ENV=production
 Environment=YUREN_INSTANCE=market
+# 数据目录显式落在 /srv/yuren:单元启用了 ProtectHome=read-only,
+# 家目录(~/.yuren-instances 默认路径与 OpenStock 数据目录)不可写,必须外移
+Environment=YUREN_DATA_DIR=/srv/yuren/market-data
+Environment=OPENSTOCK_USER_DATA_DIR=/srv/yuren/market-data/openstock
 Environment=YUREN_HOST=127.0.0.1
 Environment=YUREN_PORT=3080
 # dsh /api 浏览器信任域:页面经 http://<服务器IP>:<MARKET_PORT> 直连访问时必须加上(含端口)
