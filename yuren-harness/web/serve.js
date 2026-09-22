@@ -238,7 +238,14 @@ async function main() {
   const host = process.env.YUREN_HOST || '127.0.0.1';
   const port = process.env.YUREN_PORT || '3080';
   const args = ['web', '--patch', patch, '--no-open', '--host', host, '--port', port];
+  // dsh 的 --trusted-host 为逐字匹配;nginx 的 $host 会剥掉端口(Host: 1.2.3.4 ≠ 1.2.3.4:39876),
+  // 因此每个带端口的条目同时补一份不带端口的形态,两种反代写法都放行
+  const trusted = new Set();
   for (const h of (process.env.YUREN_TRUSTED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+    trusted.add(h);
+    trusted.add(h.replace(/:\d+$/, ''));
+  }
+  for (const h of trusted) {
     args.push('--trusted-host', h);
   }
 
