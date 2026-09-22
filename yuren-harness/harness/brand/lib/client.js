@@ -1239,7 +1239,23 @@ window.__ModuleLoader__.load({
 		 * 填充品牌插槽、覆盖首页标语,并注册自由配置引导步骤。
 		 * @param ctx - 客户端根上下文。
 		 */
+		/* HTTP 裸 IP 直连 = 非安全上下文,浏览器不提供 crypto.randomUUID,
+		 * dsh 设置页的提供方目录依赖它直接崩;等价 polyfill(getRandomValues
+		 * 在非安全上下文可用)。装在品牌插件 apply 最前,先于一切业务模块。 */
+		function installRandomUUIDPolyfill() {
+			if (typeof crypto === "undefined" || typeof crypto.randomUUID === "function") return;
+			crypto.randomUUID = () => {
+				const bytes = new Uint8Array(16);
+				crypto.getRandomValues(bytes);
+				bytes[6] = (bytes[6] & 0x0f) | 0x40;
+				bytes[8] = (bytes[8] & 0x3f) | 0x80;
+				const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+				return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+			};
+		}
+
 		function apply(ctx) {
+			installRandomUUIDPolyfill();
 			installTitleInterceptor();
 			mountAssetsDrawer();
 			ctx.slots.inject("sidebar.brand.mark", () => ctx.slots.inject("sidebar.brand.name", () => ctx.slots.inject("conversation.hero.brand.mark", function* () {
