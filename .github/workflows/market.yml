@@ -30,7 +30,11 @@ jobs:
             set -e
             cd /srv/yuren/market
             git pull --ff-only
-            sudo systemctl restart yuren-market
-            sleep 6
-            curl -sf http://127.0.0.1:3080/ -o /dev/null
+            # 与 sudoers 白名单逐字匹配,勿加/减 .service 后缀
+            sudo systemctl restart yuren-market.service
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              sleep 2
+              curl -sf http://127.0.0.1:3080/ -o /dev/null && break
+              [ "$i" = 10 ] && { echo "健康检查失败: http://127.0.0.1:3080/ 无响应"; exit 1; }
+            done
             echo "market 部署完成,实例健康 http://127.0.0.1:3080/"
