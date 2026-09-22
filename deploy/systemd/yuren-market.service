@@ -1,7 +1,8 @@
 # market 行情智能体实例(Yuren Harness,dsh web):127.0.0.1:3080
 # 数据目录 ~/.yuren-instances/market(yuren 用户),密钥可经 provision 预置。
-# 安全:仅监听 127.0.0.1,唯一对外入口是 nginx(auth_request 验签);
-#       权限已在补丁层锁死(仅工作区读写,danger-full-access 不存在)。
+# 安全:仅监听 127.0.0.1,唯一对外入口是 nginx(裸 IP + 端口 + 令牌换 Cookie,
+#       见 deploy/nginx-market-ip.conf);权限已在补丁层锁死(仅工作区读写,
+#       danger-full-access 不存在)。
 [Unit]
 Description=yuren market agent instance (Yuren Harness, 127.0.0.1:3080)
 After=network-online.target
@@ -16,8 +17,8 @@ Environment=NODE_ENV=production
 Environment=YUREN_INSTANCE=market
 Environment=YUREN_HOST=127.0.0.1
 Environment=YUREN_PORT=3080
-# dsh /api 浏览器信任域:页面经 https://market.<主域名> 访问时必须加上
-Environment=YUREN_TRUSTED_HOSTS=market.PLACEHOLDER_DOMAIN
+# dsh /api 浏览器信任域:页面经 http://<服务器IP>:<MARKET_PORT> 直连访问时必须加上(含端口)
+Environment=YUREN_TRUSTED_HOSTS=<SERVER_IP>:<MARKET_PORT>
 ExecStart=/usr/bin/node serve.js
 Restart=always
 RestartSec=3
