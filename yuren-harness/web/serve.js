@@ -57,41 +57,14 @@ function pick(root, rel) {
   return fs.existsSync(p) ? p : null;
 }
 
-/* ---------- dsh 反代信任补丁(幂等) ----------
- * dsh-client-connection 对 PRIVILEGED_METHODS(agentPreset/settings/credentials 等)
- * 与 Origin 比对只认 loopback:经反代访问(Host 为公网 IP)时,设置页/Agent 预设会整页 403。
- * 这里把判定信任集扩展到显式配置的受信主机:loopback 直连行为不变;
- * 公网入口本就有 nginx token cookie 网关挡着,不新增暴露面。
- * dsh 升级导致锚点失配时跳过并告警,退回原生行为(仅表现为远程设置页 403,无安全风险)。 */
+/* ---------- dsh 反代信任补丁 ----------
+ * 完整实现见 patch-dsh-trust.cjs(可独立运行)。服务器上仓库属 deploy、服务以 yuren
+ * 运行,本进程无权改写 node_modules——CI 会在 SSH 会话里预打补丁;这里的调用只是
+ * 本地开发(自己拥有文件)时的兜底,失败仅告警。 */
 function patchDshClientConnection(trustedHosts) {
   if (!trustedHosts.length) return;
-  const file = pick(dshRoot(), ['@deepseek-ai', 'dsh-client-connection', 'lib', 'index.js']);
-  if (!file) { log('告警: 未找到 dsh-client-connection,跳过反代信任补丁'); return; }
-  let src = fs.readFileSync(file, 'utf8');
-  if (src.includes('yuren-trusted-proxy')) return; // 已打过
-  const aFn = 'function isTrustedApiRequest(request, trustedHosts) {';
-  const aPriv = 'PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, [])';
-  const aOrigin = 'return new URL(origin).host === hostUrl.host;';
-  if (!src.includes(aFn) || !src.includes(aPriv) || !src.includes(aOrigin)) {
-    log('告警: dsh-client-connection 与预期结构不符,跳过反代信任补丁(远程设置页可能 403)');
-    return;
-  }
-  const next = src
-    .replace(aFn, '/* yuren-trusted-proxy */const YUREN_API_TRUST=(process.env.YUREN_TRUSTED_API_HOSTS||"").split(",").map((s)=>s.trim()).filter(Boolean);\n' + aFn)
-    .replace(aPriv, 'PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, YUREN_API_TRUST)')
-    .replace(aOrigin, 'const yurenOrigin=new URL(origin);return yurenOrigin.host===hostUrl.host||isTrustedAuthority(yurenOrigin,YUREN_API_TRUST);');
-  const check = path.join(path.dirname(file), '.yuren-patch-check.mjs');
-  try {
-    fs.writeFileSync(check, next, 'utf8');
-    const r = spawnSync(process.execPath, ['--check', check], { encoding: 'utf8' });
-    if (r.status !== 0) throw new Error((r.stderr || '').split('\n').slice(0, 3).join(' '));
-    writeFileAtomic(file, next);
-    log('已应用反代信任补丁: 受信主机可调用设置/预设等特权接口');
-  } catch (e) {
-    log(`告警: 反代信任补丁校验失败,保持原样 | ${e.message}`);
-  } finally {
-    try { fs.unlinkSync(check); } catch { /* 临时文件不存在 */ }
-  }
+  const { applyDshTrustPatch } = require('./patch-dsh-trust.cjs');
+  applyDshTrustPatch({ dshRoot: dshRoot(), trustedHosts, log });
 }
 
 /* ---------- 原子写 ---------- */

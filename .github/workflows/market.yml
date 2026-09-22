@@ -31,7 +31,7 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
       - name: rsync 同步代码(排除依赖与 .git)
         run: rsync -az --delete --exclude='.git' --exclude='node_modules' ./ deploy@${{ secrets.SERVER_HOST }}:/srv/yuren/market/
-      - name: SSH 重启 + 健康检查
+      - name: SSH 补丁 + 重启 + 健康检查
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -39,6 +39,11 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -e
+            # dsh 特权接口默认仅 loopback,先以 deploy 身份打好反代信任补丁再重启
+            # (受信主机清单从 systemd 单元读取,与运行配置同源)
+            cd /srv/yuren/market/yuren-harness/web
+            export YUREN_TRUSTED_HOSTS="$(systemctl show yuren-market -p Environment | grep -oE 'YUREN_TRUSTED_HOSTS=[^ ]+' | cut -d= -f2-)"
+            node patch-dsh-trust.cjs
             # 与 sudoers 白名单逐字匹配,勿加/减 .service 后缀
             sudo systemctl restart yuren-market.service
             for i in 1 2 3 4 5 6 7 8 9 10; do
