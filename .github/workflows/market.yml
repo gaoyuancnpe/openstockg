@@ -1,11 +1,13 @@
 name: market
 
-# market 实例自动部署:推 main(涉及 harness/desktop/deploy)即 SSH 到服务器
-# git pull + 重启 yuren-market + 健康检查;与主仓 yurenweb 的 CI 部署模式一致。
+# market 实例自动部署:runner 主动 rsync 推代码到服务器,再 SSH 重启 + 健康检查。
+# 方向与 yurenweb 的 CI 一致(runner→服务器);不走服务器 git pull,因为国内云到 github 时断时通。
 # 首次使用前需一次性服务器准备(见 deploy/README-market.md「CI 自动部署」节):
 #   sudo chown -R deploy:deploy /srv/yuren/market
 #   echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart yuren-market.service' \
 #     | sudo tee /etc/sudoers.d/deploy-market && sudo chmod 440 /etc/sudoers.d/deploy-market
+# 注意:node_modules 与 .git 不在同步范围(依赖由服务器自装);若依赖清单变化,
+# 需在服务器 yuren-harness/web 下执行一次 npm install。
 
 on:
   push:
@@ -20,7 +22,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH 部署(git pull + 重启 + 健康检查)
+      - uses: actions/checkout@v4
+      - name: 装载部署密钥
+        run: |
+          install -m 600 /dev/null ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+      - name: rsync 同步代码(排除依赖与 .git)
+        run: rsync -az --delete --exclude='.git' --exclude='node_modules' ./ deploy@${{ secrets.SERVER_HOST }}:/srv/yuren/market/
+      - name: SSH 重启 + 健康检查
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -28,10 +38,6 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -e
-            cd /srv/yuren/market
-            # 国内服务器到 github 时好时坏:低速(<1KB/s)20秒即中断,共两次机会
-            pull() { git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 pull --ff-only; }
-            pull || { echo "拉取失败/停滞,10秒后重试"; sleep 10; pull; }
             # 与 sudoers 白名单逐字匹配,勿加/减 .service 后缀
             sudo systemctl restart yuren-market.service
             for i in 1 2 3 4 5 6 7 8 9 10; do
