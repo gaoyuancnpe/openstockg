@@ -25,7 +25,7 @@
         transport: stdio
         command: 'node'
         args:
-          - '/home/gaoyuan/projects/yuren-markets/desktop/mcp/mcp-server.mjs'
+          - '{{OPENSTOCK_MCP}}'
 
     # ── 领域 MCP 示例(python/uv 方式,服务器需 python3 + uv):
     # - id: mcp-mydomain

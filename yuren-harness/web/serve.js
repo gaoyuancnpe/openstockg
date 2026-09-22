@@ -81,9 +81,14 @@ function ensureDataDir() {
     fs.mkdirSync(path.join(D, sub), { recursive: true });
   }
   const agentsDst = path.join(D, 'AGENTS.md');
-  if (!fs.existsSync(agentsDst)) {
-    try { fs.copyFileSync(path.join(ROOT, 'AGENTS.md'), agentsDst); }
-    catch (e) { log(`AGENTS.md 副本跳过: ${e.message}`); }
+  // 不存在,或仍是未改写的模板(含 {{ 占位符)→ 种入/升级;用户改写过的副本不动
+  const needsSeed = !fs.existsSync(agentsDst)
+    || fs.readFileSync(agentsDst, 'utf8').includes('{{');
+  if (needsSeed) {
+    try {
+      fs.copyFileSync(path.join(ROOT, 'AGENTS.md'), agentsDst);
+      log('AGENTS.md 已种入/升级(检测到未替换的模板占位符)');
+    } catch (e) { log(`AGENTS.md 副本跳过: ${e.message}`); }
   }
   syncSkills(D);
   return D;
@@ -135,6 +140,9 @@ function generatePatch(D) {
   let text = tpl
     .replaceAll('{{BRAND_PKG}}', brandPkg)
     .replaceAll('{{MEMORY_SCRIPT}}', memoryScript || 'MEMORY_SCRIPT_MISSING')
+    // 领域 MCP 按仓库根解析(harness 的上一级),本地/服务器不用各改一份
+    .replaceAll('{{OPENSTOCK_MCP}}',
+      path.join(ROOT, '..', 'desktop', 'mcp', 'mcp-server.mjs'))
     // 沙箱可写根 = 实例 workspace 目录,而非程序目录
     .replaceAll('{{WORKSPACE_ROOT}}', path.join(D, 'workspace'));
   if (!memoryScript) {

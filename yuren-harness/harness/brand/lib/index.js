@@ -76,8 +76,10 @@ function describeRule(rule) {
     name: String(rule?.name || "未命名规则"),
     enabled: Boolean(rule?.enabled),
     universe,
-    groupOp: String(rule?.groupOp || "and"),
-    conditions: Array.isArray(rule?.conditions) ? rule.conditions : [],
+    groupOp: String(rule?.groupOp || rule?.ui?.groupOp || "and"),
+    // 兼容两种落盘形状:UI 形状顶层 conditions;引擎形状收在 ui.items
+    conditions: Array.isArray(rule?.conditions) ? rule.conditions
+      : Array.isArray(rule?.ui?.items) ? rule.ui.items : [],
     cooldownSec: rule?.cooldownSec ?? null,
     notify: rule?.notify
       ? {
