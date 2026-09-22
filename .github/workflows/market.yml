@@ -29,7 +29,9 @@ jobs:
           script: |
             set -e
             cd /srv/yuren/market
-            git pull --ff-only
+            # 国内服务器到 github 时好时坏:低速(<1KB/s)20秒即中断,共两次机会
+            pull() { git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 pull --ff-only; }
+            pull || { echo "拉取失败/停滞,10秒后重试"; sleep 10; pull; }
             # 与 sudoers 白名单逐字匹配,勿加/减 .service 后缀
             sudo systemctl restart yuren-market.service
             for i in 1 2 3 4 5 6 7 8 9 10; do
