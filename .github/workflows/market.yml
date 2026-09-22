@@ -1,0 +1,36 @@
+name: market
+
+# market 实例自动部署:推 main(涉及 harness/desktop/deploy)即 SSH 到服务器
+# git pull + 重启 yuren-market + 健康检查;与主仓 yurenweb 的 CI 部署模式一致。
+# 首次使用前需一次性服务器准备(见 deploy/README-market.md「CI 自动部署」节):
+#   sudo chown -R deploy:deploy /srv/yuren/market
+#   echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart yuren-market.service' \
+#     | sudo tee /etc/sudoers.d/deploy-market && sudo chmod 440 /etc/sudoers.d/deploy-market
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'yuren-harness/**'
+      - 'desktop/**'
+      - 'deploy/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH 部署(git pull + 重启 + 健康检查)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /srv/yuren/market
+            git pull --ff-only
+            sudo systemctl restart yuren-market
+            sleep 6
+            curl -sf http://127.0.0.1:3080/ -o /dev/null
+            echo "market 部署完成,实例健康 http://127.0.0.1:3080/"
