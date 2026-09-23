@@ -101,7 +101,7 @@ try {
     "list_rules", "get_config", "update_config", "add_rule", "save_rules",
     "run_screener", "run_financial_screener", "run_rules_once",
     "get_status", "get_recent_events", "get_amv_history", "compute_amv",
-    "get_quote", "get_financials", "get_price_history", "get_earnings_calendar", "get_peers"
+    "get_quote", "get_financials", "get_price_history", "get_earnings_calendar", "get_peers", "backtest_rule"
   ];
   for (const name of expectedTools) {
     assert(toolNames.includes(name), `工具清单应包含 ${name}`);
@@ -227,6 +227,11 @@ try {
   assert(noKeyHist.result?.isError === true, "无 Key 时 get_price_history 应报错");
   const noKeyPeers = await request("tools/call", { name: "get_peers", arguments: { symbol: "AAPL" } });
   assert(noKeyPeers.result?.isError === true, "无 Key 时 get_peers 应报错");
+  const btNoCond = await request("tools/call", { name: "backtest_rule", arguments: { symbols: ["AAPL"] } });
+  assert(btNoCond.result?.isError === true, "backtest_rule 缺条件应拒收");
+  const btBadVar = await request("tools/call", { name: "backtest_rule", arguments: { symbols: ["AAPL"], condition: { op: ">=", left: { var: "market0amvSp500" }, right: 1 } } });
+  const btBadVarText = String(btBadVar.result?.content?.[0]?.text || "");
+  assert(btBadVar.result?.isError === true && btBadVarText.includes("暂不支持"), "backtest_rule 不支持的变量应明确拒绝");
 
   // ---------- 8. AI 包装工具已移除 ----------
   section("AI 包装工具已移除");

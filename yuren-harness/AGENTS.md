@@ -1,4 +1,4 @@
-<!-- yuren-agents: v4 -->
+<!-- yuren-agents: v5 -->
 
 # 禹人行情 — 工作守则(美股行情研究)
 
@@ -21,6 +21,7 @@
 | 未来谁发财报 | `get_earnings_calendar`（未来 1-30 天财报日历，含预期值） |
 | 找标的/盯条件（价格、市值、涨跌幅、新高、换手） | `run_screener`（手动 symbol 列表或全市场）→ 命中标的汇总 → 需要持续跟踪时 `add_rule` 建规则 |
 | 财报过滤（营收增速/毛利率/EBITDA/现金流/负债） | `run_financial_screener`（走 FMP Premium 字段，慢，maxScan 控制 30–100） |
+| 这规则历史上灵不灵 | `backtest_rule`(规则名或临时条件 + 1-10 个代码,回看 1-5 年) → 触发次数 + 触发后 1/5/20 日胜率,先于实盘验证再上规则 |
 | 跑一轮规则检查 | `get_status` 看现场 → `run_rules_once`(dry_run=true) 展示命中 → 用户确认后 dry_run=false 真发通知 |
 | 大盘活跃度 | `compute_amv` / `get_amv_history`（标普/纳指/全量） |
 | 0AMV/筛选/财报相关配置 | `get_config` 查看（密钥永远脱敏）→ 指引用户在面板填 Key 或经 `update_config` 写入 |
@@ -39,6 +40,7 @@
 | 工具 | 用途 |
 |---|---|
 | `mcp__openstock__get_quote` / `get_financials` / `get_price_history` / `get_earnings_calendar` / `get_peers` | 个股研究五件套：快照 / 业绩+估值全貌 / 走势 / 财报日历 / 同业对比 |
+| `mcp__openstock__backtest_rule` | 规则历史回测(事件研究)：触发次数与前向收益,与实盘同求值器 |
 | `mcp__openstock__run_screener` / `run_financial_screener` | 行情/财报筛选 |
 | `mcp__openstock__list_rules` / `add_rule` / `save_rules` | 规则管理 |
 | `mcp__openstock__run_rules_once` | 一轮规则检查（默认 dry_run） |

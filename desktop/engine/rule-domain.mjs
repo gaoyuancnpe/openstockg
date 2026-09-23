@@ -439,7 +439,7 @@ export function summarizeCondition(node) {
   return stableStringify(node);
 }
 
-function collectVars(node, out = new Set()) {
+export function collectVars(node, out = new Set()) {
   if (!node || typeof node !== "object") return out;
   if (node.var) out.add(String(node.var));
   if (node.prev?.var) out.add(`prev.${String(node.prev.var)}`);

@@ -9,6 +9,7 @@ import {
   getEarningsCalendarReport,
   getPeersReport
 } from "../engine/research-service.mjs";
+import { backtestRule } from "../engine/backtest-service.mjs";
 import {
   UI_CONDITION_TYPES,
   conditionFromUI,
@@ -417,6 +418,34 @@ export function createMcpToolRegistry({ dataPaths, log }) {
       handler: async ({ symbol } = {}) => {
         await ensureContext();
         return await getPeersReport({ config: await loadDesktopConfig(dataPaths), symbol });
+      }
+    },
+    {
+      name: "backtest_rule",
+      description: "规则回测(事件研究)：把盯盘规则放到历史上逐日评估，统计触发次数与触发后 1/5/20 日前向收益(胜率/均值)。与实盘用同一求值器；基本面变量按财报生效日 point-in-time 对齐，无未来函数。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ruleName: { type: "string", description: "现有规则名(与 ruleName 二选一)；先 list_rules 确认" },
+          condition: { type: "object", description: "临时条件树(与 ruleName 二选一)，例如 {\"op\":\">=\",\"left\":{\"var\":\"rsi14\"},\"right\":70}" },
+          symbols: { type: "array", items: { type: "string" }, description: "回测标的，1-10 个代码(不跑全市场)" },
+          years: { type: "number", default: 2, description: "回看年数，1-5" }
+        },
+        required: ["symbols"]
+      },
+      handler: async ({ ruleName, condition, symbols, years } = {}) => {
+        await ensureContext();
+        if (!ruleName && !condition) {
+          throw new Error("ruleName 与 condition 至少给一个");
+        }
+        return await backtestRule({
+          dataPaths,
+          config: await loadDesktopConfig(dataPaths),
+          ruleName,
+          condition,
+          symbols,
+          years
+        });
       }
     },
     {
