@@ -63,8 +63,13 @@ function pick(root, rel) {
  * 本地开发(自己拥有文件)时的兜底,失败仅告警。 */
 function patchDshClientConnection(trustedHosts) {
   if (!trustedHosts.length) return;
-  const { applyDshTrustPatch } = require('./patch-dsh-trust.cjs');
-  applyDshTrustPatch({ dshRoot: dshRoot(), trustedHosts, log });
+  try {
+    const { applyDshTrustPatch } = require('./patch-dsh-trust.cjs');
+    applyDshTrustPatch({ dshRoot: dshRoot(), trustedHosts, log });
+  } catch (e) {
+    // 服务器上目录属 deploy、服务以 yuren 运行:运行时兜底失败只告警,绝不让服务死掉
+    log(`告警: 运行时反代信任补丁跳过(${e.code || e.message});CI 部署期已由 deploy 身份打好`);
+  }
 }
 
 /* ---------- 原子写 ---------- */

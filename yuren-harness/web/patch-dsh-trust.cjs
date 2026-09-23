@@ -28,6 +28,10 @@ function syntaxOk(file, code) {
     fs.writeFileSync(check, code, 'utf8');
     const r = spawnSync(process.execPath, ['--check', check], { encoding: 'utf8' });
     return r.status === 0 ? '' : (r.stderr || '').split('\n').slice(0, 3).join(' ');
+  } catch (e) {
+    // 无写权限(如服务器上服务用户 yuren × 目录属主 deploy):返回错误而不是抛出,
+    // 运行时兜底路径必须永不致命——CI 期才是权威打补丁时机
+    return `无法写入校验文件(${e.code || e.message});若在服务器上属预期,补丁由 CI 期完成`;
   } finally {
     try { fs.unlinkSync(check); } catch { /* 临时文件不存在 */ }
   }
