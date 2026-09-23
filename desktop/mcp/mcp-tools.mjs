@@ -423,7 +423,7 @@ export function createMcpToolRegistry({ dataPaths, log }) {
     },
     {
       name: "get_earnings_calendar",
-      description: "财报日历：未来 N 天(默认 7，上限 30)将发布财报的标的清单，含 EPS/营收预期(套餐提供时)。最多 100 行+总数。",
+      description: "财报日历：未来 N 天(默认 7，上限 30)将发布财报的美股标的清单(按代码无交易所后缀过滤境外)，含 EPS/营收预期与实际(有则带)。最多 100 行+总数。",
       inputSchema: {
         type: "object",
         properties: {

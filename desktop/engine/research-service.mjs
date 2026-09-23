@@ -169,13 +169,15 @@ export async function getPriceHistoryReport({ dataPaths, config, symbol: rawSymb
   };
 }
 
-/** 财报日历：未来 N 天将发财报的标的(全市场) */
+/** 财报日历：未来 N 天将发财报的标的(美股为主——按"代码无交易所后缀"过滤,
+ *  .L/.TO 等境外后缀剔除;BRK.B 这类带点的美股代码会被误伤,量少且可接受) */
 export async function getEarningsCalendarReport({ config, days = 7 }) {
   const normalizedDays = Math.max(1, Math.min(30, Math.trunc(Number(days) || 7)));
   const { apiKey, baseUrl } = requireFmp(config);
   const today = isoDateToday();
   const to = isoDateShiftDays(today, normalizedDays);
-  const rows = await fmpEarningsCalendar({ baseUrl, apiKey, from: today, to });
+  const all = await fmpEarningsCalendar({ baseUrl, apiKey, from: today, to });
+  const rows = all.filter((row) => !row.symbol.includes("."));
   return {
     from: today,
     to,

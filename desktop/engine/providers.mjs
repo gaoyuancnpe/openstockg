@@ -155,7 +155,8 @@ export async function fmpEarningsCalendar({ baseUrl, apiKey, from, to }) {
       name: String(row?.name || row?.companyName || ""),
       date: String(row?.date || ""),
       epsActual: toNumber(row?.epsActual),
-      epsEstimate: toNumber(row?.epsEstimate),
+      epsEstimate: toNumber(row?.epsEstimate ?? row?.epsEstimated),
+      revenueActual: toNumber(row?.revenueActual),
       revenueEstimate: toNumber(row?.revenueEstimate),
       time: String(row?.time || "")
     }))
