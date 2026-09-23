@@ -98,6 +98,8 @@ export function createAlertsRunner({
     state,
     runtime,
     marketAmv,
+    marketAmvSp500 = null,
+    marketAmvNasdaq = null,
     warnings
   }) {
     const { fmpBaseUrl, fmpApiKey, transport, fromUser, defaultEmailTo, defaultWebhookType, defaultWebhookUrl } = runtime;
@@ -342,7 +344,9 @@ export function createAlertsRunner({
     ignoreCooldown,
     state,
     runtime,
-    marketAmv
+    marketAmv,
+    marketAmvSp500 = null,
+    marketAmvNasdaq = null
   }) {
     const { finnhubBaseUrl, finnhubApiKey, transport, fromUser, defaultEmailTo, defaultWebhookType, defaultWebhookUrl } = runtime;
     const ruleName = rule.name || "未命名规则";
@@ -665,13 +669,13 @@ export function createAlertsRunner({
               log(`规则完成：${rule.name || "未命名规则"}（已跳过）`);
               continue;
             }
-            await runFmpRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv, warnings: runWarnings });
+            await runFmpRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv, marketAmvSp500, marketAmvNasdaq, warnings: runWarnings });
             completedRules += 1;
             log(`规则完成：${rule.name || "未命名规则"}`);
             continue;
           }
 
-          await runFinnhubRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv });
+          await runFinnhubRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv, marketAmvSp500, marketAmvNasdaq });
           completedRules += 1;
           log(`规则完成：${rule.name || "未命名规则"}`);
         } catch (ruleError) {

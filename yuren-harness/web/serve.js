@@ -86,15 +86,28 @@ function ensureDataDir() {
     fs.mkdirSync(path.join(D, sub), { recursive: true });
   }
   const agentsDst = path.join(D, 'AGENTS.md');
-  // 不存在,或仍是未改写的模板(含 {{ 占位符)→ 种入/升级;用户改写过的副本不动
-  const needsSeed = !fs.existsSync(agentsDst)
-    || fs.readFileSync(agentsDst, 'utf8').includes('{{');
-  if (needsSeed) {
-    try {
+  // 升级判定:文件缺失 / 仍是未替换模板(含 {{)/ 模板版本更新(<!-- yuren-agents: vN -->)。
+  // 用户改写过的旧版本仍会被更高版本覆盖——人设是产品行为的一部分;真要自定义,
+  // 删掉版本注释行即视为私有副本,不再自动升级。
+  const agentsVer = (text) => Number((String(text).match(/yuren-agents:\s*v(\d+)/) || [])[1] || 0);
+  try {
+    const templateText = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
+    let needsSeed = false;
+    let reason = '';
+    if (!fs.existsSync(agentsDst)) { needsSeed = true; reason = '缺失'; }
+    else {
+      const currentText = fs.readFileSync(agentsDst, 'utf8');
+      const tplVer = agentsVer(templateText);
+      const curVer = agentsVer(currentText);
+      if (currentText.includes('{{')) { needsSeed = true; reason = '模板占位符未替换'; }
+      else if (curVer === 0) { /* 无版本标记:视为用户私有副本,不动 */ }
+      else if (tplVer > curVer) { needsSeed = true; reason = `模板升级 v${curVer}→v${tplVer}`; }
+    }
+    if (needsSeed) {
       fs.copyFileSync(path.join(ROOT, 'AGENTS.md'), agentsDst);
-      log('AGENTS.md 已种入/升级(检测到未替换的模板占位符)');
-    } catch (e) { log(`AGENTS.md 副本跳过: ${e.message}`); }
-  }
+      log(`AGENTS.md 已种入/升级(${reason})`);
+    }
+  } catch (e) { log(`AGENTS.md 副本跳过: ${e.message}`); }
   syncSkills(D);
   return D;
 }
