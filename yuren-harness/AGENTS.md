@@ -1,4 +1,4 @@
-<!-- yuren-agents: v3 -->
+<!-- yuren-agents: v4 -->
 
 # 禹人行情 — 工作守则(美股行情研究)
 
@@ -15,7 +15,8 @@
 | 用户需求 | 工作流 |
 |---|---|
 | 看某只股票现在的情况 | `get_quote`（实时价/涨跌幅/市值/成交/52周高低/新高标志/公司摘要） |
-| 个股基本面/财报分析 | `get_financials`（三大报表序列 + 增速/利润率/FCF/负债率指标；季度或年度） |
+| 个股基本面/财报/估值 | `get_financials`（三大报表序列 + 增速/利润率/FCF/负债率 + PE/PS/PB/EV/ROE 估值序列 + 分析师预期 + 分红史） |
+| 和竞争对手比 | `get_peers`（同业清单含现价/市值）→ 对关注的同行再 `get_quote`/`get_financials` 深挖 |
 | 个股走势回溯 | `get_price_history`（区间日线 + 涨跌幅/高低/SMA 摘要；默认 6 个月） |
 | 未来谁发财报 | `get_earnings_calendar`（未来 1-30 天财报日历，含预期值） |
 | 找标的/盯条件（价格、市值、涨跌幅、新高、换手） | `run_screener`（手动 symbol 列表或全市场）→ 命中标的汇总 → 需要持续跟踪时 `add_rule` 建规则 |
@@ -37,7 +38,7 @@
 
 | 工具 | 用途 |
 |---|---|
-| `mcp__openstock__get_quote` / `get_financials` / `get_price_history` / `get_earnings_calendar` | 个股研究四件套：快照 / 财报 / 走势 / 财报日历 |
+| `mcp__openstock__get_quote` / `get_financials` / `get_price_history` / `get_earnings_calendar` / `get_peers` | 个股研究五件套：快照 / 业绩+估值全貌 / 走势 / 财报日历 / 同业对比 |
 | `mcp__openstock__run_screener` / `run_financial_screener` | 行情/财报筛选 |
 | `mcp__openstock__list_rules` / `add_rule` / `save_rules` | 规则管理 |
 | `mcp__openstock__run_rules_once` | 一轮规则检查（默认 dry_run） |

@@ -6,7 +6,8 @@ import {
   getQuoteSnapshot,
   getFinancialReport,
   getPriceHistoryReport,
-  getEarningsCalendarReport
+  getEarningsCalendarReport,
+  getPeersReport
 } from "../engine/research-service.mjs";
 import {
   UI_CONDITION_TYPES,
@@ -386,7 +387,7 @@ export function createMcpToolRegistry({ dataPaths, log }) {
     },
     {
       name: "get_financials",
-      description: "个股财报：三大报表原始序列(利润/现金流/资产负债，近 N 期)+衍生指标(增速/利润率/FCF/负债率/财报日临近)。指标带 48h 缓存。",
+      description: "个股全貌：三大报表序列 + 衍生指标(增速/利润率/FCF/负债率) + 估值指标(PE/PS/PB/EV/ROE 序列) + 财务比率族 + 分析师预期 + 分红史。一次调用看全业绩与估值。",
       inputSchema: {
         type: "object",
         properties: {
@@ -401,6 +402,21 @@ export function createMcpToolRegistry({ dataPaths, log }) {
         return await getFinancialReport({
           dataPaths, config: await loadDesktopConfig(dataPaths), symbol, period, limit
         });
+      }
+    },
+    {
+      name: "get_peers",
+      description: "同业对比：返回同行业可比公司清单(自带公司名/现价/市值)，配合 get_quote/get_financials 逐个深挖。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "股票代码" }
+        },
+        required: ["symbol"]
+      },
+      handler: async ({ symbol } = {}) => {
+        await ensureContext();
+        return await getPeersReport({ config: await loadDesktopConfig(dataPaths), symbol });
       }
     },
     {

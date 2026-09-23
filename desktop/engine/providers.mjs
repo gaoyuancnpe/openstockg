@@ -164,6 +164,102 @@ export async function fmpEarningsCalendar({ baseUrl, apiKey, from, to }) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+export async function fmpKeyMetrics({ baseUrl, apiKey, symbol, period, limit }) {
+  const data = await fmpFetchJSON({
+    baseUrl, pathName: "/stable/key-metrics", apiKey,
+    params: { symbol, period: period || "quarter", limit: limit || 5 }
+  });
+  const wanted = [
+    "marketCap", "enterpriseValue", "peRatio", "psRatio", "pbRatio", "ptbRatio",
+    "evToSales", "evToEBITDA", "evToOperatingCashFlow", "earningsYield",
+    "freeCashFlowYield", "roe", "roic", "roi", "netDebtToEBITDA",
+    "dividendYield", "revenuePerShare", "tangibleBookValuePerShare"
+  ];
+  return (Array.isArray(data) ? data : [])
+    .map((row) => {
+      const out = { date: String(row?.date || ""), period: String(row?.period || ""), fiscalYear: String(row?.fiscalYear || "") };
+      for (const key of wanted) out[key] = toNumber(row?.[key]);
+      return out;
+    })
+    .filter((row) => row.date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export async function fmpRatios({ baseUrl, apiKey, symbol, period, limit }) {
+  const data = await fmpFetchJSON({
+    baseUrl, pathName: "/stable/ratios", apiKey,
+    params: { symbol, period: period || "quarter", limit: limit || 5 }
+  });
+  const wanted = [
+    "grossProfitMargin", "operatingProfitMargin", "netProfitMargin", "ebitdaMargin",
+    "roe", "returnOnAssets", "returnOnCapitalEmployed", "currentRatio", "quickRatio",
+    "cashRatio", "debtEquityRatio", "longTermDebtToCapitalization", "interestCoverage",
+    "assetTurnover", "inventoryTurnover", "receivablesTurnover", "daysSalesOutstanding",
+    "priceToSalesRatio", "priceToBookRatio", "priceEarningsRatio", "payoutRatio"
+  ];
+  return (Array.isArray(data) ? data : [])
+    .map((row) => {
+      const out = { date: String(row?.date || ""), period: String(row?.period || "") };
+      for (const key of wanted) out[key] = toNumber(row?.[key]);
+      return out;
+    })
+    .filter((row) => row.date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export async function fmpPeers({ baseUrl, apiKey, symbol }) {
+  const data = await fmpFetchJSON({
+    baseUrl, pathName: "/stable/stock-peers", apiKey,
+    params: { symbol }
+  });
+  return (Array.isArray(data) ? data : [])
+    .map((row) => ({
+      symbol: String(row?.symbol || "").trim().toUpperCase(),
+      companyName: String(row?.companyName || row?.name || ""),
+      price: toNumber(row?.price),
+      marketCapM: row?.mktCap !== null && row?.mktCap !== undefined ? Number(row.mktCap) / 1e6 : null
+    }))
+    .filter((row) => /^[A-Z0-9.\-]+$/.test(row.symbol));
+}
+
+export async function fmpAnalystEstimates({ baseUrl, apiKey, symbol, period, limit }) {
+  const data = await fmpFetchJSON({
+    baseUrl, pathName: "/stable/analyst-estimates", apiKey,
+    params: { symbol, period: period || "annual", limit: limit || 4 }
+  });
+  const wanted = [
+    "estimatedRevenueAvg", "estimatedRevenueHigh", "estimatedRevenueLow",
+    "revenueAvg", "revenueHigh", "revenueLow",
+    "estimatedEpsAvg", "estimatedEpsHigh", "estimatedEpsLow",
+    "epsAvg", "epsHigh", "epsLow", "numberOfAnalysts"
+  ];
+  return (Array.isArray(data) ? data : [])
+    .map((row) => {
+      const out = { date: String(row?.date || ""), period: String(row?.period || "") };
+      for (const key of wanted) out[key] = toNumber(row?.[key]);
+      return out;
+    })
+    .filter((row) => row.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export async function fmpDividends({ baseUrl, apiKey, symbol, limit }) {
+  const data = await fmpFetchJSON({
+    baseUrl, pathName: "/stable/dividends", apiKey,
+    params: { symbol, limit: limit || 8 }
+  });
+  return (Array.isArray(data) ? data : [])
+    .map((row) => ({
+      date: String(row?.date || ""),
+      label: String(row?.label || ""),
+      dividend: toNumber(row?.dividend ?? row?.adjDividend),
+      recordDate: String(row?.recordDate || ""),
+      paymentDate: String(row?.paymentDate || "")
+    }))
+    .filter((row) => row.date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
 export async function finnhubQuote({ baseUrl, apiKey, symbol }) {
   if (!apiKey) throw new Error("Finnhub API Key is missing");
   const url = `${baseUrl}/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(apiKey)}`;

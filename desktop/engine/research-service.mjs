@@ -10,7 +10,12 @@ import {
   fmpIncomeStatements,
   fmpCashFlowStatements,
   fmpBalanceSheetStatements,
-  fmpHistoricalPriceEodFull
+  fmpHistoricalPriceEodFull,
+  fmpKeyMetrics,
+  fmpRatios,
+  fmpPeers,
+  fmpAnalystEstimates,
+  fmpDividends
 } from "./providers.mjs";
 import { computeFmpDefaultStats, computeFmpFinancialStats } from "./fmp-domain.mjs";
 import { loadDesktopState, saveDesktopState } from "../main/data-store.mjs";
@@ -81,7 +86,7 @@ export async function getQuoteSnapshot({ dataPaths, config, symbol: rawSymbol })
   };
 }
 
-/** 财报序列 + 衍生指标：原始三大报表(近 N 期) + computeFmpFinancialStats(48h 缓存) */
+/** 财报序列 + 衍生指标 + 估值/比率/分析师预期/分红：一次调用看全"业绩+估值" */
 export async function getFinancialReport({ dataPaths, config, symbol: rawSymbol, period = "quarter", limit = 8 }) {
   const symbol = normalizeSymbol(rawSymbol);
   const normalizedPeriod = period === "annual" ? "annual" : "quarter";
@@ -89,12 +94,17 @@ export async function getFinancialReport({ dataPaths, config, symbol: rawSymbol,
   const { apiKey, baseUrl } = requireFmp(config);
   const state = await loadDesktopState(dataPaths);
 
-  const [financialStats, profile, income, cashflow, balance] = await Promise.all([
+  const [financialStats, profile, income, cashflow, balance, keyMetrics, ratios, analystEstimates, dividends] = await Promise.all([
     computeFmpFinancialStats({ baseUrl, apiKey, symbol, state }),
     fmpProfile({ baseUrl, apiKey, symbol }),
     fmpIncomeStatements({ baseUrl, apiKey, symbol, period: normalizedPeriod, limit: normalizedLimit }),
     fmpCashFlowStatements({ baseUrl, apiKey, symbol, period: normalizedPeriod, limit: Math.min(normalizedLimit, 6) }),
-    fmpBalanceSheetStatements({ baseUrl, apiKey, symbol, period: normalizedPeriod, limit: Math.min(normalizedLimit, 6) })
+    fmpBalanceSheetStatements({ baseUrl, apiKey, symbol, period: normalizedPeriod, limit: Math.min(normalizedLimit, 6) }),
+    fmpKeyMetrics({ baseUrl, apiKey, symbol, period: normalizedPeriod, limit: Math.min(normalizedLimit, 8) }),
+    fmpRatios({ baseUrl, apiKey, symbol, period: normalizedPeriod, limit: Math.min(normalizedLimit, 8) }),
+    // 分析师预期只取年度口径(季度预期该端点不稳定),失败不阻塞整体
+    fmpAnalystEstimates({ baseUrl, apiKey, symbol, period: "annual", limit: 4 }).catch(() => []),
+    fmpDividends({ baseUrl, apiKey, symbol, limit: 8 }).catch(() => [])
   ]);
   await persistSymbolState(dataPaths, state, symbol);
 
@@ -105,7 +115,31 @@ export async function getFinancialReport({ dataPaths, config, symbol: rawSymbol,
     income,
     cashflow,
     balance,
+    valuation: keyMetrics,
+    ratios,
+    analystEstimates,
+    dividends,
     indicators: financialStats
+  };
+}
+
+/** 同业对比：FMP 自带公司名/股价/市值，无需二次查询 */
+export async function getPeersReport({ config, symbol: rawSymbol }) {
+  const symbol = normalizeSymbol(rawSymbol);
+  const { apiKey, baseUrl } = requireFmp(config);
+  const peers = await fmpPeers({ baseUrl, apiKey, symbol });
+  if (peers.length === 0) {
+    throw new Error(`未取到 ${symbol} 的同业清单（FMP 未覆盖或代码有误）`);
+  }
+  return {
+    symbol,
+    total: peers.length,
+    peers: peers.map((row) => ({
+      symbol: row.symbol,
+      companyName: row.companyName,
+      price: row.price,
+      marketCapM: row.marketCapM === null ? null : Math.round(row.marketCapM)
+    }))
   };
 }
 

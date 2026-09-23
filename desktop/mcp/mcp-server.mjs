@@ -45,7 +45,7 @@ async function handleRequest(message) {
       serverInfo: SERVER_INFO,
       instructions:
         "OpenStock 行情研究 MCP：美股筛选、财报筛选、规则提醒、0AMV 指数与多智能体 AI 分析；" +
-        "个股研究有 get_quote(快照)/get_financials(财报序列+指标)/get_price_history(区间行情)/get_earnings_calendar(财报日历)。" +
+        "个股研究有 get_quote(快照)/get_financials(业绩+估值+预期全貌)/get_price_history(区间行情)/get_earnings_calendar(财报日历)/get_peers(同业对比)。" +
         "数据目录与桌面端共享；密钥读取永远脱敏，写入用 update_config。"
     });
     return;

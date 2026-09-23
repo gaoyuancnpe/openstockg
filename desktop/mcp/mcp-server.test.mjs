@@ -101,7 +101,7 @@ try {
     "list_rules", "get_config", "update_config", "add_rule", "save_rules",
     "run_screener", "run_financial_screener", "run_rules_once",
     "get_status", "get_recent_events", "get_amv_history", "compute_amv",
-    "get_quote", "get_financials", "get_price_history", "get_earnings_calendar"
+    "get_quote", "get_financials", "get_price_history", "get_earnings_calendar", "get_peers"
   ];
   for (const name of expectedTools) {
     assert(toolNames.includes(name), `工具清单应包含 ${name}`);
@@ -225,6 +225,8 @@ try {
   assert(noKeyCal.result?.isError === true, "无 Key 时 get_earnings_calendar 应报错");
   const noKeyHist = await request("tools/call", { name: "get_price_history", arguments: { symbol: "AAPL", windowDays: 30 } });
   assert(noKeyHist.result?.isError === true, "无 Key 时 get_price_history 应报错");
+  const noKeyPeers = await request("tools/call", { name: "get_peers", arguments: { symbol: "AAPL" } });
+  assert(noKeyPeers.result?.isError === true, "无 Key 时 get_peers 应报错");
 
   // ---------- 8. AI 包装工具已移除 ----------
   section("AI 包装工具已移除");
