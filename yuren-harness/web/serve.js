@@ -100,7 +100,8 @@ function ensureDataDir() {
       const tplVer = agentsVer(templateText);
       const curVer = agentsVer(currentText);
       if (currentText.includes('{{')) { needsSeed = true; reason = '模板占位符未替换'; }
-      else if (curVer === 0) { /* 无版本标记:视为用户私有副本,不动 */ }
+      else if (curVer === 0 && currentText.includes('# 禹人行情')) { needsSeed = true; reason = '旧版种入文件(无版本标记)'; }
+      else if (curVer === 0) { /* 无标记且非模板出身:视为用户私有副本,不动 */ }
       else if (tplVer > curVer) { needsSeed = true; reason = `模板升级 v${curVer}→v${tplVer}`; }
     }
     if (needsSeed) {
