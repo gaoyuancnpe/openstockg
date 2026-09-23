@@ -63,18 +63,35 @@ function patchServerIndex(file, trustedHosts, log) {
 
 /** 前端 isLoopback 判定(设置镜像 writable 的开关) */
 function patchClientIndex(file, trustedHosts, log) {
-  if (srcHas(file, MARKER)) return 'already';
   const aDef = 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname),';
   const aApply = 'function apply(ctx) {';
   const src = read(file);
-  if (!src || !src.includes(aDef) || !src.includes(aApply)) {
+  if (!src) {
+    log('告警: dsh-client-connection/lib/client.js 不可读,跳过(设置页可能显示 unavailable)');
+    return 'error';
+  }
+  const list = trustedHosts.map((h) => JSON.stringify(h)).join(',');
+  const setLine = `/* ${MARKER} */const YUREN_PAGE_TRUST=new Set([${list}]);`;
+  if (src.includes(MARKER)) {
+    // 已打过:受信清单变化时刷新(域名接入/更换入口都靠这里,否则设置页再次 unavailable)
+    const refreshed = src.replace(
+      new RegExp(`${MARKER} \\*/const YUREN_PAGE_TRUST=new Set\\(\\[[^\\]]*\\]\\);`),
+      setLine
+    );
+    if (refreshed !== src) {
+      const err = syntaxOk(file, refreshed);
+      if (err) { log(`告警: 前端信任清单刷新校验失败,保持原样 | ${err}`); return 'error'; }
+      rewrite(file, refreshed, log);
+      return 'refreshed';
+    }
+    return 'already';
+  }
+  if (!src.includes(aDef) || !src.includes(aApply)) {
     log('告警: dsh-client-connection/lib/client.js 结构与预期不符,跳过(设置页可能显示 unavailable)');
     return 'anchor-mismatch';
   }
-  const list = trustedHosts.map((h) => JSON.stringify(h)).join(',');
-  const inject = `/* ${MARKER} */const YUREN_PAGE_TRUST=new Set([${list}]);\n`;
   const next = src
-    .replace(aApply, inject + aApply)
+    .replace(aApply, setLine + '\n' + aApply)
     .replace(aDef, 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname) || (pageLocation !== void 0 && (YUREN_PAGE_TRUST.has(pageLocation.host) || YUREN_PAGE_TRUST.has(pageLocation.hostname))),');
   const err = syntaxOk(file, next);
   if (err) { log(`告警: 前端补丁语法校验失败,保持原样 | ${err}`); return 'error'; }
@@ -118,6 +135,6 @@ if (require.main === module) {
     process.exit(1);
   }
   const result = applyDshTrustPatch({ trustedHosts: hosts });
-  const ok = (v) => v === 'patched' || v === 'already';
+  const ok = (v) => v === 'patched' || v === 'already' || v === 'refreshed';
   if (!ok(result.server) || !ok(result.client)) process.exit(2);
 }
