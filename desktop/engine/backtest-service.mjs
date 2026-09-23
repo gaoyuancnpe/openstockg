@@ -104,7 +104,7 @@ function buildFundamentalTimeline(symbol, income, keyMetrics) {
       revenueGrowthYoYDeltaVsPrevQuarter: growthYoY !== null && growthPrevQ !== null ? growthYoY - growthPrevQ : null,
       grossMargin: row.revenue && row.grossProfit !== null ? (row.grossProfit / row.revenue) * 100 : null,
       ebitdaM: row.ebitda !== null ? row.ebitda / 1e6 : null,
-      profitGrowthYoY: row.netIncome !== null && priorYearQ?.netIncome !== null && priorYearQ.netIncome
+      profitGrowthYoY: row.netIncome !== null && priorYearQ?.netIncome != null && priorYearQ.netIncome
         ? ((row.netIncome - priorYearQ.netIncome) / Math.abs(priorYearQ.netIncome)) * 100 : null
     });
   }
