@@ -5,7 +5,12 @@ export async function fmpFetchJSON({ baseUrl, pathName, apiKey, params }) {
   if (!apiKey) throw new Error("缺少 FMP API Key，请先在配置页填写");
   const root = normalizeHttpBaseUrl(baseUrl, "https://financialmodelingprep.com");
   const url = appendQuery(`${root}${pathName}`, { ...(params || {}), apikey: apiKey });
-  return fetchJSON(url);
+  try {
+    return await fetchJSON(url);
+  } catch (error) {
+    // 报错文案不带 Key:错误会被智能体转述进对话,密钥不得外流
+    throw new Error(String(error?.message || error).replaceAll(apiKey, "***"));
+  }
 }
 
 export async function fmpCompanyScreener({ baseUrl, apiKey, params }) {
@@ -139,7 +144,7 @@ export async function fmpQuote({ baseUrl, apiKey, symbol }) {
 export async function fmpEarningsCalendar({ baseUrl, apiKey, from, to }) {
   const data = await fmpFetchJSON({
     baseUrl,
-    pathName: "/stable/earning-calendar",
+    pathName: "/stable/earnings-calendar",
     apiKey,
     params: { from, to }
   });
