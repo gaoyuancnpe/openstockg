@@ -113,6 +113,51 @@ export async function fmpHistoricalPriceEodFull({ baseUrl, apiKey, symbol, from,
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+export async function fmpQuote({ baseUrl, apiKey, symbol }) {
+  const data = await fmpFetchJSON({
+    baseUrl,
+    pathName: "/stable/quote",
+    apiKey,
+    params: { symbol }
+  });
+  const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+  return {
+    symbol: String(row?.symbol || symbol || "").toUpperCase(),
+    price: toNumber(row?.price),
+    change: toNumber(row?.change),
+    changePercent: toNumber(row?.changesPercentage ?? row?.changePercentage),
+    open: toNumber(row?.open),
+    dayHigh: toNumber(row?.dayHigh),
+    dayLow: toNumber(row?.dayLow),
+    yearHigh: toNumber(row?.yearHigh),
+    yearLow: toNumber(row?.yearLow),
+    volume: toNumber(row?.volume),
+    previousClose: toNumber(row?.previousClose)
+  };
+}
+
+export async function fmpEarningsCalendar({ baseUrl, apiKey, from, to }) {
+  const data = await fmpFetchJSON({
+    baseUrl,
+    pathName: "/stable/earning-calendar",
+    apiKey,
+    params: { from, to }
+  });
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((row) => ({
+      symbol: String(row?.symbol || "").trim().toUpperCase(),
+      name: String(row?.name || row?.companyName || ""),
+      date: String(row?.date || ""),
+      epsActual: toNumber(row?.epsActual),
+      epsEstimate: toNumber(row?.epsEstimate),
+      revenueEstimate: toNumber(row?.revenueEstimate),
+      time: String(row?.time || "")
+    }))
+    .filter((row) => row.symbol && row.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export async function finnhubQuote({ baseUrl, apiKey, symbol }) {
   if (!apiKey) throw new Error("Finnhub API Key is missing");
   const url = `${baseUrl}/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(apiKey)}`;

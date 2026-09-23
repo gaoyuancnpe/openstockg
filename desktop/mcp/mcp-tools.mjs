@@ -3,6 +3,12 @@ import { createAlertsEngine } from "../engine.mjs";
 import { buildRuleSnapshot, maskSensitive } from "../agent/agent-tools.mjs";
 import { normalizeDesktopConfig } from "../shared-config.mjs";
 import {
+  getQuoteSnapshot,
+  getFinancialReport,
+  getPriceHistoryReport,
+  getEarningsCalendarReport
+} from "../engine/research-service.mjs";
+import {
   UI_CONDITION_TYPES,
   conditionFromUI,
   conditionTypeNeedsValue
@@ -361,6 +367,72 @@ export function createMcpToolRegistry({ dataPaths, log }) {
           limit: limit == null ? undefined : Number(limit),
           useFmp: true
         });
+      }
+    },
+    {
+      name: "get_quote",
+      description: "个股快照：实时报价(套餐不支持时回退最近收盘)+市值/成交额/换手/新高标志/52周高低+公司摘要。价格指标带 20h 缓存。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "股票代码，例如 AAPL、BRK.B" }
+        },
+        required: ["symbol"]
+      },
+      handler: async ({ symbol } = {}) => {
+        await ensureContext();
+        return await getQuoteSnapshot({ dataPaths, config: await loadDesktopConfig(dataPaths), symbol });
+      }
+    },
+    {
+      name: "get_financials",
+      description: "个股财报：三大报表原始序列(利润/现金流/资产负债，近 N 期)+衍生指标(增速/利润率/FCF/负债率/财报日临近)。指标带 48h 缓存。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "股票代码" },
+          period: { type: "string", enum: ["quarter", "annual"], default: "quarter" },
+          limit: { type: "number", default: 8, description: "返回期数，2-20" }
+        },
+        required: ["symbol"]
+      },
+      handler: async ({ symbol, period, limit } = {}) => {
+        await ensureContext();
+        return await getFinancialReport({
+          dataPaths, config: await loadDesktopConfig(dataPaths), symbol, period, limit
+        });
+      }
+    },
+    {
+      name: "get_price_history",
+      description: "个股行情历史：区间日线(默认 6 个月，上限 2 年)+摘要(区间涨跌幅/高低/日均成交额/SMA20/60)。最多返回 100 行+总数。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "股票代码" },
+          windowDays: { type: "number", default: 183, description: "回看天数，7-730" }
+        },
+        required: ["symbol"]
+      },
+      handler: async ({ symbol, windowDays } = {}) => {
+        await ensureContext();
+        return await getPriceHistoryReport({
+          dataPaths, config: await loadDesktopConfig(dataPaths), symbol, windowDays
+        });
+      }
+    },
+    {
+      name: "get_earnings_calendar",
+      description: "财报日历：未来 N 天(默认 7，上限 30)将发布财报的标的清单，含 EPS/营收预期(套餐提供时)。最多 100 行+总数。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          days: { type: "number", default: 7, description: "展望天数，1-30" }
+        }
+      },
+      handler: async ({ days } = {}) => {
+        await ensureContext();
+        return await getEarningsCalendarReport({ config: await loadDesktopConfig(dataPaths), days });
       }
     }
   ];

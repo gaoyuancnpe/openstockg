@@ -100,7 +100,8 @@ try {
   const expectedTools = [
     "list_rules", "get_config", "update_config", "add_rule", "save_rules",
     "run_screener", "run_financial_screener", "run_rules_once",
-    "get_status", "get_recent_events", "get_amv_history", "compute_amv"
+    "get_status", "get_recent_events", "get_amv_history", "compute_amv",
+    "get_quote", "get_financials", "get_price_history", "get_earnings_calendar"
   ];
   for (const name of expectedTools) {
     assert(toolNames.includes(name), `工具清单应包含 ${name}`);
@@ -205,7 +206,27 @@ try {
   const events = parseToolText(await request("tools/call", { name: "get_recent_events", arguments: { limit: 5 } }));
   assert(typeof events.count === "number" && Array.isArray(events.events), "get_recent_events 应返回事件数组");
 
-  // ---------- 7. AI 包装工具已移除 ----------
+  // ---------- 7. 个股研究工具 ----------
+  section("个股研究工具");
+  // 坏代码必须被参数校验拒绝
+  const badSymbol = await request("tools/call", { name: "get_quote", arguments: { symbol: "不是代码!!" } });
+  assert(badSymbol.result?.isError === true, "get_quote 应拒绝非法代码");
+
+  // 无 FMP Key 的环境:合法代码应报"缺少 FMP API Key"而不是别的错
+  const noKey = await request("tools/call", { name: "get_quote", arguments: { symbol: "AAPL" } });
+  const noKeyText = String(noKey.result?.content?.[0]?.text || "");
+  assert(
+    noKey.result?.isError === true && noKeyText.includes("FMP"),
+    "无 Key 时 get_quote 应明确报缺少 FMP API Key"
+  );
+  const noKeyFin = await request("tools/call", { name: "get_financials", arguments: { symbol: "MSFT" } });
+  assert(noKeyFin.result?.isError === true, "无 Key 时 get_financials 应报错");
+  const noKeyCal = await request("tools/call", { name: "get_earnings_calendar", arguments: { days: 7 } });
+  assert(noKeyCal.result?.isError === true, "无 Key 时 get_earnings_calendar 应报错");
+  const noKeyHist = await request("tools/call", { name: "get_price_history", arguments: { symbol: "AAPL", windowDays: 30 } });
+  assert(noKeyHist.result?.isError === true, "无 Key 时 get_price_history 应报错");
+
+  // ---------- 8. AI 包装工具已移除 ----------
   section("AI 包装工具已移除");
   const removed = await request("tools/call", { name: "ai_chat", arguments: { prompt: "你好" } });
   assert(removed.result?.isError === true, "ai_chat 已移除，应返回 isError");
