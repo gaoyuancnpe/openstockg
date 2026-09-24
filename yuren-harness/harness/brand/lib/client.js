@@ -931,11 +931,20 @@ window.__ModuleLoader__.load({
 						el.textContent = "状态未知";
 						return;
 					}
-					el.className = "ya-sched-state";
-					el.style.color = s.isRunning ? "var(--ya-success)" : "var(--ya-muted)";
-					el.textContent = s.isRunning
-						? `运行中 · ${s.mode === "daily" ? `每日 ${s.dailyTime || "-"}${s.weekdaysOnly ? "(工作日)" : ""}` : `每 ${s.intervalSec ?? "-"} 秒`}`
-						: "已停止";
+				el.className = "ya-sched-state";
+				el.style.color = s.isRunning ? "var(--ya-success)" : "var(--ya-muted)";
+				if (!s.isRunning) {
+					el.textContent = "已停止";
+					return;
+				}
+				const modeText = s.mode === "daily"
+					? `每日 ${s.dailyTime || "-"}${s.weekdaysOnly ? "(工作日)" : ""}`
+					: `每 ${s.intervalSec ?? "-"} 秒`;
+				const next = s.nextRunAt ? new Date(s.nextRunAt) : null;
+				const nextText = next && !Number.isNaN(next.getTime())
+					? ` · 下次 ${next.toLocaleString("zh-CN", { hour12: false })}`
+					: "";
+				el.textContent = `运行中 · ${modeText}${nextText}`;
 				} catch (error) {
 					el.textContent = `读取失败:${error.message}`;
 				}
@@ -950,15 +959,20 @@ window.__ModuleLoader__.load({
 						el.innerHTML = '<div class="ya-state">还没有事件。</div>';
 						return;
 					}
-					for (const event of data.events.slice().reverse()) {
-						const div = document.createElement("div");
-						div.className = "ya-evt";
-						const time = event?.at || event?.timestamp || "";
-						const brief = String(event?.type || "") + (event?.ruleName ? ` · ${event.ruleName}` : "") +
-							(event?.message ? ` · ${event.message}` : "");
-						div.innerHTML = `<span class="ya-evt-time">${escapeAssetsHtml(String(time).slice(5, 19))}</span>${escapeAssetsHtml(brief)}`;
-						el.appendChild(div);
-					}
+				for (const event of data.events.slice().reverse()) {
+					const div = document.createElement("div");
+					div.className = "ya-evt";
+					const raw = String(event?.at || event?.timestamp || "");
+					const parsed = new Date(raw);
+					// ISO 是 UTC,必须转本地再显示;解析失败回退原串截断
+					const time = Number.isNaN(parsed.getTime())
+						? raw.slice(5, 19)
+						: parsed.toLocaleString("zh-CN", { hour12: false });
+					const brief = String(event?.type || "") + (event?.ruleName ? ` · ${event.ruleName}` : "") +
+						(event?.message ? ` · ${event.message}` : "");
+					div.innerHTML = `<span class="ya-evt-time">${escapeAssetsHtml(time)}</span>${escapeAssetsHtml(brief)}`;
+					el.appendChild(div);
+				}
 				} catch (error) {
 					el.innerHTML = `<div class="ya-state">事件读取失败:${escapeAssetsHtml(error.message)}</div>`;
 				}

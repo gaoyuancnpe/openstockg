@@ -335,12 +335,18 @@ export function createEngineScheduler({ loadConfig, tick, log, emitEvent }) {
       };
 
       if (mode === "daily") {
+        // 只有保存的 nextRunAt 真是 dailyTime 时刻的槽位才沿用;interval 时代的残值
+        // 会把每日锚点带歪成"+24小时",必须重新对齐(missedRunDate 的补跑逻辑不受影响)
+        const savedSlotHHMM = savedNextRunAt
+          ? `${String(savedNextRunAt.getHours()).padStart(2, "0")}:${String(savedNextRunAt.getMinutes()).padStart(2, "0")}`
+          : null;
+        const savedIsDailySlot = Boolean(savedNextRunAt && savedSlotHHMM === dailyTime);
         return scheduleDailyLoop({
           dailyTime,
           weekdaysOnly,
           cfg,
           scheduler,
-          firstRunAt: !missedRunDate ? savedNextRunAt?.toISOString() : "",
+          firstRunAt: !missedRunDate && savedIsDailySlot ? savedNextRunAt.toISOString() : "",
           autoResume,
           catchUpContext
         });
