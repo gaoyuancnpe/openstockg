@@ -1,5 +1,5 @@
 import { normalizeHttpBaseUrl, toNumber } from "../shared-runtime.mjs";
-import { chunk, appendJsonLine } from "./shared.mjs";
+import { chunk, appendJsonLine, isoDateShiftDays } from "./shared.mjs";
 import { computeIndicators, buildEvalContext, quoteToEvalContext } from "./indicator-domain.mjs";
 import { computeFmpRuleStats, loadFmpDefaultUniverse, loadUniverseUS } from "./fmp-domain.mjs";
 import {
@@ -20,6 +20,33 @@ import {
 import { finnhubBasicFinancials, finnhubQuote } from "./providers.mjs";
 import { createMarketAmvService } from "./market-amv-service.mjs";
 import { loadDesktopMarketAmvHistory } from "../main/data-store.mjs";
+
+/** ── 行情新鲜度闸门 ──────────────────────────────────────────────────────
+ *  背景:FMP 会把退市/被收购后的僵尸代码继续返回,行情停在几个月甚至几年前,而 fieldMeta.status 仍是 ok。
+ *  实测"强势突破"规则评估的 1961 支里有 116 支(5.9%)行情过期,最老的停在 2022 年,
+ *  并且真的发出过提醒(DFS 数据停在 2025-05-16 却报了"5亿成交额 + 5日新高")。
+ *  参照日 = 最近一个工作日(UTC,跳过周末),再容忍 STALE_DATA_TOLERANCE_DAYS 个自然日:
+ *  容忍窗口用于覆盖节假日,以及 computeFmpPriceStats 的 20 小时缓存最多落后一根 K 线的情况。
+ *  只拦"有行情数据但过期"的标的;完全没有行情数据的标的行为不变(仍交给条件判定)。 */
+export const STALE_DATA_TOLERANCE_DAYS = 7;
+/** 某条规则因行情过期被跳过的比例超过此阈值时才占用 run warning 名额——静默丢掉覆盖范围是陷阱。 */
+export const STALE_SKIP_WARNING_RATIO = 0.5;
+
+export function latestExpectedTradingDateIso(now = new Date()) {
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  while (day.getUTCDay() === 0 || day.getUTCDay() === 6) day.setUTCDate(day.getUTCDate() - 1);
+  return day.toISOString().slice(0, 10);
+}
+
+export function resolveStaleCutoffDate(now = new Date()) {
+  return isoDateShiftDays(latestExpectedTradingDateIso(now), -STALE_DATA_TOLERANCE_DAYS);
+}
+
+export function isStaleMarketData(latestDate, staleCutoffDate) {
+  const value = String(latestDate || "");
+  if (!value || !staleCutoffDate) return false;
+  return value < String(staleCutoffDate); // ISO 日期字符串可直接按字典序比较
+}
 
 export function createAlertsRunner({
   dataPaths,
@@ -100,6 +127,7 @@ export function createAlertsRunner({
     marketAmv,
     marketAmvSp500 = null,
     marketAmvNasdaq = null,
+    staleCutoffDate = "",
     warnings
   }) {
     const { fmpBaseUrl, fmpApiKey, transport, fromUser, defaultEmailTo, defaultWebhookType, defaultWebhookUrl } = runtime;
@@ -116,6 +144,7 @@ export function createAlertsRunner({
     let matchedCount = 0;
     let firedCount = 0;
     let cooldownSkippedCount = 0;
+    let staleSkippedCount = 0;
     let missingFieldCount = 0;
     let proxyHitCount = 0;
     let fallbackHitCount = 0;
@@ -202,6 +231,14 @@ export function createAlertsRunner({
         const { row, symbol, stats } = result;
         if (financialRule && stats.financialRuleEligible === false) {
           log(`规则 ${ruleName}：已跳过 ${symbol}，原因=${stats.financialRuleSkipReason || "财报规则不适用该标的"}`);
+          continue;
+        }
+        // 行情新鲜度闸门:数据过期的标的照常判定只会产出假信号(退市代码报"新高+放量"),这里直接跳过
+        if (isStaleMarketData(stats.latestDate, staleCutoffDate)) {
+          staleSkippedCount += 1;
+          if (staleSkippedCount <= 5) {
+            log(`规则 ${ruleName}：已跳过 ${symbol}，原因=行情过期（数据日 ${stats.latestDate} 早于参照 ${staleCutoffDate}）`);
+          }
           continue;
         }
         const minPrice = useUniverse ? toNumber(universe.minPrice) : null;
@@ -325,7 +362,15 @@ export function createAlertsRunner({
     }
     logWebhookDeliverySummary();
 
-    log(`规则 ${ruleName}：本轮扫描 ${fmpRows.length} 支，命中 ${matchedCount} 支，实际触发 ${firedCount} 次，冷却跳过 ${cooldownSkippedCount} 次，缺字段 ${missingFieldCount} 支，通知=${describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookType, defaultWebhookUrl })}`);
+    log(`规则 ${ruleName}：本轮扫描 ${fmpRows.length} 支，命中 ${matchedCount} 支，实际触发 ${firedCount} 次，冷却跳过 ${cooldownSkippedCount} 次，行情过期跳过 ${staleSkippedCount} 支，缺字段 ${missingFieldCount} 支，通知=${describeNotifyTargets({ rule, defaultEmailTo, defaultWebhookType, defaultWebhookUrl })}`);
+    // 过期跳过本来是静默的:一旦占比过高说明行情源出问题或池子里混进了大批僵尸代码,必须上报
+    if (
+      Array.isArray(warnings) &&
+      staleSkippedCount > 0 &&
+      staleSkippedCount >= Math.max(50, Math.ceil(fmpRows.length * STALE_SKIP_WARNING_RATIO))
+    ) {
+      warnings.push(`规则 ${ruleName}：本轮 ${staleSkippedCount}/${fmpRows.length} 支因行情过期被跳过（参照交易日 ${staleCutoffDate}），请检查行情数据源`);
+    }
     if (proxyHitCount > 0 || fallbackHitCount > 0) {
       log(`规则 ${ruleName}：采用口径统计，代理命中 ${proxyHitCount} 支，回退口径命中 ${fallbackHitCount} 支`);
     }
@@ -617,6 +662,10 @@ export function createAlertsRunner({
       const failedRuleErrors = [];
       const runWarnings = [];
 
+      // 行情新鲜度参照:本轮所有 FMP 规则共用一个截断日,避免各条规则各算一套
+      const staleCutoffDate = resolveStaleCutoffDate();
+      log(`行情新鲜度闸门:参照最近工作日 ${latestExpectedTradingDateIso()}，数据日早于 ${staleCutoffDate} 的标的将跳过`);
+
       let marketAmv = null;
       let marketAmvSp500 = null;
       let marketAmvNasdaq = null;
@@ -676,7 +725,7 @@ export function createAlertsRunner({
               log(`规则完成：${rule.name || "未命名规则"}（已跳过）`);
               continue;
             }
-            await runFmpRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv, marketAmvSp500, marketAmvNasdaq, warnings: runWarnings });
+            await runFmpRule({ rule, universe, useUniverse, manualSymbols, dryRun, ignoreCooldown, state, runtime, marketAmv, marketAmvSp500, marketAmvNasdaq, staleCutoffDate, warnings: runWarnings });
             completedRules += 1;
             log(`规则完成：${rule.name || "未命名规则"}`);
             continue;

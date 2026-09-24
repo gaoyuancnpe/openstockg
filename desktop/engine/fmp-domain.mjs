@@ -28,6 +28,11 @@ function perThresholdCachePath(basePath, minMarketCapM) {
   return String(basePath).replace(/\.json$/, `_mc${Math.round(value)}.json`);
 }
 
+/** 默认规则候选池口径:只要公司股票(美国公司 + 外国公司/ADR),剔除共同基金、ETF 与已退市代码。
+ *  FMP 的 company-screener 默认把共同基金也当成 NASDAQ/NYSE 标的返回,实测占前 2000 名的 41%;
+ *  改动过滤语义时必须同步改这个 tag,否则旧的缓存文件(含基金)会被继续复用。 */
+export const DEFAULT_UNIVERSE_SECURITY_FILTER = "company-and-adr-v1";
+
 export async function loadUniverseUS({ dataPaths, baseUrl, apiKey, force, maxAgeDays, log, provider }) {
   const filePath = dataPaths?.universeUS;
   const maxAgeMs = (Number.isFinite(maxAgeDays) ? maxAgeDays : 7) * 86400 * 1000;
@@ -81,6 +86,7 @@ export async function loadFmpDefaultUniverse({ dataPaths, baseUrl, apiKey, force
     if (
       cached &&
       cached.provider === "fmp-default-universe" &&
+      cached.securityFilter === DEFAULT_UNIVERSE_SECURITY_FILTER &&
       Number(cached.minMarketCapM) === minMarketCap &&
       Array.isArray(cached.rows)
     ) {
@@ -93,18 +99,23 @@ export async function loadFmpDefaultUniverse({ dataPaths, baseUrl, apiKey, force
     }
   }
 
-  if (log) log(`拉取 FMP 默认规则候选池（NASDAQ+NYSE，市值 >= ${minMarketCap} 百万美元）...`);
+  if (log) log(`拉取 FMP 默认规则候选池（NASDAQ+NYSE，市值 >= ${minMarketCap} 百万美元，仅公司股票与 ADR，剔除基金/ETF/已退市）...`);
   const rows = await fmpCompanyScreener({
     baseUrl,
     apiKey,
     params: {
       exchange: "NASDAQ,NYSE",
       marketCapMoreThan: Math.round(minMarketCap * 1e6),
+      isEtf: "false",
+      isFund: "false",
+      isActivelyTrading: "true",
       limit: 10000
     }
   });
 
   const normalized = sortUniverseRowsByMarketCapDesc(rows
+    // 服务端过滤已生效,这里再按返回的 flag 兜一层:参数一旦被上游忽略,不至于把基金又当股票扫一遍
+    .filter((row) => row?.isEtf !== true && row?.isFund !== true && row?.isActivelyTrading !== false)
     .map((row) => ({
       symbol: String(row?.symbol || "").trim().toUpperCase(),
       marketCap: toNumber(row?.marketCap)
@@ -114,6 +125,7 @@ export async function loadFmpDefaultUniverse({ dataPaths, baseUrl, apiKey, force
   const payload = {
     updatedAt: new Date().toISOString(),
     provider: "fmp-default-universe",
+    securityFilter: DEFAULT_UNIVERSE_SECURITY_FILTER,
     minMarketCapM: minMarketCap,
     rows: normalized
   };
