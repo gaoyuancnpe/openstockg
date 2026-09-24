@@ -167,9 +167,16 @@ export function createAlertsRunner({
       const scanCount = Number.isFinite(maxScan) ? maxScan : 2000;
       fmpRows = list.slice(0, Math.min(list.length, scanCount));
       log(`规则 ${ruleName}：FMP 候选池 ${list.length} 支（按市值从高到低，来源=${meta.source}），本轮固定扫描前 ${fmpRows.length} 支`);
-      // 静默截断是陷阱:门槛低于前 scanCount 名市值的标的永远不被评估,必须显式提醒
+      // 截断本身可以是有意为之(只盯大市值);真正要抓的是"规则写的门槛低于实际扫描下界"
+      // ——即名义范围超出覆盖。门槛自洽(≥边界市值)的规则不再告警。
       if (Array.isArray(warnings) && list.length > scanCount) {
-        warnings.push(`规则 ${ruleName}：候选池 ${list.length} 支 > maxScan ${scanCount}，仅评估市值前 ${fmpRows.length} 支——低市值标的永远不会被扫描，请调大 maxScan 或收窄门槛`);
+        const boundaryRaw = toNumber(list[scanCount - 1]?.marketCap);
+        const boundaryCapM = boundaryRaw != null && boundaryRaw > 1e6 ? boundaryRaw / 1e6 : boundaryRaw;
+        const ruleMinCapM = universe?.minMarketCap != null ? Number(universe.minMarketCap) : null;
+        const selfConsistent = ruleMinCapM != null && boundaryCapM != null && ruleMinCapM >= boundaryCapM;
+        if (!selfConsistent) {
+          warnings.push(`规则 ${ruleName}：候选池 ${list.length} 支 > maxScan ${scanCount}，实际只评估市值 ≥约${boundaryCapM != null ? Math.round(boundaryCapM) : "?"}百万$ 的标的；规则门槛(${ruleMinCapM != null ? `${ruleMinCapM}百万$` : "未设"})低于该边界。若"只盯大盘股"是有意为之，把门槛提到边界之上即可消除本警告`);
+        }
       }
     } else {
       fmpRows = manualSymbols.map((symbol) => ({ symbol, marketCap: null }));
