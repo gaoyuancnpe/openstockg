@@ -1,7 +1,7 @@
 // MCP 服务器回归测试（零依赖，node 直接运行）：
 // node desktop/mcp/mcp-server.test.mjs
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -166,6 +166,52 @@ try {
     arguments: { rule: { name: "坏类型", enabled: true, conditions: [{ type: "not_a_real_type", value: 1 }] } }
   });
   assert(badType.result?.isError === true, "未知条件类型应拒收");
+
+  // 创建期冲突检测:①门槛低于实际扫描边界(用种子候选池推算) ②FMP 不支持的变量
+  const universeFile = path.join(baseDir, "universe_fmp_default_mc1000.json");
+  await writeFile(universeFile, JSON.stringify({
+    updatedAt: new Date().toISOString(),
+    provider: "fmp-default-universe",
+    securityFilter: "company-and-adr-v1",
+    minMarketCapM: 1000,
+    rows: [
+      { symbol: "BIG1", marketCap: 10e9 },
+      { symbol: "BIG2", marketCap: 5e9 },
+      { symbol: "BIG3", marketCap: 3e9 },
+      { symbol: "MID4", marketCap: 2e9 }
+    ]
+  }), "utf-8");
+  const conflicted = parseToolText(await request("tools/call", {
+    name: "add_rule",
+    arguments: {
+      rule: {
+        name: "低门槛冲突规则",
+        enabled: true,
+        condition: { op: ">=", left: { var: "marketCap" }, right: 1500 },
+        universe: { type: "us_all", minMarketCap: 1500, maxScan: 3 },
+        cooldownSec: 3600
+      }
+    }
+  }));
+  assert(Array.isArray(conflicted.conflictWarnings) && conflicted.conflictWarnings.length > 0, "低门槛规则应返回冲突提醒");
+  assert(String(conflicted.conflictWarnings[0]).includes("扫描边界"), "冲突提醒应说明扫描边界");
+
+  const unsupportedVar = parseToolText(await request("tools/call", {
+    name: "add_rule",
+    arguments: {
+      rule: {
+        name: "不支持变量规则",
+        enabled: true,
+        condition: { op: "crossesAbove", left: { var: "price" }, right: { var: "sma20" } },
+        symbols: ["AAPL"],
+        cooldownSec: 3600
+      }
+    }
+  }));
+  assert(
+    Array.isArray(unsupportedVar.conflictWarnings) && unsupportedVar.conflictWarnings.some((w) => String(w).includes("sma20")),
+    "FMP 不支持的变量应在创建时提醒"
+  );
 
   // ---------- 4. 配置脱敏 ----------
   section("配置脱敏与补丁");

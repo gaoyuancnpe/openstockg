@@ -911,6 +911,10 @@ window.__ModuleLoader__.load({
 				try {
 					const data = await api("/branding/api/rules/update", payload);
 					renderRulesList(data);
+					// 创建期冲突提醒:门槛低于实际扫描边界 / 数据源不支持的变量(只提醒不阻断)
+					if (Array.isArray(data.conflictWarnings) && data.conflictWarnings.length > 0) {
+						window.alert(`规则已保存,但有以下提醒:\n\n${data.conflictWarnings.join("\n\n")}`);
+					}
 				} catch (error) {
 					window.alert(`规则更新失败:${error.message}`);
 				}

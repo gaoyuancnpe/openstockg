@@ -1,4 +1,6 @@
 import { toNumber } from "../shared-runtime.mjs";
+import { readdir } from "node:fs/promises";
+import { getFmpUnsupportedVars } from "./rule-domain.mjs";
 import {
   isRecentIsoTime,
   isoDateShiftDays,
@@ -146,6 +148,7 @@ export async function loadFmpFinancialUniverse({ dataPaths, baseUrl, apiKey, for
     if (
       cached &&
       cached.provider === "fmp-financial-universe" &&
+      cached.securityFilter === DEFAULT_UNIVERSE_SECURITY_FILTER &&
       Number(cached.minMarketCapM) === minMarketCap &&
       Array.isArray(cached.rows)
     ) {
@@ -158,18 +161,23 @@ export async function loadFmpFinancialUniverse({ dataPaths, baseUrl, apiKey, for
     }
   }
 
-  if (log) log(`拉取财报筛选候选池（NASDAQ+NYSE，市值 >= ${minMarketCap} 百万美元）...`);
+  if (log) log(`拉取财报筛选候选池（NASDAQ+NYSE，市值 >= ${minMarketCap} 百万美元，仅公司股票与 ADR，剔除基金/ETF/已退市）...`);
   const rows = await fmpCompanyScreener({
     baseUrl,
     apiKey,
     params: {
       exchange: "NASDAQ,NYSE",
       marketCapMoreThan: minMarketCap > 0 ? Math.round(minMarketCap * 1e6) : undefined,
+      isEtf: "false",
+      isFund: "false",
+      isActivelyTrading: "true",
       limit: 10000
     }
   });
 
   const normalized = sortUniverseRowsByMarketCapDesc(rows
+    // 与默认候选池同口径:服务端参数 + 返回 flag 双保险,财报池不混基金
+    .filter((row) => row?.isEtf !== true && row?.isFund !== true && row?.isActivelyTrading !== false)
     .map((row) => ({
       symbol: String(row?.symbol || "").trim().toUpperCase(),
       marketCap: toNumber(row?.marketCap)
@@ -179,6 +187,7 @@ export async function loadFmpFinancialUniverse({ dataPaths, baseUrl, apiKey, for
   const payload = {
     updatedAt: new Date().toISOString(),
     provider: "fmp-financial-universe",
+    securityFilter: DEFAULT_UNIVERSE_SECURITY_FILTER,
     minMarketCapM: minMarketCap,
     rows: normalized
   };
@@ -774,4 +783,61 @@ export async function computeFmpRuleStats({ baseUrl, apiKey, symbol, state }) {
       earningsWithin1TradingDay: earningsWithin1TradingDayMeta
     }))
   };
+}
+
+/** ── 规则创建期冲突检测 ──────────────────────────────────────────────────
+ *  供 add_rule / save_rules / 面板添加规则时调用:只提醒不阻断,
+ *  运行期另有边界警告与新鲜度闸门兜底。 */
+
+/** 从已缓存的默认候选池推算"市值门槛 T + 前 maxScan 名"的实际扫描边界(百万$)。
+ *  取缓存里门槛 ≤ T 的最大池(覆盖 ⊇ 规则范围)派生;无可用缓存返回 null。 */
+export async function resolveScanBoundaryM({ dataPaths, minMarketCapM, maxScan = 2000 }) {
+  try {
+    const base = dataPaths?.universeFmpDefault || dataPaths?.universeUS;
+    if (!base) return null;
+    const prefix = String(base).replace(/\.json$/, "_mc");
+    const files = (await readdir(String(base).slice(0, String(base).lastIndexOf("/"))))
+      .filter((name) => name.startsWith(prefix.split("/").pop()) && name.endsWith(".json"));
+    let best = null;
+    for (const name of files) {
+      const cached = await readJSON(`${String(base).slice(0, String(base).lastIndexOf("/"))}/${name}`, null);
+      const threshold = Number(cached?.minMarketCapM);
+      if (!cached || !Array.isArray(cached.rows) || !Number.isFinite(threshold)) continue;
+      if (threshold > Number(minMarketCapM)) continue; // 池子覆盖不到规则的门槛之下
+      if (!best || threshold < Number(best.minMarketCapM)) best = { minMarketCapM: threshold, rows: cached.rows };
+    }
+    if (!best) return null;
+    const floor = Number(minMarketCapM) * 1e6;
+    const eligible = best.rows.filter((row) => row?.marketCap !== null && row.marketCap >= floor);
+    const index = Math.max(0, Math.trunc(Number(maxScan) || 2000) - 1);
+    if (eligible.length <= index) return null; // 规则范围内不足 maxScan 支,不存在截断
+    const boundary = eligible[index]?.marketCap;
+    return boundary != null ? boundary / 1e6 : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 新规则的两类冲突:①FMP 模式不支持的变量(保存后会被跳过) ②门槛低于实际扫描边界 */
+export async function detectRuleSetupConflicts({ dataPaths, rule, dataProvider }) {
+  const warnings = [];
+  if (!rule || typeof rule !== "object") return warnings;
+  if (String(dataProvider || "fmp").toLowerCase() === "fmp") {
+    const unsupported = getFmpUnsupportedVars(rule);
+    if (unsupported.length > 0) {
+      warnings.push(`规则使用了 FMP 模式不支持的变量：${unsupported.join("、")}——保存后该规则将被跳过，请改用受支持变量`);
+    }
+  }
+  const universe = rule?.universe;
+  if (universe?.type === "us_all" && universe.minMarketCap != null && Number.isFinite(Number(universe.minMarketCap))) {
+    const maxScan = Number(universe.maxScan ?? 2000);
+    const boundary = await resolveScanBoundaryM({ dataPaths, minMarketCapM: Number(universe.minMarketCap), maxScan });
+    if (boundary != null && Number(universe.minMarketCap) < boundary) {
+      warnings.push(
+        `市值门槛(${universe.minMarketCap}百万$)低于实际扫描边界(约${Math.round(boundary)}百万$，池子前${maxScan}名)` +
+        `——名义盯盘范围大于实际覆盖；把门槛提到 ≥${Math.round(boundary)}百万$ 可消除（候选池缓存就绪前此为近似值）`
+      );
+    }
+  }
+  return warnings;
 }

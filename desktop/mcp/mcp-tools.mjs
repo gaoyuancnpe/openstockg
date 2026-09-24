@@ -15,6 +15,7 @@ import {
   conditionFromUI,
   conditionTypeNeedsValue
 } from "../rules/rule-condition-shared.mjs";
+import { detectRuleSetupConflicts } from "../engine/fmp-domain.mjs";
 import {
   initializeDesktopStorage,
   loadDesktopConfig,
@@ -185,10 +186,12 @@ export function createMcpToolRegistry({ dataPaths, log }) {
           throw new Error("rule 必须是对象");
         }
         const normalized = normalizeRuleForEngine(rule);
+        const cfg = await loadDesktopConfig(dataPaths);
+        const conflictWarnings = await detectRuleSetupConflicts({ dataPaths, rule: normalized, dataProvider: cfg.dataProvider });
         const rules = await loadDesktopRules(dataPaths);
         const next = [...rules, normalized];
         await saveDesktopRules(dataPaths, next);
-        return { ok: true, total: next.length, added: buildRuleSnapshot(normalized) };
+        return { ok: true, total: next.length, added: buildRuleSnapshot(normalized), conflictWarnings };
       }
     },
     {
@@ -212,8 +215,13 @@ export function createMcpToolRegistry({ dataPaths, log }) {
           }
           return normalizeRuleForEngine(rule);
         });
+        const cfg = await loadDesktopConfig(dataPaths);
+        const conflictWarnings = [];
+        for (const rule of normalized) {
+          conflictWarnings.push(...await detectRuleSetupConflicts({ dataPaths, rule, dataProvider: cfg.dataProvider }));
+        }
         await saveDesktopRules(dataPaths, normalized);
-        return { ok: true, total: normalized.length };
+        return { ok: true, total: normalized.length, conflictWarnings };
       }
     },
     {

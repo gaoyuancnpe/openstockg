@@ -283,12 +283,22 @@ async function serveRulesUpdate(req, res) {
     }
 
     await saveDesktopRules(paths, rules);
+    // 创建期冲突提醒(只提醒不阻断):门槛低于实际扫描边界 / 数据源不支持的变量
+    let conflictWarnings = [];
+    if (action === "add") {
+      try {
+        const cfg = await loadDesktopConfig(paths);
+        const { detectRuleSetupConflicts } = await import("../../../../desktop/engine/fmp-domain.mjs");
+        conflictWarnings = await detectRuleSetupConflicts({ dataPaths: paths, rule: body.rule, dataProvider: cfg.dataProvider });
+      } catch { /* 冲突检测失败不阻塞保存 */ }
+    }
     const list = await loadDesktopRules(paths);
     replyJson(res, 200, {
       ok: true,
       total: list.length,
       enabledCount: list.filter((rule) => rule?.enabled).length,
-      rules: list.map(describeRule)
+      rules: list.map(describeRule),
+      conflictWarnings
     });
   } catch (error) {
     replyJson(res, 500, { error: error?.message || "规则更新失败" });
