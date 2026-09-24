@@ -618,11 +618,22 @@ window.__ModuleLoader__.load({
 				'  <div class="ya-card">',
 				'    <div class="ya-card-title">调度器</div>',
 				'    <div class="ya-sched-state ya-state">读取中…</div>',
+				'    <div class="ya-grid" style="margin-top:8px">',
+				'      <label class="ya-field">模式<select class="ya-input" data-c="schedMode">',
+				'        <option value="interval">间隔循环</option><option value="daily">每日定时</option></select></label>',
+				'      <label class="ya-field ya-sched-interval-field">间隔(秒)<input class="ya-input" data-c="schedInterval" type="number" min="10" step="10" placeholder="60"></label>',
+				'      <label class="ya-field ya-sched-daily-field">每日时刻<input class="ya-input" data-c="schedDailyTime" type="time" value="06:00"></label>',
+				'    </div>',
+				'    <div class="ya-grid" style="margin-top:8px">',
+				'      <label class="ya-check"><input type="checkbox" data-c="schedWeekdays" checked>仅工作日</label>',
+				'      <label class="ya-check"><input type="checkbox" data-c="schedMarketHours">仅美股交易时段(间隔模式)</label>',
+				'    </div>',
 				'    <div class="ya-actions">',
+				'      <button class="ya-btn primary ya-sched-save">保存并生效</button>',
 				'      <button class="ya-btn primary ya-sched-start">启动调度</button>',
 				'      <button class="ya-btn ya-sched-stop">停止调度</button>',
 				'    </div>',
-				'    <div class="ya-hint">调度随本实例进程常驻:实例停止时调度一并停止;间隔在「设置」页签调整。</div>',
+				'    <div class="ya-hint">保存并生效=写入配置,调度器正在运行时会自动重启换挡;每日时刻为服务器本地时间(北京时间)。</div>',
 				'  </div>',
 				'  <div class="ya-card">',
 				'    <div class="ya-card-title">手动运行</div>',
@@ -657,14 +668,6 @@ window.__ModuleLoader__.load({
 				'      <button class="ya-btn ya-test-webhook">测试回调</button>',
 				'    </div>',
 				'    <div class="ya-hint">邮件还需在 Gmail 发件账号配置(邮箱+应用专用密码);当前仅面板按钮与规则命中会用到通知。</div>',
-				'  </div>',
-				'  <div class="ya-card">',
-				'    <div class="ya-card-title">调度</div>',
-				'    <div class="ya-grid">',
-				'      <label class="ya-field">间隔(秒)<input class="ya-input" data-c="intervalSec" type="number" placeholder="60"></label>',
-				'    </div>',
-				'    <div class="ya-actions"><button class="ya-btn primary ya-cfg-save" data-patch="scheduler">保存调度设置</button></div>',
-				'    <div class="ya-hint">保存后需在「运行」页签重新启动调度才会按新间隔执行。</div>',
 				'  </div>',
 				'  <div class="ya-card">',
 				'    <div class="ya-card-title">AI 编排</div>',
@@ -922,29 +925,56 @@ window.__ModuleLoader__.load({
 				}
 			}
 
+			const updateSchedModeFields = () => {
+				const mode = body.querySelector('[data-c="schedMode"]')?.value || "interval";
+				const toggle = (cls, on) => {
+					const el = body.querySelector(cls);
+					if (el) el.style.display = on ? "" : "none";
+				};
+				toggle(".ya-sched-interval-field", mode === "interval");
+				toggle(".ya-sched-daily-field", mode === "daily");
+			};
+
 			async function loadScheduler() {
 				const el = body.querySelector(".ya-sched-state");
 				try {
-					const data = await api("/branding/api/status.json");
+					const [data, cfg] = await Promise.all([
+						api("/branding/api/status.json"),
+						api("/branding/api/config.json")
+					]);
 					const s = data.scheduler;
 					if (!s) {
 						el.textContent = "状态未知";
 						return;
 					}
-				el.className = "ya-sched-state";
-				el.style.color = s.isRunning ? "var(--ya-success)" : "var(--ya-muted)";
-				if (!s.isRunning) {
-					el.textContent = "已停止";
-					return;
-				}
-				const modeText = s.mode === "daily"
-					? `每日 ${s.dailyTime || "-"}${s.weekdaysOnly ? "(工作日)" : ""}`
-					: `每 ${s.intervalSec ?? "-"} 秒`;
-				const next = s.nextRunAt ? new Date(s.nextRunAt) : null;
-				const nextText = next && !Number.isNaN(next.getTime())
-					? ` · 下次 ${next.toLocaleString("zh-CN", { hour12: false })}`
-					: "";
-				el.textContent = `运行中 · ${modeText}${nextText}`;
+					el.className = "ya-sched-state";
+					el.style.color = s.isRunning ? "var(--ya-success)" : "var(--ya-muted)";
+					if (!s.isRunning) {
+						el.textContent = "已停止";
+					} else {
+						const modeText = s.mode === "daily"
+							? `每日 ${s.dailyTime || "-"}${s.weekdaysOnly ? "(工作日)" : ""}`
+							: `每 ${s.intervalSec ?? "-"} 秒`;
+						const next = s.nextRunAt ? new Date(s.nextRunAt) : null;
+						const nextText = next && !Number.isNaN(next.getTime())
+							? ` · 下次 ${next.toLocaleString("zh-CN", { hour12: false })}`
+							: "";
+						el.textContent = `运行中 · ${modeText}${nextText}`;
+					}
+					// 回填表单(状态优先,配置兜底)
+					const setVal = (k, v) => {
+						const input = body.querySelector(`[data-c="${k}"]`);
+						if (input && v !== null && v !== undefined && v !== "") input.value = String(v);
+					};
+					const sc = cfg.scheduler || {};
+					setVal("schedMode", s.mode || sc.mode || "interval");
+					setVal("schedInterval", s.intervalSec ?? sc.intervalSec ?? 60);
+					setVal("schedDailyTime", s.dailyTime || sc.dailyTime || "06:00");
+					const weekdays = body.querySelector('[data-c="schedWeekdays"]');
+					if (weekdays) weekdays.checked = (s.weekdaysOnly ?? sc.weekdaysOnly) !== false;
+					const marketHours = body.querySelector('[data-c="schedMarketHours"]');
+					if (marketHours) marketHours.checked = sc.usMarketHoursOnly === true;
+					updateSchedModeFields();
 				} catch (error) {
 					el.textContent = `读取失败:${error.message}`;
 				}
@@ -992,8 +1022,7 @@ window.__ModuleLoader__.load({
 						}
 						if (el && !el.value && v != null) el.value = String(v);
 					};
-					setIfEmpty("defaultEmailTo", cfg.defaultEmailTo);
-					setIfEmpty("intervalSec", cfg.scheduler?.intervalSec);
+				setIfEmpty("defaultEmailTo", cfg.defaultEmailTo);
 					const typeSel = body.querySelector('[data-c="defaultWebhookType"]');
 					if (typeSel) typeSel.value = cfg.defaultWebhookType || "generic";
 					const modeSel = body.querySelector('[data-c="aiMode"]');
@@ -1135,6 +1164,42 @@ window.__ModuleLoader__.load({
 				await api("/branding/api/scheduler", { action: "stop" }).catch((e) => window.alert(`停止失败:${e.message}`));
 				loadScheduler();
 			});
+			body.querySelector('[data-c="schedMode"]').addEventListener("change", updateSchedModeFields);
+			body.querySelector(".ya-sched-save").addEventListener("click", async (event) => {
+				const btn = event.target;
+				btn.disabled = true;
+				try {
+					const mode = body.querySelector('[data-c="schedMode"]')?.value || "interval";
+					const patch = {
+						scheduler: {
+							mode,
+							weekdaysOnly: body.querySelector('[data-c="schedWeekdays"]')?.checked !== false,
+							usMarketHoursOnly: body.querySelector('[data-c="schedMarketHours"]')?.checked === true
+						}
+					};
+					if (mode === "daily") {
+						const time = String(body.querySelector('[data-c="schedDailyTime"]')?.value || "").trim();
+						if (!/^\d{2}:\d{2}$/.test(time)) throw new Error("每日时刻格式应为 HH:MM");
+						patch.scheduler.dailyTime = time;
+					} else {
+						const interval = Number(body.querySelector('[data-c="schedInterval"]')?.value);
+						if (!Number.isFinite(interval) || interval < 10) throw new Error("间隔至少 10 秒");
+						patch.scheduler.intervalSec = interval;
+					}
+					const wasRunning = (await api("/branding/api/status.json")).scheduler?.isRunning === true;
+					await saveConfigPatch(patch);
+					if (wasRunning) {
+						await api("/branding/api/scheduler", { action: "stop" });
+						await api("/branding/api/scheduler", { action: "start" });
+					}
+					window.alert(`调度设置已保存${wasRunning ? ",调度器已按新配置重启" : "(当前未运行,启动时生效)"}`);
+				} catch (error) {
+					window.alert(`保存失败:${error.message}`);
+				} finally {
+					btn.disabled = false;
+					loadScheduler();
+				}
+			});
 			body.querySelector(".ya-run-once").addEventListener("click", async () => {
 				const btn = body.querySelector(".ya-run-once");
 				btn.disabled = true;
@@ -1173,10 +1238,6 @@ window.__ModuleLoader__.load({
 						patch.defaultWebhookType = body.querySelector('[data-c="defaultWebhookType"]')?.value || "generic";
 						if (val("defaultWebhookUrl")) patch.defaultWebhookUrl = val("defaultWebhookUrl");
 						await saveConfigPatch(patch);
-					} else if (kind === "scheduler") {
-						const interval = Number(val("intervalSec"));
-						if (!Number.isFinite(interval) || interval < 10) return window.alert("间隔至少 10 秒");
-						await saveConfigPatch({ scheduler: { intervalSec: interval } });
 					} else if (kind === "ai") {
 						await saveConfigPatch({
 							ai: {

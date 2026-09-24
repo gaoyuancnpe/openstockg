@@ -375,7 +375,8 @@ function describeConfigMasked(cfg) {
       mode: cfg.scheduler?.mode || "interval",
       intervalSec: cfg.scheduler?.intervalSec ?? null,
       dailyTime: cfg.scheduler?.dailyTime || "09:30",
-      weekdaysOnly: cfg.scheduler?.weekdaysOnly !== false
+      weekdaysOnly: cfg.scheduler?.weekdaysOnly !== false,
+      usMarketHoursOnly: cfg.scheduler?.usMarketHoursOnly === true
     },
     ai: {
       orchestration: {
