@@ -803,6 +803,8 @@ export async function resolveScanBoundaryM({ dataPaths, minMarketCapM, maxScan =
       const cached = await readJSON(`${String(base).slice(0, String(base).lastIndexOf("/"))}/${name}`, null);
       const threshold = Number(cached?.minMarketCapM);
       if (!cached || !Array.isArray(cached.rows) || !Number.isFinite(threshold)) continue;
+      // 只信当前口径的缓存:未打 securityFilter tag 的旧池(含基金)边界失真,宁可不判
+      if (cached.securityFilter !== DEFAULT_UNIVERSE_SECURITY_FILTER) continue;
       if (threshold > Number(minMarketCapM)) continue; // 池子覆盖不到规则的门槛之下
       if (!best || threshold < Number(best.minMarketCapM)) best = { minMarketCapM: threshold, rows: cached.rows };
     }
