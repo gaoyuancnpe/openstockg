@@ -943,6 +943,7 @@ window.__ModuleLoader__.load({
 						api("/branding/api/config.json")
 					]);
 					const s = data.scheduler;
+					const sc = cfg.scheduler || {};
 					if (!s) {
 						el.textContent = "状态未知";
 						return;
@@ -950,7 +951,11 @@ window.__ModuleLoader__.load({
 					el.className = "ya-sched-state";
 					el.style.color = s.isRunning ? "var(--ya-success)" : "var(--ya-muted)";
 					if (!s.isRunning) {
-						el.textContent = "已停止";
+						const savedMode = s.mode || sc.mode;
+						const summary = savedMode === "daily"
+							? `每日 ${s.dailyTime || sc.dailyTime || "-"}${(s.weekdaysOnly ?? sc.weekdaysOnly) !== false ? "(工作日)" : ""}`
+							: `每 ${s.intervalSec ?? sc.intervalSec ?? "-"} 秒`;
+						el.textContent = `已停止(配置已保存: ${summary}) · 点「启动调度」开始`;
 					} else {
 						const modeText = s.mode === "daily"
 							? `每日 ${s.dailyTime || "-"}${s.weekdaysOnly ? "(工作日)" : ""}`
@@ -966,7 +971,6 @@ window.__ModuleLoader__.load({
 						const input = body.querySelector(`[data-c="${k}"]`);
 						if (input && v !== null && v !== undefined && v !== "") input.value = String(v);
 					};
-					const sc = cfg.scheduler || {};
 					setVal("schedMode", s.mode || sc.mode || "interval");
 					setVal("schedInterval", s.intervalSec ?? sc.intervalSec ?? 60);
 					setVal("schedDailyTime", s.dailyTime || sc.dailyTime || "06:00");
@@ -1188,11 +1192,12 @@ window.__ModuleLoader__.load({
 					}
 					const wasRunning = (await api("/branding/api/status.json")).scheduler?.isRunning === true;
 					await saveConfigPatch(patch);
+					// 保存即生效:正在运行→重启换挡;未运行→直接按新配置启动,一步到位
 					if (wasRunning) {
 						await api("/branding/api/scheduler", { action: "stop" });
-						await api("/branding/api/scheduler", { action: "start" });
 					}
-					window.alert(`调度设置已保存${wasRunning ? ",调度器已按新配置重启" : "(当前未运行,启动时生效)"}`);
+					await api("/branding/api/scheduler", { action: "start" });
+					window.alert(`已保存并${wasRunning ? "按新配置重启" : "启动"}调度`);
 				} catch (error) {
 					window.alert(`保存失败:${error.message}`);
 				} finally {
