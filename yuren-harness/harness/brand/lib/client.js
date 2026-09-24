@@ -996,14 +996,30 @@ window.__ModuleLoader__.load({
 				for (const event of data.events.slice().reverse()) {
 					const div = document.createElement("div");
 					div.className = "ya-evt";
-					const raw = String(event?.at || event?.timestamp || "");
+					// 时间统一北京时间:事件落盘是 UTC ISO,展示必须过本地化;
+					// 字段链兼容各事件类型(run_status 带 startedAt/finishedAt)
+					const raw = event?.at || event?.timestamp || event?.startedAt || event?.finishedAt || "";
 					const parsed = new Date(raw);
-					// ISO 是 UTC,必须转本地再显示;解析失败回退原串截断
-					const time = Number.isNaN(parsed.getTime())
-						? raw.slice(5, 19)
-						: parsed.toLocaleString("zh-CN", { hour12: false });
-					const brief = String(event?.type || "") + (event?.ruleName ? ` · ${event.ruleName}` : "") +
-						(event?.message ? ` · ${event.message}` : "");
+					const time = raw
+						? (Number.isNaN(parsed.getTime()) ? String(raw).slice(5, 19) : parsed.toLocaleString("zh-CN", { hour12: false }))
+						: "";
+					let brief;
+					if (event?.type === "run_status" && event.phase === "finished") {
+						brief = `运行完成 · ${event.completedRules ?? "-"}/${event.totalRules ?? "-"} 条成功`
+							+ (event.failedRules ? `,失败 ${event.failedRules}` : "")
+							+ (Array.isArray(event.warnings) && event.warnings.length ? ` · ⚠${event.warnings.length} 条警告` : "");
+					} else if (event?.type === "run_status" && event.phase === "started") {
+						brief = `开始运行(${event.trigger || "manual"}${event.dryRun ? ",模拟" : ",真实发送"})`;
+					} else if (event?.type === "run_status") {
+						brief = `运行失败: ${event.error || "未知错误"}`;
+					} else if (event?.type === "scheduler_status") {
+						brief = `调度${event.isRunning ? "运行中" : "停止"}`
+							+ (event.isRunning && event.mode === "daily" ? ` · 每日 ${event.dailyTime || "-"}` : "")
+							+ (event.isRunning && event.mode === "interval" ? ` · 每 ${event.intervalSec ?? "-"} 秒` : "");
+					} else {
+						brief = String(event?.type || "") + (event?.ruleName ? ` · ${event.ruleName}` : "") +
+							(event?.message ? ` · ${event.message}` : "");
+					}
 					div.innerHTML = `<span class="ya-evt-time">${escapeAssetsHtml(time)}</span>${escapeAssetsHtml(brief)}`;
 					el.appendChild(div);
 				}
