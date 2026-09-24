@@ -8,9 +8,9 @@
  *     而 client-modules 扫描器用 require.resolve(仅接受 Windows 路径),二者互斥,
  *     所以浏览器半通过 tapIndex 注入 boot 图 + 自定义路由提供。
  */
-import { readFile, appendFile, writeFile, rename } from "node:fs/promises";
+import { readFile, appendFile, writeFile, rename, readdir, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createAlertsEngine } from "../../../../desktop/engine.mjs";
@@ -482,6 +482,74 @@ async function serveTestWebhook(_req, res) {
   }
 }
 
+/* ── 智能体产出文件:云端工作区列表与下载 ──────────────────────────────
+ *  智能体跑在云端,产出落服务器磁盘;下载走本域名,天然继承 market 的账户门禁。
+ *  目录与 AGENTS.md 交付规范一致(/srv/yuren/workspace),可用 YUREN_WORKSPACE_DIR 覆盖。 */
+function workspaceOutputDir() {
+  if (process.env.YUREN_WORKSPACE_DIR) return process.env.YUREN_WORKSPACE_DIR;
+  return "/srv/yuren/workspace";
+}
+
+const WORKSPACE_MIME = {
+  ".md": "text/markdown; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
+  ".csv": "text/csv; charset=utf-8"
+};
+
+async function collectWorkspaceFiles(dir, prefix = "", depth = 0, out = []) {
+  if (depth > 2 || out.length >= 200) return out;
+  let entries = [];
+  try { entries = await readdir(dir, { withFileTypes: true }); } catch { return out; }
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue;
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      await collectWorkspaceFiles(join(dir, entry.name), rel, depth + 1, out);
+    } else {
+      try {
+        const info = await stat(join(dir, entry.name));
+        out.push({ name: rel, size: info.size, mtime: info.mtime.toISOString() });
+      } catch { /* 文件消失则跳过 */ }
+    }
+  }
+  return out;
+}
+
+async function serveWorkspaceFiles(_req, res) {
+  try {
+    const rows = await collectWorkspaceFiles(workspaceOutputDir());
+    rows.sort((a, b) => String(b.mtime).localeCompare(String(a.mtime)));
+    replyJson(res, 200, { total: rows.length, files: rows.slice(0, 100) });
+  } catch (error) {
+    replyJson(res, 500, { error: error?.message || "产出文件读取失败" });
+  }
+}
+
+async function serveWorkspaceDownload(req, res) {
+  try {
+    const url = new URL(req.url, "http://local");
+    const name = String(url.searchParams.get("name") || "").trim();
+    const root = resolve(workspaceOutputDir());
+    // 防目录穿越:解析后的绝对路径必须仍在工作区内
+    const target = resolve(root, name);
+    if (!name || !target.startsWith(root + sep)) {
+      return replyJson(res, 400, { error: "非法的文件名" });
+    }
+    const body = await readFile(target);
+    const ext = String(target.slice(target.lastIndexOf("."))).toLowerCase();
+    const fileName = target.slice(target.lastIndexOf(sep) + 1);
+    res.writeHead(200, {
+      "content-type": WORKSPACE_MIME[ext] || "application/octet-stream",
+      "content-disposition": `attachment; filename="${encodeURIComponent(fileName)}"`,
+      "cache-control": "no-store"
+    });
+    res.end(body);
+  } catch (error) {
+    replyJson(res, 404, { error: error?.message || "文件不存在" });
+  }
+}
+
 async function serveAmvHistory(_req, res) {
   try {
     const url = new URL(_req.url, "http://local");
@@ -588,6 +656,8 @@ async function apply(ctx) {
   ctx.webServer.register({ kind: "exact", path: "/branding/api/config/update", handler: serveConfigUpdate });
   ctx.webServer.register({ kind: "exact", path: "/branding/api/test-email", handler: serveTestEmail });
   ctx.webServer.register({ kind: "exact", path: "/branding/api/test-webhook", handler: serveTestWebhook });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/workspace/files", handler: serveWorkspaceFiles });
+  ctx.webServer.register({ kind: "exact", path: "/branding/api/workspace/download", handler: serveWorkspaceDownload });
   ctx.webServer.register({ kind: "exact", path: "/branding/api/amv/history.json", handler: serveAmvHistory });
   ctx.webServer.register({ kind: "exact", path: "/branding/api/amv/compute", handler: serveAmvCompute });
 

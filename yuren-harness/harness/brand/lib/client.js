@@ -526,6 +526,9 @@ window.__ModuleLoader__.load({
 				".ya-table th:first-child,.ya-table td:first-child{text-align:left}",
 				".ya-evt{padding:6px 0;border-bottom:1px solid var(--ya-softer);font-size:12px;line-height:1.55}",
 				".ya-evt-time{color:var(--ya-muted);font-size:11px;margin-right:6px}",
+				".ya-ws-files{display:flex;flex-direction:column;gap:6px}",
+				".ya-ws-file{color:var(--ya-accent,#3b82f6);font-size:12px;text-decoration:none;word-break:break-all}",
+				".ya-ws-file:hover{text-decoration:underline}",
 				".ya-hint{font-size:11px;color:var(--ya-muted);margin-top:6px;line-height:1.6}",
 				".ya-kv{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}",
 				".ya-kv .ya-k{margin:0}",
@@ -639,6 +642,12 @@ window.__ModuleLoader__.load({
 				'    <div class="ya-card-title">手动运行</div>',
 				'    <div class="ya-actions"><button class="ya-btn primary ya-run-once">现在跑一次(模拟)</button></div>',
 				'    <div class="ya-hint">按当前启用的规则完整评估一轮,只记录不通知;结果看下方事件流。真实发送通知请走智能体对话确认。</div>',
+				'  </div>',
+				'  <div class="ya-card">',
+				'    <div class="ya-card-title">产出文件</div>',
+				'    <div class="ya-ws-files ya-state">读取中…</div>',
+				'    <div class="ya-actions"><button class="ya-btn ya-ws-refresh">刷新</button></div>',
+				'    <div class="ya-hint">智能体的交付物落在云端工作区,点文件名即可下载。</div>',
 				'  </div>',
 				'  <div class="ya-card">',
 				'    <div class="ya-card-title">最近事件</div>',
@@ -1114,11 +1123,35 @@ window.__ModuleLoader__.load({
 				if (open) refreshActiveTab();
 			};
 
+			async function loadWorkspaceFiles() {
+				const el = body.querySelector(".ya-ws-files");
+				try {
+					const data = await api("/branding/api/workspace/files");
+					if (!data.files?.length) {
+						el.className = "ya-ws-files ya-state";
+						el.textContent = "还没有产出文件。";
+						return;
+					}
+					el.className = "ya-ws-files";
+					el.innerHTML = "";
+					for (const file of data.files.slice(0, 30)) {
+						const a = document.createElement("a");
+						a.className = "ya-ws-file";
+						a.href = `/branding/api/workspace/download?name=${encodeURIComponent(file.name)}`;
+						a.textContent = `${file.name}（${Math.max(1, Math.round(file.size / 1024))}KB）`;
+						el.appendChild(a);
+					}
+				} catch (error) {
+					el.className = "ya-ws-files ya-state";
+					el.textContent = `读取失败:${error.message}`;
+				}
+			}
+
 			function refreshActiveTab() {
 				if (activeTab === "main") loadRules();
 				else if (activeTab === "settings") loadConfig();
 				else if (activeTab === "amv") loadAmv();
-				else { loadScheduler(); loadEvents(); }
+				else { loadScheduler(); loadEvents(); loadWorkspaceFiles(); }
 			}
 
 			function switchTab(name) {
@@ -1189,6 +1222,7 @@ window.__ModuleLoader__.load({
 				loadScheduler();
 			});
 			body.querySelector('[data-c="schedMode"]').addEventListener("change", updateSchedModeFields);
+			body.querySelector(".ya-ws-refresh").addEventListener("click", () => loadWorkspaceFiles());
 			body.querySelector(".ya-sched-save").addEventListener("click", async (event) => {
 				const btn = event.target;
 				btn.disabled = true;
