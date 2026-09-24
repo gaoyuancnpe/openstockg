@@ -554,12 +554,13 @@ export async function fireRuleAlert({
     });
   }
 
-  state[sk].lastFiredAt = nowMs();
+  // dry-run 只做判定展示,不占用冷却:否则一次模拟就把真实通知推迟一整个 cooldownSec
+  if (!dryRun) state[sk].lastFiredAt = nowMs();
   if (log) {
     const evidenceText = evaluationSummary.evidenceLines.slice(0, 6).join("；");
     const adoptedSummary = formatAdoptedFieldSummary(adoptedFields);
     const missingText = evaluationSummary.missingFieldDetails.slice(0, 3).join("；");
-    log(`${dryRun ? "DRY_RUN FIRED" : "FIRED"} ${symbol} ${conditionText}${ignoreCooldown ? " | 调试模式=忽略冷却" : ""}${evidenceText ? ` | 命中依据: ${evidenceText}` : ""}${adoptedSummary ? ` | 采用口径: ${adoptedSummary}` : ""}${missingText ? ` | 缺字段: ${missingText}` : ""}`);
+    log(`${dryRun ? "DRY_RUN FIRED" : "FIRED"} ${symbol} ${conditionText}${dryRun ? " | 冷却未占用(dry-run)" : ""}${ignoreCooldown ? " | 调试模式=忽略冷却" : ""}${evidenceText ? ` | 命中依据: ${evidenceText}` : ""}${adoptedSummary ? ` | 采用口径: ${adoptedSummary}` : ""}${missingText ? ` | 缺字段: ${missingText}` : ""}`);
   }
   return { fired: true, matched, canFire, adoptedFields, evaluationSummary, event };
 }
