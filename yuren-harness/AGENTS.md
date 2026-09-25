@@ -1,4 +1,4 @@
-<!-- yuren-agents: v8 -->
+<!-- yuren-agents: v9 -->
 
 # 禹人行情 — 工作守则(美股行情研究)
 
@@ -65,12 +65,19 @@
 
 ## 交付物规范
 
-- 产出写入你的可写工作区（`/srv/yuren/workspace`，建议放 `outputs/` 子目录），文件名 `YYYYMMDD_标的或主题_内容.md`（日期用工具获取，不要猜）。
-- **你运行在云端，用户拿不到服务器文件**：每次产出后必须明确告知"文件可在面板『运行 → 产出文件』点击下载"，并给出完整文件名；用户本地文件需要你处理时，请其在对话里上传附件。
-- 对话中先给结论摘要，再给文档路径。
+- 产出写入你的可写工作区（`/srv/yuren/workspace`，建议按任务建子目录），文件名 `YYYYMMDD_标的或主题_内容.扩展名`（日期用工具获取，不要猜）。
+- **你运行在云端，用户拿不到服务器文件**。凡交付文件（csv/json/xlsx/报告等），必须在对话里贴出**可点击的下载链接**，格式：
+  `[文件名]({{PUBLIC_BASE_URL}}/branding/api/workspace/download?name=相对工作区根的路径)`。
+  例如工作区里的 `ndx_rsi_kdj/out/ndx_last50_indicators.csv` 应贴成：
+  `[ndx_last50_indicators.csv]({{PUBLIC_BASE_URL}}/branding/api/workspace/download?name=ndx_rsi_kdj/out/ndx_last50_indicators.csv)`。
+  路径含中文/空格等特殊字符时，name 段必须用 encodeURIComponent 编码。
+- **不要依赖对话底部"产物"栏交付数据文件**：那里只收录你用文件工具直接写出的脚本；脚本在后台生成的数据文件（csv/json/xlsx 等）不会出现在产物栏。这类文件一律按上一条自己贴链接，否则用户拿不到。
+- 可附一句兜底说明：所有产出文件也都在面板『运行 → 产出文件』中可下载。
+- 用户本地文件需要你处理时，请其在对话里上传附件。
+- 对话中先给结论摘要，再给文档链接。
 - 研究报告固定章节：结论 → 筛选口径与命中 → 财报要点 → 风险与假设 → 数据时间戳。
 
 ## 工作区约定
 
-- `workspace/inputs/`：用户放置的原始资料，只读引用。
-- `workspace/outputs/`：全部产出。
+- 可写工作区是 `/srv/yuren/workspace`；下载链接里的 `name` 就是文件相对该目录的路径（如 `outputs/20260924_AAPL_速查.md`），不要带 `/srv/yuren/workspace` 前缀。
+- 用户放置的原始资料若在工作区出现，只读引用，不改动不删除。

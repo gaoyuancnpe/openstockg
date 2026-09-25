@@ -56,6 +56,17 @@ function pick(root, rel) {
   const p = path.join(root, ...rel);
   return fs.existsSync(p) ? p : null;
 }
+// 公网基址:优先显式环境变量;否则从可信主机里挑第一个域名(反代已为其配 TLS);
+// 都没有则回落本机端口。人设 AGENTS.md 里的下载链接模板靠它生成。
+function publicBaseUrl() {
+  const explicit = (process.env.YUREN_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  if (explicit) return explicit;
+  const hosts = (process.env.YUREN_TRUSTED_HOSTS || '')
+    .split(',').map((s) => s.trim().replace(/:\d+$/, '')).filter(Boolean);
+  const domain = hosts.find((h) => h && h !== 'localhost' && !/^\d+\.\d+\.\d+\.\d+$/.test(h));
+  if (domain) return `https://${domain}`;
+  return `http://${process.env.YUREN_HOST || '127.0.0.1'}:${process.env.YUREN_PORT || '3080'}`;
+}
 
 /* ---------- dsh 反代信任补丁 ----------
  * 完整实现见 patch-dsh-trust.cjs(可独立运行)。服务器上仓库属 deploy、服务以 yuren
@@ -105,7 +116,9 @@ function ensureDataDir() {
       else if (tplVer > curVer) { needsSeed = true; reason = `模板升级 v${curVer}→v${tplVer}`; }
     }
     if (needsSeed) {
-      fs.copyFileSync(path.join(ROOT, 'AGENTS.md'), agentsDst);
+      // 人设模板里的 {{PUBLIC_BASE_URL}} 在种入时替换成实际公网基址,
+      // 保证智能体贴给用户的下载链接开箱可点
+      fs.writeFileSync(agentsDst, templateText.replaceAll('{{PUBLIC_BASE_URL}}', publicBaseUrl()), 'utf8');
       log(`AGENTS.md 已种入/升级(${reason})`);
     }
   } catch (e) { log(`AGENTS.md 副本跳过: ${e.message}`); }
