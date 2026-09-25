@@ -516,11 +516,35 @@ async function collectWorkspaceFiles(dir, prefix = "", depth = 0, out = []) {
   return out;
 }
 
-async function serveWorkspaceFiles(_req, res) {
+/* 交付物判定:outputs/ 约定目录(任意扩展名)或文档类扩展名,且不在噪声目录里。
+ *  噪声目录=原始拉取数据(raw)、字节码/依赖缓存;脚本与 .patch 等构建产物
+ *  靠扩展名天然落选——它们单独下载没有意义,只会在列表里淹没真正的交付物。 */
+const WORKSPACE_NOISE_SEGMENTS = new Set(["__pycache__", "node_modules", "site-packages", "raw", ".pylibs", ".venv"]);
+const WORKSPACE_DELIVERABLE_EXTS = new Set([".md", ".csv", ".xlsx", ".pdf", ".html", ".png", ".jpg", ".jpeg"]);
+/* .txt 不在白名单:控制台转储(step*_out.txt)常以 .txt 落盘,真要交付就放 outputs/ */
+
+function isWorkspaceDeliverable(name) {
+  const segments = String(name).split("/");
+  if (segments.some((s) => WORKSPACE_NOISE_SEGMENTS.has(s))) return false;
+  if (segments[0] === "outputs") return true;
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 && WORKSPACE_DELIVERABLE_EXTS.has(name.slice(dot).toLowerCase());
+}
+
+async function serveWorkspaceFiles(req, res) {
   try {
+    const url = new URL(req.url, "http://local");
+    const scope = url.searchParams.get("scope") === "all" ? "all" : "deliverables";
     const rows = await collectWorkspaceFiles(workspaceOutputDir());
     rows.sort((a, b) => String(b.mtime).localeCompare(String(a.mtime)));
-    replyJson(res, 200, { total: rows.length, files: rows.slice(0, 100) });
+    const deliverables = rows.filter((r) => isWorkspaceDeliverable(r.name));
+    const list = scope === "all" ? rows : deliverables;
+    replyJson(res, 200, {
+      scope,
+      total: rows.length,
+      deliverableTotal: deliverables.length,
+      files: list.slice(0, 100)
+    });
   } catch (error) {
     replyJson(res, 500, { error: error?.message || "产出文件读取失败" });
   }

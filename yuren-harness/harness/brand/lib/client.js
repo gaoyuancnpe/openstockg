@@ -645,9 +645,9 @@ window.__ModuleLoader__.load({
 				'  </div>',
 				'  <div class="ya-card">',
 				'    <div class="ya-card-title">产出文件</div>',
-				'    <div class="ya-ws-files ya-state">读取中…</div>',
-				'    <div class="ya-actions"><button class="ya-btn ya-ws-refresh">刷新</button></div>',
-				'    <div class="ya-hint">智能体的交付物落在云端工作区,点文件名即可下载。</div>',
+				'    <div class="ya-ws-files ya-state" data-scope="deliverables">读取中…</div>',
+				'    <div class="ya-actions"><button class="ya-btn ya-ws-refresh">刷新</button><button class="ya-btn ya-ws-scope">显示全部工作区文件</button></div>',
+				'    <div class="ya-hint">默认只列交付物(csv/xlsx/报告及 outputs/ 目录);智能体给的中间文件链接仍可直接下载。</div>',
 				'  </div>',
 				'  <div class="ya-card">',
 				'    <div class="ya-card-title">最近事件</div>',
@@ -1125,11 +1125,17 @@ window.__ModuleLoader__.load({
 
 			async function loadWorkspaceFiles() {
 				const el = body.querySelector(".ya-ws-files");
+				const toggle = body.querySelector(".ya-ws-scope");
+				const scope = el.dataset.scope || "deliverables";
 				try {
-					const data = await api("/branding/api/workspace/files");
+					const data = await api(`/branding/api/workspace/files?scope=${scope}`);
+					const hiddenCount = data.total - data.deliverableTotal;
+					toggle.textContent = scope === "deliverables"
+						? `显示全部工作区文件（另有 ${hiddenCount} 个中间文件）`
+						: "只看交付物";
 					if (!data.files?.length) {
 						el.className = "ya-ws-files ya-state";
-						el.textContent = "还没有产出文件。";
+						el.textContent = scope === "deliverables" ? "还没有交付物（智能体产出的 csv/xlsx/报告会出现在这里）。" : "工作区为空。";
 						return;
 					}
 					el.className = "ya-ws-files";
@@ -1223,6 +1229,11 @@ window.__ModuleLoader__.load({
 			});
 			body.querySelector('[data-c="schedMode"]').addEventListener("change", updateSchedModeFields);
 			body.querySelector(".ya-ws-refresh").addEventListener("click", () => loadWorkspaceFiles());
+			body.querySelector(".ya-ws-scope").addEventListener("click", () => {
+				const el = body.querySelector(".ya-ws-files");
+				el.dataset.scope = el.dataset.scope === "deliverables" ? "all" : "deliverables";
+				loadWorkspaceFiles();
+			});
 			body.querySelector(".ya-sched-save").addEventListener("click", async (event) => {
 				const btn = event.target;
 				btn.disabled = true;
