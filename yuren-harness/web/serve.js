@@ -67,6 +67,15 @@ function publicBaseUrl() {
   if (domain) return `https://${domain}`;
   return `http://${process.env.YUREN_HOST || '127.0.0.1'}:${process.env.YUREN_PORT || '3080'}`;
 }
+// 产出工作区根(dsh 会话常用的工作区/沙箱可写根,面板产出文件视图同源)
+function workspaceRootDir() {
+  return process.env.YUREN_WORKSPACE_DIR || '/srv/yuren/workspace';
+}
+// 运行时真实 dsh 家目录:子进程未收到 DSH_HOME 时回落 $HOME/.dsh,
+// 与 dshHome()(实例隔离目录)可能不同——指令与技能以这里发现为准
+function realDshHomeDir() {
+  return process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+}
 
 /* ---------- dsh 反代信任补丁 ----------
  * 完整实现见 patch-dsh-trust.cjs(可独立运行)。服务器上仓库属 deploy、服务以 yuren
@@ -107,8 +116,8 @@ function ensureDataDir() {
     // 与会话工作区根目录。会话工作区实际根不止一个候选(产出目录 / 沙箱根 / 数据目录),
     // 运行时真实 DSH_HOME 也可能与 dshHome() 推导不同(子进程未收到 DSH_HOME 时回落
     // $HOME/.dsh)。全部种入:多份同内容只浪费少量上下文预算,漏种则人设完全不生效。
-    const workspaceDir = process.env.YUREN_WORKSPACE_DIR || '/srv/yuren/workspace';
-    const realDshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+    const workspaceDir = workspaceRootDir();
+    const realDshHome = realDshHomeDir();
     const agentsTargets = [
       path.join(D, 'AGENTS.md'),                          // 数据目录根(历史位置)
       path.join(realDshHome, 'AGENTS.md'),                // 用户全局:对任意工作区的会话生效
@@ -158,17 +167,31 @@ function fingerprint(dir) {
 
 function syncSkills(D) {
   const src = path.join(HARNESS, 'skills');
-  const dst = path.join(D, '.dsh', 'skills');
   if (!fs.existsSync(src)) return;
+  // 与 AGENTS.md 同理:技能发现点有多个(用户全局 DSH_HOME/skills 与各项目根 .dsh/skills),
+  // 全部同步——漏一处,以那处为根的会话就看不到技能。
+  const targets = [
+    path.join(D, '.dsh', 'skills'),
+    path.join(realDshHomeDir(), 'skills'),
+    path.join(workspaceRootDir(), '.dsh', 'skills'),
+    path.join(D, 'workspace', '.dsh', 'skills')
+  ];
   try {
     const fp = fingerprint(src);
-    const marker = path.join(D, '.dsh', '.skills-sync');
-    if (fs.existsSync(dst) && fs.existsSync(marker)
-        && fs.readFileSync(marker, 'utf8') === fp) return;
-    fs.rmSync(dst, { recursive: true, force: true });
-    fs.cpSync(src, dst, { recursive: true });
-    writeFileAtomic(marker, fp);
-    log('技能已同步');
+    let synced = 0;
+    for (const dst of targets) {
+      try {
+        const marker = path.join(path.dirname(dst), '.skills-sync');
+        if (fs.existsSync(dst) && fs.existsSync(marker)
+            && fs.readFileSync(marker, 'utf8') === fp) continue;
+        fs.rmSync(dst, { recursive: true, force: true });
+        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        fs.cpSync(src, dst, { recursive: true });
+        writeFileAtomic(marker, fp);
+        synced += 1;
+      } catch (e) { log(`技能同步跳过 ${dst}: ${e.message}`); }
+    }
+    if (synced > 0) log(`技能已同步(${synced} 处)`);
   } catch (e) { log(`技能同步跳过(不影响使用): ${e.message}`); }
 }
 
