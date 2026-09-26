@@ -1,5 +1,5 @@
 # Yuren Harness — Web 形态补丁模板
-# 占位符(BRAND_PKG/MEMORY_SCRIPT)由 web/serve.js 在每次启动时按本机路径填充;
+# 占位符(BRAND_PKG/MEMORY_SCRIPT/MEMORY_LAUNCHER)由 web/serve.js 在每次启动时按本机路径填充;
 # 注意: 占位符只应出现在结构位置,别写进注释——replaceAll 不分场合。
 # 领域产品在此追加自己的 MCP 行(- insert: - id: mcp-xxx ...)与技能。
 # 语法: 新增行用 - insert:;覆盖已有行用裸 - id: 条目(name 是防呆校验);
@@ -11,9 +11,11 @@
       config:
         serverName: memory
         transport: stdio
-        command: 'node'
+        command: 'sh'
         args:
-          - '{{MEMORY_SCRIPT}}'
+          # 启动器由 serve.js 生成:注入 MEMORY_FILE_PATH 把图谱落到数据目录
+          # (server-memory 默认写到自己 dist 目录,服务账号写不进,图谱无法持久化)
+          - '{{MEMORY_LAUNCHER}}'
 
     # ── 领域 MCP: OpenStock(美股行情研究)
     #    数据目录与桌面端共享(~/.config/openstock-alerts-desktop);密钥读取侧脱敏;

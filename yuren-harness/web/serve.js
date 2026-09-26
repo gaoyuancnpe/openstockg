@@ -102,7 +102,7 @@ function writeFileAtomic(file, text) {
 /* ---------- 数据目录准备(全部幂等,失败只告警) ---------- */
 function ensureDataDir() {
   const D = dataDir();
-  for (const sub of ['workspace/inputs', 'workspace/outputs', 'dsh', 'provision']) {
+  for (const sub of ['workspace/inputs', 'workspace/outputs', 'dsh', 'provision', 'mcp', 'memory']) {
     fs.mkdirSync(path.join(D, sub), { recursive: true });
   }
   // 升级判定:文件缺失 / 仍是未替换模板(含 {{)/ 模板版本更新(<!-- yuren-agents: vN -->)。
@@ -207,10 +207,17 @@ function generatePatch(D) {
       ['@modelcontextprotocol', 'server-memory', 'dist', 'index.js']),
   ];
   const memoryScript = candidates.find(Boolean);
+  // 记忆图谱落盘位置:server-memory 默认写到自己 dist 目录(部署属主,yuren 写不进,
+  // 图谱从未持久化)。用 sh 启动器注入 MEMORY_FILE_PATH 指到数据目录,不依赖
+  // dsh-mcp-client 是否支持 config.env。
+  const memoryDir = path.join(D, 'memory');
+  const memoryFile = path.join(memoryDir, 'memory.jsonl');
+  const memoryLauncher = path.join(D, 'mcp', 'memory-launch.sh');
   const tpl = fs.readFileSync(path.join(HARNESS, 'cordis.template.yml'), 'utf8');
   let text = tpl
     .replaceAll('{{BRAND_PKG}}', brandPkg)
     .replaceAll('{{MEMORY_SCRIPT}}', memoryScript || 'MEMORY_SCRIPT_MISSING')
+    .replaceAll('{{MEMORY_LAUNCHER}}', memoryLauncher)
     // 领域 MCP 按仓库根解析(harness 的上一级),本地/服务器不用各改一份
     .replaceAll('{{OPENSTOCK_MCP}}',
       path.join(ROOT, '..', 'desktop', 'mcp', 'mcp-server.mjs'))
@@ -218,6 +225,14 @@ function generatePatch(D) {
     .replaceAll('{{WORKSPACE_ROOT}}', path.join(D, 'workspace'));
   if (!memoryScript) {
     log('警告: 未找到 @modelcontextprotocol/server-memory,记忆 MCP 将不可用(npm install 了吗?)');
+  } else {
+    fs.mkdirSync(memoryDir, { recursive: true });
+    writeFileAtomic(memoryLauncher, [
+      '#!/bin/sh',
+      `export MEMORY_FILE_PATH='${memoryFile}'`,
+      `exec node '${memoryScript}' "$@"`,
+      ''
+    ].join('\n'));
   }
   writeFileAtomic(path.join(D, 'dsh', 'cordis.patch.yml'), text);
   return path.join(D, 'dsh', 'cordis.patch.yml');
