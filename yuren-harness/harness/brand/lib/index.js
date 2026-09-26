@@ -526,6 +526,8 @@ const WORKSPACE_DELIVERABLE_EXTS = new Set([".md", ".csv", ".xlsx", ".pdf", ".ht
 function isWorkspaceDeliverable(name) {
   const segments = String(name).split("/");
   if (segments.some((s) => WORKSPACE_NOISE_SEGMENTS.has(s))) return false;
+  // 根级 AGENTS.md 是种入的人设副本(dsh 指令加载点),不是交付物
+  if (segments.length === 1 && segments[0] === "AGENTS.md") return false;
   if (segments[0] === "outputs") return true;
   const dot = name.lastIndexOf(".");
   return dot >= 0 && WORKSPACE_DELIVERABLE_EXTS.has(name.slice(dot).toLowerCase());

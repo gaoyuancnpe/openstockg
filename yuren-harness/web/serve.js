@@ -96,30 +96,46 @@ function ensureDataDir() {
   for (const sub of ['workspace/inputs', 'workspace/outputs', 'dsh', 'provision']) {
     fs.mkdirSync(path.join(D, sub), { recursive: true });
   }
-  const agentsDst = path.join(D, 'AGENTS.md');
   // 升级判定:文件缺失 / 仍是未替换模板(含 {{)/ 模板版本更新(<!-- yuren-agents: vN -->)。
   // 用户改写过的旧版本仍会被更高版本覆盖——人设是产品行为的一部分;真要自定义,
   // 删掉版本注释行即视为私有副本,不再自动升级。
   const agentsVer = (text) => Number((String(text).match(/yuren-agents:\s*v(\d+)/) || [])[1] || 0);
   try {
     const templateText = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
-    let needsSeed = false;
-    let reason = '';
-    if (!fs.existsSync(agentsDst)) { needsSeed = true; reason = '缺失'; }
-    else {
-      const currentText = fs.readFileSync(agentsDst, 'utf8');
-      const tplVer = agentsVer(templateText);
-      const curVer = agentsVer(currentText);
-      if (currentText.includes('{{')) { needsSeed = true; reason = '模板占位符未替换'; }
-      else if (curVer === 0 && currentText.includes('# 禹人行情')) { needsSeed = true; reason = '旧版种入文件(无版本标记)'; }
-      else if (curVer === 0) { /* 无标记且非模板出身:视为用户私有副本,不动 */ }
-      else if (tplVer > curVer) { needsSeed = true; reason = `模板升级 v${curVer}→v${tplVer}`; }
-    }
-    if (needsSeed) {
-      // 人设模板里的 {{PUBLIC_BASE_URL}} 在种入时替换成实际公网基址,
-      // 保证智能体贴给用户的下载链接开箱可点
-      fs.writeFileSync(agentsDst, templateText.replaceAll('{{PUBLIC_BASE_URL}}', publicBaseUrl()), 'utf8');
-      log(`AGENTS.md 已种入/升级(${reason})`);
+    const tplVer = agentsVer(templateText);
+    // dsh 指令(dsh-agent-instructions)从两处发现 AGENTS.md:用户全局 $DSH_HOME/AGENTS.md
+    // 与会话工作区根目录。会话工作区实际根不止一个候选(产出目录 / 沙箱根 / 数据目录),
+    // 运行时真实 DSH_HOME 也可能与 dshHome() 推导不同(子进程未收到 DSH_HOME 时回落
+    // $HOME/.dsh)。全部种入:多份同内容只浪费少量上下文预算,漏种则人设完全不生效。
+    const workspaceDir = process.env.YUREN_WORKSPACE_DIR || '/srv/yuren/workspace';
+    const realDshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+    const agentsTargets = [
+      path.join(D, 'AGENTS.md'),                          // 数据目录根(历史位置)
+      path.join(realDshHome, 'AGENTS.md'),                // 用户全局:对任意工作区的会话生效
+      path.join(workspaceDir, 'AGENTS.md'),               // 产出工作区根(实际会话常用根)
+      path.join(D, 'workspace', 'AGENTS.md')              // 补丁 yml 钉死的沙箱根
+    ];
+    for (const agentsDst of agentsTargets) {
+      let needsSeed = false;
+      let reason = '';
+      try {
+        if (!fs.existsSync(agentsDst)) { needsSeed = true; reason = '缺失'; }
+        else {
+          const currentText = fs.readFileSync(agentsDst, 'utf8');
+          const curVer = agentsVer(currentText);
+          if (currentText.includes('{{')) { needsSeed = true; reason = '模板占位符未替换'; }
+          else if (curVer === 0 && currentText.includes('# 禹人行情')) { needsSeed = true; reason = '旧版种入文件(无版本标记)'; }
+          else if (curVer === 0) { /* 无标记且非模板出身:视为用户私有副本,不动 */ }
+          else if (tplVer > curVer) { needsSeed = true; reason = `模板升级 v${curVer}→v${tplVer}`; }
+        }
+        if (needsSeed) {
+          // 人设模板里的 {{PUBLIC_BASE_URL}} 在种入时替换成实际公网基址,
+          // 保证智能体贴给用户的下载链接开箱可点
+          fs.mkdirSync(path.dirname(agentsDst), { recursive: true });
+          fs.writeFileSync(agentsDst, templateText.replaceAll('{{PUBLIC_BASE_URL}}', publicBaseUrl()), 'utf8');
+          log(`AGENTS.md 已种入/升级 → ${agentsDst} (${reason})`);
+        }
+      } catch (e) { log(`AGENTS.md 种入跳过 ${agentsDst}: ${e.message}`); }
     }
   } catch (e) { log(`AGENTS.md 副本跳过: ${e.message}`); }
   syncSkills(D);
