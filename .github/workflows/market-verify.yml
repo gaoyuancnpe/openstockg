@@ -1,0 +1,50 @@
+name: market-verify
+
+# market 实例远程巡检(手动触发):不部署、不重启,只读检查关键组件状态,
+# 输出进 CI 日志。日常运维用;本地到服务器直连不通时的替代通道。
+# 触发:Actions 页面手动 Run workflow,或 gh workflow run market-verify.yml
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH 巡检
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            echo "== 服务 =="
+            systemctl is-active yuren-market.service
+            curl -s -m 8 -o /dev/null -w "health %{http_code}\n" http://127.0.0.1:3080/
+
+            echo "== 记忆图谱启动器 =="
+            cat /srv/yuren/market-data/mcp/memory-launch.sh
+            echo "== memory 目录(真实图谱) =="
+            ls -ld /srv/yuren/market-data/memory/
+            ls -la /srv/yuren/market-data/memory/
+            echo "== 渲染后的挂载 =="
+            grep -A8 "id: mcp-memory" /srv/yuren/market-data/dsh/cordis.patch.yml | head -9
+
+            echo "== 启动器端到端(临时副本指向 /tmp,不碰真实图谱) =="
+            sed "s|MEMORY_FILE_PATH=.*|MEMORY_FILE_PATH='/tmp/mem-e2e.jsonl'|" \
+              /srv/yuren/market-data/mcp/memory-launch.sh > /tmp/mem-launch-test.sh
+            cd /tmp
+            printf '%s\n' \
+              '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_entities","arguments":{"entities":[{"name":"E2ECheck","entityType":"Test","observations":["launcher-works"]}]}}}' \
+              | sh /tmp/mem-launch-test.sh || true
+            sleep 1
+            echo "-- 落盘内容:"
+            cat /tmp/mem-e2e.jsonl 2>/dev/null || echo "(未落盘!)"
+            rm -f /tmp/mem-e2e.jsonl /tmp/mem-launch-test.sh
+
+            echo "== 人设与技能快照 =="
+            for p in /srv/yuren/market-data/AGENTS.md /srv/yuren/.dsh/AGENTS.md; do
+              echo "$p => $(head -1 "$p" 2>/dev/null)"
+            done
+            ls /srv/yuren/.dsh/skills/ 2>/dev/null | tr '\n' ' '; echo
