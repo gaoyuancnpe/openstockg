@@ -231,9 +231,9 @@ function generatePatch(D) {
     writeFileAtomic(memoryLauncher, [
       '#!/bin/sh',
       `export MEMORY_FILE_PATH='${memoryFile}'`,
-      `{ echo "[$(date '+%F %T')] spawn pid=$$ user=$(id -un) file=$MEMORY_FILE_PATH";`,
-      `  if touch "$MEMORY_FILE_PATH" 2>/dev/null; then echo "  write-probe: OK"; else echo "  write-probe: FAIL"; fi; }`,
-      `  >> '${path.join(memoryDir, 'launch.log')}' 2>&1`,
+      // 重定向必须与 } 同行:换行的 >> 会成为独立命令,日志静默丢失且探针文本漏进 stdio
+      `{ echo "[spawn $(date '+%F %T')] pid=$$ user=$(id -un) file=$MEMORY_FILE_PATH";`,
+      `  if touch "$MEMORY_FILE_PATH" 2>/dev/null; then echo "write-probe: OK"; else echo "write-probe: FAIL"; fi; } >> '${path.join(memoryDir, 'launch.log')}' 2>&1`,
       `exec node '${memoryScript}' "$@"`,
       ''
     ].join('\n'));
