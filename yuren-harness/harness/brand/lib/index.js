@@ -423,7 +423,7 @@ function deepMergePatch(target, patch) {
 }
 
 const CONFIG_PATCHABLE_KEYS = new Set([
-  "fmpApiKey", "finnhubApiKey", "defaultEmailTo", "defaultWebhookType", "defaultWebhookUrl",
+  "fmpApiKey", "eodhdApiKey", "eodhdBaseUrl", "finnhubApiKey", "defaultEmailTo", "defaultWebhookType", "defaultWebhookUrl",
   "email", "scheduler", "pollIntervalSec", "ai"
 ]);
 
