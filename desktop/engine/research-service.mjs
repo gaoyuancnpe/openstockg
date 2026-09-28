@@ -15,7 +15,10 @@ import {
   fmpRatios,
   fmpPeers,
   fmpAnalystEstimates,
-  fmpDividends
+  fmpDividends,
+  eodhdEod,
+  eodhdDividends,
+  eodhdSplits
 } from "./providers.mjs";
 import { computeFmpDefaultStats, computeFmpFinancialStats } from "./fmp-domain.mjs";
 import { loadDesktopState, saveDesktopState } from "../main/data-store.mjs";
@@ -218,5 +221,154 @@ export async function getEarningsCalendarReport({ config, days = 7 }) {
     total: rows.length,
     truncated: rows.length > 100,
     rows: rows.slice(0, 100)
+  };
+}
+
+/* ── EODHD(第二数据源)研究口径 ─────────────────────────────────────
+ * 独立 Key(eodhdApiKey)、独立缓存键(eodhdCandles/eodhdActions,24h),
+ * 写回同样走"重读→只更新本 symbol 键→落盘"。 */
+
+function requireEodhd(config) {
+  const apiKey = String(config?.eodhdApiKey || "");
+  if (!apiKey) {
+    throw new Error("缺少 EODHD API Key，请先在配置中填写（面板设置页或 update_config 的 eodhdApiKey）。免费注册即得，每天 20 次调用额度");
+  }
+  return {
+    apiKey,
+    baseUrl: String(config?.eodhdBaseUrl || "https://eodhd.com/api")
+  };
+}
+
+async function readEodhdCache(dataPaths, kind, symbol, maxAgeMs) {
+  const state = await loadDesktopState(dataPaths);
+  const entry = state?.[kind]?.[symbol];
+  if (!entry || typeof entry !== "object") return null;
+  if (Date.now() - Number(entry.fetchedAt || 0) > maxAgeMs) return null;
+  return entry;
+}
+
+async function persistEodhdCache(dataPaths, kind, symbol, entry) {
+  try {
+    const latest = await loadDesktopState(dataPaths);
+    latest[kind] = latest[kind] && typeof latest[kind] === "object" ? latest[kind] : {};
+    latest[kind][symbol] = entry;
+    await saveDesktopState(dataPaths, latest);
+  } catch { /* 缓存写回失败不影响结果返回 */ }
+}
+
+/** EODHD 复权日线:长历史(默认 5 年,最长 30 年)+停止交易检测。
+ *  与 FMP 的 get_price_history 互补——EODHD 保留退市标的,
+ *  "数据停在哪天"本身就是信号(主数据源对僵尸代码只会返回旧数据)。 */
+export async function getEodhdPriceHistoryReport({ dataPaths, config, symbol: rawSymbol, years = 5 }) {
+  const symbol = normalizeSymbol(rawSymbol);
+  const { apiKey, baseUrl } = requireEodhd(config);
+  const spanYears = Math.max(1, Math.min(30, Math.trunc(Number(years) || 5)));
+  const from = isoDateShiftDays(isoDateToday(), -spanYears * 366);
+
+  let rows = null;
+  const entry = await readEodhdCache(dataPaths, "eodhdCandles", symbol, 24 * 3600 * 1000);
+  if (Array.isArray(entry?.rows) && entry.rows.length > 0 && String(entry.from || "") <= from) {
+    rows = entry.rows.filter((row) => row.date >= from);
+  }
+  if (!rows) {
+    rows = await eodhdEod({ baseUrl, apiKey, symbol, from });
+    await persistEodhdCache(dataPaths, "eodhdCandles", symbol, { fetchedAt: Date.now(), from, rows });
+  }
+  if (rows.length === 0) {
+    throw new Error(`未取到 ${symbol} 的 EODHD 行情。可能原因：代码写错；该代码不在覆盖范围；或免费档每日 20 次调用已用尽`);
+  }
+
+  const last = rows[rows.length - 1];
+  const closes = rows.map((row) => (row.adjustedClose !== null ? row.adjustedClose : row.close)).filter((v) => v !== null);
+  const firstAdj = closes[0];
+  const lastAdj = closes[closes.length - 1];
+  const windowHigh = rows.reduce((acc, row) => Math.max(acc, row.high ?? row.close ?? 0), 0);
+  const windowLow = rows.reduce((acc, row) => Math.min(acc || Infinity, row.low ?? row.close ?? Infinity), Infinity);
+  const avgTurnoverM = rows.reduce((acc, row) => acc + ((row.close ?? 0) * (row.volume ?? 0)) / 1e6, 0) / rows.length;
+
+  // 停止交易检测:最新数据日距今超过 10 个自然日,多半已退市/被收购/长期停牌
+  const daysSinceLast = Math.round((Date.now() - new Date(`${last.date}T00:00:00Z`).getTime()) / 86400000);
+  const tradingStatus = daysSinceLast > 10
+    ? {
+        status: "stopped",
+        latestDate: last.date,
+        daysSinceLast,
+        note: `数据停在 ${last.date}——标的可能已退市/被收购/长期停牌。EODHD 保留退市标的历史，这正是它相对主数据源的价值（无幸存者偏差）。`
+      }
+    : { status: "active", latestDate: last.date, daysSinceLast };
+
+  return {
+    symbol,
+    provider: "eodhd",
+    spanYears,
+    adjustedBasis: "adjusted_close（分红与拆分复权）",
+    summary: {
+      from: rows[0].date,
+      to: last.date,
+      tradingDays: rows.length,
+      firstAdjustedClose: firstAdj ?? null,
+      lastAdjustedClose: lastAdj ?? null,
+      changePercent: firstAdj ? Math.round(((lastAdj - firstAdj) / firstAdj) * 10000) / 100 : null,
+      windowHigh: windowHigh || null,
+      windowLow: Number.isFinite(windowLow) ? windowLow : null,
+      avgTurnoverM: Math.round(avgTurnoverM * 100) / 100,
+      sma20: sma(closes, 20),
+      sma60: sma(closes, 60)
+    },
+    tradingStatus,
+    total: rows.length,
+    truncated: rows.length > 100,
+    rows: [...rows].slice(-100).reverse().map((row) => ({
+      date: row.date,
+      close: row.close,
+      adjustedClose: row.adjustedClose,
+      volume: row.volume,
+      turnoverM: row.close !== null && row.volume !== null ? Math.round((row.close * row.volume) / 1e4) / 100 : null
+    }))
+  };
+}
+
+/** 分红/拆分全史:历年分红统计 + 最近事件清单,判断股息连续性与复权口径。 */
+export async function getEodhdCorporateActionsReport({ dataPaths, config, symbol: rawSymbol }) {
+  const symbol = normalizeSymbol(rawSymbol);
+  const { apiKey, baseUrl } = requireEodhd(config);
+
+  let dividends = null;
+  let splits = null;
+  const entry = await readEodhdCache(dataPaths, "eodhdActions", symbol, 24 * 3600 * 1000);
+  if (Array.isArray(entry?.dividends) && Array.isArray(entry?.splits)) {
+    dividends = entry.dividends;
+    splits = entry.splits;
+  } else {
+    [dividends, splits] = await Promise.all([
+      eodhdDividends({ baseUrl, apiKey, symbol }),
+      eodhdSplits({ baseUrl, apiKey, symbol })
+    ]);
+    await persistEodhdCache(dataPaths, "eodhdActions", symbol, { fetchedAt: Date.now(), dividends, splits });
+  }
+
+  const byYear = {};
+  for (const d of dividends) {
+    const year = d.date.slice(0, 4);
+    if (!/^\d{4}$/.test(year)) continue;
+    byYear[year] = Math.round(((byYear[year] || 0) + (d.amount || 0)) * 1000) / 1000;
+  }
+  const years = Object.keys(byYear).sort();
+  const recentAnnualTotals = years.slice(-3).map((year) => ({ year, total: byYear[year] }));
+
+  return {
+    symbol,
+    provider: "eodhd",
+    dividends: {
+      count: dividends.length,
+      firstDate: dividends[0]?.date || null,
+      lastDate: dividends[dividends.length - 1]?.date || null,
+      recentAnnualTotals,
+      latest: [...dividends].slice(-15).reverse()
+    },
+    splits: {
+      count: splits.length,
+      latest: [...splits].slice(-10).reverse()
+    }
   };
 }

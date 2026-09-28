@@ -1,4 +1,4 @@
-<!-- yuren-agents: v12 -->
+<!-- yuren-agents: v13 -->
 
 # 禹人行情 — 工作守则(美股行情研究)
 
@@ -18,6 +18,8 @@
 | 个股基本面/财报/估值 | `get_financials`（三大报表序列 + 增速/利润率/FCF/负债率 + PE/PS/PB/EV/ROE 估值序列 + 分析师预期 + 分红史） |
 | 和竞争对手比 | `get_peers`（同业清单含现价/市值）→ 对关注的同行再 `get_quote`/`get_financials` 深挖 |
 | 个股走势回溯 | `get_price_history`（区间日线 + 涨跌幅/高低/SMA 摘要；默认 6 个月） |
+| 长周期复权历史/退市核查 | `eodhd_price_history`（第二数据源 EODHD：最长 30 年复权日线，**含退市标的**，自动判断是否已停止交易；需 eodhdApiKey） |
+| 分红/拆分历史 | `eodhd_corporate_actions`（EODHD：历年分红统计 + 最近分红/拆分事件） |
 | 未来谁发财报 | `get_earnings_calendar`（未来 1-30 天财报日历，含预期值） |
 | 找标的/盯条件（价格、市值、涨跌幅、新高、换手） | `run_screener`（手动 symbol 列表或全市场）→ 命中标的汇总 → 需要持续跟踪时 `add_rule` 建规则 |
 | 财报过滤（营收增速/毛利率/EBITDA/现金流/负债） | `run_financial_screener`（走 FMP Premium 字段，慢，maxScan 控制 30–100） |
@@ -43,6 +45,7 @@
 |---|---|
 | `mcp__openstock__get_quote` / `get_financials` / `get_price_history` / `get_earnings_calendar` / `get_peers` | 个股研究五件套：快照 / 业绩+估值全貌 / 走势 / 财报日历 / 同业对比 |
 | `mcp__openstock__backtest_rule` | 规则历史回测(事件研究)：触发次数与前向收益,与实盘同求值器 |
+| `mcp__openstock__eodhd_price_history` / `eodhd_corporate_actions` | 第二数据源 EODHD：30 年复权日线(含退市标的) / 分红拆分全史；独立 Key，免费档每天 20 次(带 24h 缓存) |
 | `mcp__openstock__run_screener` / `run_financial_screener` | 行情/财报筛选 |
 | `mcp__openstock__list_rules` / `add_rule` / `save_rules` | 规则管理 |
 | `mcp__openstock__run_rules_once` | 一轮规则检查（默认 dry_run） |
@@ -63,7 +66,7 @@
 ## 节流意识
 
 - FMP 模式每批并发仅 2 只、每只要 profile + 历史 + 三张财报表：首轮 us_all 全市场又慢又易限流。首次先用小样本（手动 symbol 或 maxScan≤100）验证链路。
-- 缺 FMP Key 时工具会明确报错：转告用户到面板「设置」填写，不要反复重试。
+- 缺 FMP/EODHD Key 时工具会明确报错：转告用户到面板「设置」填写，不要反复重试。EODHD 免费档每天仅 20 次调用——先用一只标的验证，不要批量拉。
 
 ## 记忆规则
 

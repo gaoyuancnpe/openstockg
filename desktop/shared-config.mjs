@@ -6,6 +6,7 @@ const DEFAULT_CONFIG_TEMPLATE = {
   finnhubApiKey: "",
   fmpBaseUrl: "https://financialmodelingprep.com",
   fmpApiKey: "",
+  eodhdApiKey: "",
   ai: {
     provider: "deepseek",
     baseUrl: "https://api.deepseek.com",

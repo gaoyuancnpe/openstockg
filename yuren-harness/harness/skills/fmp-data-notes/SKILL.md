@@ -32,3 +32,12 @@ description: "FMP 数据口径与已知坑:端点映射、缓存与新鲜度、p
 - 403：套餐不含该字段/端点，把 FMP 原文转告。
 - 限流：全市场批量并发仅 2，首轮慢是正常；先小样本验证。
 - 错误信息里的 API Key 已自动替换成 `***`，可以原样展示。
+
+## EODHD（第二数据源）口径
+
+- 认证参数是 `api_token`（不同于 FMP 的 `apikey`）；配置键 `eodhdApiKey`，面板「设置 → 第二数据源 EODHD」填写。
+- 代码用点后缀：`AAPL.US`；美股裸代码自动补 `.US`，显式传 `0005.SZ` 等可查其它市场。
+- 复权口径是 `adjusted_close`（分红+拆分复权）；回测与长周期对比一律用复权价。
+- **退市标的有数据**：`eodhd_price_history` 的 `tradingStatus.status === "stopped"` 表示已停止交易，这是核查僵尸代码的正道（主数据源对退市代码只会返回停在旧日期的数据）。
+- 免费档每天 20 次调用：工具带 24h 缓存（state.json 的 eodhdCandles/eodhdActions 键），同一天重复查同一标的不消耗额度。
+- 报错同样脱敏（token 替换为 `***`）；403/401 多为 token 无效或额度用尽，转告用户。

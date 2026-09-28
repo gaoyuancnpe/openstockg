@@ -356,3 +356,79 @@ export async function fmpNasdaqConstituents({ baseUrl, apiKey }) {
     }))
     .filter((row) => /^[A-Z0-9.\-]+$/.test(row.symbol));
 }
+
+/* ── EODHD(第二数据源):EOD 复权历史(含退市标的)、分红/拆分 ──────────
+ * 认证参数是 api_token(不同于 FMP 的 apikey);代码用点后缀(AAPL.US),
+ * 美股裸代码自动补 .US。免费档每天 20 次调用,调用侧必须配缓存。 */
+export async function eodhdFetchJSON({ baseUrl, pathName, apiKey, params }) {
+  if (!apiKey) throw new Error("缺少 EODHD API Key，请先在配置页填写（面板设置页或 update_config 的 eodhdApiKey）");
+  const root = normalizeHttpBaseUrl(baseUrl, "https://eodhd.com/api");
+  const url = appendQuery(`${root}${pathName}`, { ...(params || {}), api_token: apiKey });
+  try {
+    return await fetchJSON(url);
+  } catch (error) {
+    // 报错文案不带 Key:错误会被智能体转述进对话,密钥不得外流
+    throw new Error(String(error?.message || error).replaceAll(apiKey, "***"));
+  }
+}
+
+export function eodhdSymbol(raw) {
+  const symbol = String(raw || "").trim().toUpperCase();
+  if (!/^[A-Z0-9.\-]{1,12}(\.[A-Z]{1,4})?$/.test(symbol)) {
+    throw new Error(`无效的股票代码：${String(raw)}（例如 AAPL、BRK.B，或显式带交易所后缀如 0005.SZ）`);
+  }
+  return symbol.includes(".") ? symbol : `${symbol}.US`;
+}
+
+export async function eodhdEod({ baseUrl, apiKey, symbol, from, to }) {
+  const data = await eodhdFetchJSON({
+    baseUrl,
+    apiKey,
+    pathName: `/eod/${encodeURIComponent(eodhdSymbol(symbol))}`,
+    params: { fmt: "json", period: "d", order: "a", from, to }
+  });
+  return (Array.isArray(data) ? data : [])
+    .map((row) => ({
+      date: String(row?.date || ""),
+      open: toNumber(row?.open),
+      high: toNumber(row?.high),
+      low: toNumber(row?.low),
+      close: toNumber(row?.close),
+      adjustedClose: toNumber(row?.adjusted_close),
+      volume: toNumber(row?.volume)
+    }))
+    .filter((row) => row.date && row.close !== null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export async function eodhdDividends({ baseUrl, apiKey, symbol }) {
+  const data = await eodhdFetchJSON({
+    baseUrl,
+    apiKey,
+    pathName: `/div/${encodeURIComponent(eodhdSymbol(symbol))}`,
+    params: { fmt: "json" }
+  });
+  return (Array.isArray(data) ? data : [])
+    .map((row) => ({
+      date: String(row?.date || ""),
+      amount: toNumber(row?.dividend),
+      currency: String(row?.dividendCurrency || row?.currency || "")
+    }))
+    .filter((row) => row.date);
+}
+
+export async function eodhdSplits({ baseUrl, apiKey, symbol }) {
+  const data = await eodhdFetchJSON({
+    baseUrl,
+    apiKey,
+    pathName: `/splits/${encodeURIComponent(eodhdSymbol(symbol))}`,
+    params: { fmt: "json" }
+  });
+  return (Array.isArray(data) ? data : [])
+    .map((row) => ({
+      date: String(row?.date || ""),
+      split: String(row?.split || ""),
+      reverse: Boolean(row?.reverseSplit)
+    }))
+    .filter((row) => row.date);
+}

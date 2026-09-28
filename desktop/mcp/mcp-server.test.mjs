@@ -101,7 +101,7 @@ try {
     "list_rules", "get_config", "update_config", "add_rule", "save_rules",
     "run_screener", "run_financial_screener", "run_rules_once",
     "get_status", "get_recent_events", "get_amv_history", "compute_amv",
-    "get_quote", "get_financials", "get_price_history", "get_earnings_calendar", "get_peers", "backtest_rule"
+    "get_quote", "get_financials", "get_price_history", "get_earnings_calendar", "get_peers", "backtest_rule", "eodhd_price_history", "eodhd_corporate_actions"
   ];
   for (const name of expectedTools) {
     assert(toolNames.includes(name), `工具清单应包含 ${name}`);

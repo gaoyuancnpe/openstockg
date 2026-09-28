@@ -376,6 +376,7 @@ function describeConfigMasked(cfg) {
   return {
     dataProvider: cfg.dataProvider,
     fmpApiKeySet: Boolean(String(cfg.fmpApiKey || "").trim()),
+    eodhdApiKeySet: Boolean(String(cfg.eodhdApiKey || "").trim()),
     finnhubApiKeySet: Boolean(String(cfg.finnhubApiKey || "").trim()),
     defaultEmailTo: cfg.defaultEmailTo || "",
     emailUserSet: Boolean(String(cfg.email?.user || "").trim()),

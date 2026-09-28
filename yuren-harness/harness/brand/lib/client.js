@@ -664,6 +664,14 @@ window.__ModuleLoader__.load({
 				'    <div class="ya-hint">用于筛选、财报筛选与 0AMV 计算;读取侧永远脱敏。</div>',
 				'  </div>',
 				'  <div class="ya-card">',
+				'    <div class="ya-card-title">第二数据源 EODHD</div>',
+				'    <div class="ya-kv"><span class="ya-k">EODHD API Token</span><span class="ya-eodhd-state">读取中…</span></div>',
+				'    <label class="ya-field" style="margin-top:6px">填入新 Key(留空=不修改)',
+				'      <input class="ya-input" data-c="eodhdApiKey" type="password" placeholder="EODHD_API_TOKEN" autocomplete="off"></label>',
+				'    <div class="ya-actions"><button class="ya-btn primary ya-cfg-save" data-patch="eodhd">保存 EODHD Key</button></div>',
+				'    <div class="ya-hint">复权历史(含退市标的)/分红拆分;免费档每天 20 次调用,工具侧带 24h 缓存;读取侧永远脱敏。</div>',
+				'  </div>',
+				'  <div class="ya-card">',
 				'    <div class="ya-card-title">通知</div>',
 				'    <label class="ya-field wide">默认收件邮箱<input class="ya-input" data-c="defaultEmailTo" placeholder="you@example.com"></label>',
 				'    <div class="ya-grid" style="margin-top:8px">',
@@ -1047,6 +1055,11 @@ window.__ModuleLoader__.load({
 					const fmpState = body.querySelector(".ya-fmp-state");
 					fmpState.textContent = cfg.fmpApiKeySet ? "已配置" : "未配置";
 					fmpState.style.color = cfg.fmpApiKeySet ? "var(--ya-success)" : "var(--ya-error)";
+					const eodhdState = body.querySelector(".ya-eodhd-state");
+					if (eodhdState) {
+						eodhdState.textContent = cfg.eodhdApiKeySet ? "已配置" : "未配置";
+						eodhdState.style.color = cfg.eodhdApiKeySet ? "var(--ya-success)" : "var(--ya-error)";
+					}
 					const setIfEmpty = (k, v) => {
 						const el = body.querySelector(`[data-c="${k}"]`);
 						if (el && (k === "defaultWebhookUrl" || k === "fmpApiKey")) {
@@ -1302,6 +1315,11 @@ window.__ModuleLoader__.load({
 						if (!key) return window.alert("请先填入新 Key");
 						await saveConfigPatch({ fmpApiKey: key });
 						body.querySelector('[data-c="fmpApiKey"]').value = "";
+					} else if (kind === "eodhd") {
+						const key = val("eodhdApiKey");
+						if (!key) return window.alert("请先填入 EODHD API Token");
+						await saveConfigPatch({ eodhdApiKey: key });
+						body.querySelector('[data-c="eodhdApiKey"]').value = "";
 					} else if (kind === "notify") {
 						const patch = {};
 						if (val("defaultEmailTo")) patch.defaultEmailTo = val("defaultEmailTo");

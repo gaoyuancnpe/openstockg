@@ -7,7 +7,9 @@ import {
   getFinancialReport,
   getPriceHistoryReport,
   getEarningsCalendarReport,
-  getPeersReport
+  getPeersReport,
+  getEodhdPriceHistoryReport,
+  getEodhdCorporateActionsReport
 } from "../engine/research-service.mjs";
 import { backtestRule } from "../engine/backtest-service.mjs";
 import {
@@ -148,7 +150,7 @@ export function createMcpToolRegistry({ dataPaths, log }) {
     },
     {
       name: "update_config",
-      description: "以补丁方式更新配置（深合并后整体保存并归一化）。可用来填写 fmpApiKey/finnhubApiKey/ai.apiKey 等明文字段；读取时密钥永远是脱敏的。",
+      description: "以补丁方式更新配置（深合并后整体保存并归一化）。可用来填写 fmpApiKey/eodhdApiKey/finnhubApiKey/ai.apiKey 等明文字段；读取时密钥永远是脱敏的。",
       inputSchema: {
         type: "object",
         properties: {
@@ -426,6 +428,37 @@ export function createMcpToolRegistry({ dataPaths, log }) {
       handler: async ({ symbol } = {}) => {
         await ensureContext();
         return await getPeersReport({ config: await loadDesktopConfig(dataPaths), symbol });
+      }
+    },
+    {
+      name: "eodhd_price_history",
+      description: "第二数据源(EODHD)复权日线：最长 30 年，含退市标的，自动判断标的是否已停止交易。适合长周期回溯、退市核查、与主数据源对拍。免费档每天 20 次调用，结果带 24h 缓存。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "股票代码，例如 AAPL（美股自动补 .US 后缀，也可显式传 0005.SZ 等带后缀代码）" },
+          years: { type: "number", default: 5, description: "回看年数，1-30" }
+        },
+        required: ["symbol"]
+      },
+      handler: async ({ symbol, years } = {}) => {
+        await ensureContext();
+        return await getEodhdPriceHistoryReport({ dataPaths, config: await loadDesktopConfig(dataPaths), symbol, years });
+      }
+    },
+    {
+      name: "eodhd_corporate_actions",
+      description: "第二数据源(EODHD)分红与拆分全史：历年分红统计 + 最近分红/拆分事件。判断股息连续性、核对复权口径时用。结果带 24h 缓存。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "股票代码，例如 AAPL" }
+        },
+        required: ["symbol"]
+      },
+      handler: async ({ symbol } = {}) => {
+        await ensureContext();
+        return await getEodhdCorporateActionsReport({ dataPaths, config: await loadDesktopConfig(dataPaths), symbol });
       }
     },
     {
