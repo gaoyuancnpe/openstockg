@@ -411,8 +411,9 @@ export async function eodhdDividends({ baseUrl, apiKey, symbol }) {
   return (Array.isArray(data) ? data : [])
     .map((row) => ({
       date: String(row?.date || ""),
-      amount: toNumber(row?.dividend),
-      currency: String(row?.dividendCurrency || row?.currency || "")
+      amount: toNumber(row?.value ?? row?.dividend ?? row?.unadjustedValue),
+      currency: String(row?.currency || row?.dividendCurrency || ""),
+      period: String(row?.period || "")
     }))
     .filter((row) => row.date);
 }
