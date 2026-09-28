@@ -227,9 +227,13 @@ function generatePatch(D) {
     log('警告: 未找到 @modelcontextprotocol/server-memory,记忆 MCP 将不可用(npm install 了吗?)');
   } else {
     fs.mkdirSync(memoryDir, { recursive: true });
+    // 启动器自检日志:每次拉起记录运行身份/目标路径/试写结果,图谱是否可写不再靠猜
     writeFileAtomic(memoryLauncher, [
       '#!/bin/sh',
       `export MEMORY_FILE_PATH='${memoryFile}'`,
+      `{ echo "[$(date '+%F %T')] spawn pid=$$ user=$(id -un) file=$MEMORY_FILE_PATH";`,
+      `  if touch "$MEMORY_FILE_PATH" 2>/dev/null; then echo "  write-probe: OK"; else echo "  write-probe: FAIL"; fi; }`,
+      `  >> '${path.join(memoryDir, 'launch.log')}' 2>&1`,
       `exec node '${memoryScript}' "$@"`,
       ''
     ].join('\n'));
