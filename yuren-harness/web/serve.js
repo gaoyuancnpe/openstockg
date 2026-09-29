@@ -116,15 +116,26 @@ function ensureDataDir() {
     // 与会话工作区根目录。会话工作区实际根不止一个候选(产出目录 / 沙箱根 / 数据目录),
     // 运行时真实 DSH_HOME 也可能与 dshHome() 推导不同(子进程未收到 DSH_HOME 时回落
     // $HOME/.dsh)。全部种入:多份同内容只浪费少量上下文预算,漏种则人设完全不生效。
-    const workspaceDir = workspaceRootDir();
     const realDshHome = realDshHomeDir();
-    const agentsTargets = [
-      path.join(D, 'AGENTS.md'),                          // 数据目录根(历史位置)
-      path.join(realDshHome, 'AGENTS.md'),                // 用户全局:对任意工作区的会话生效
-      path.join(workspaceDir, 'AGENTS.md'),               // 产出工作区根(实际会话常用根)
-      path.join(D, 'workspace', 'AGENTS.md')              // 补丁 yml 钉死的沙箱根
+    // 只种用户全局一份:dsh 必然加载 $DSH_HOME/AGENTS.md 且对任意工作区生效;
+    // 若同时在会话工作区根也放一份,会被当作项目级指令再注入一遍(内容重复)。
+    // 历史上多落点种子造成过双重注入,这里顺带清理带版本标记的旧副本。
+    const agentsDst = path.join(realDshHome, 'AGENTS.md');
+    const legacyAgentCopies = [
+      path.join(D, 'AGENTS.md'),
+      path.join(workspaceRootDir(), 'AGENTS.md'),
+      path.join(D, 'workspace', 'AGENTS.md')
     ];
-    for (const agentsDst of agentsTargets) {
+    for (const legacy of legacyAgentCopies) {
+      try {
+        if (fs.existsSync(legacy) && agentsVer(fs.readFileSync(legacy, 'utf8')) > 0) {
+          fs.rmSync(legacy, { force: true });
+          log(`AGENTS.md 旧副本已清理: ${legacy}(避免双重注入)`);
+        }
+      } catch (e) { log(`AGENTS.md 清理跳过 ${legacy}: ${e.message}`); }
+    }
+    {
+      for (const agentsDst of [agentsDst]) {
       let needsSeed = false;
       let reason = '';
       try {
@@ -145,6 +156,7 @@ function ensureDataDir() {
           log(`AGENTS.md 已种入/升级 → ${agentsDst} (${reason})`);
         }
       } catch (e) { log(`AGENTS.md 种入跳过 ${agentsDst}: ${e.message}`); }
+      }
     }
   } catch (e) { log(`AGENTS.md 副本跳过: ${e.message}`); }
   syncSkills(D);
@@ -170,12 +182,24 @@ function syncSkills(D) {
   if (!fs.existsSync(src)) return;
   // 与 AGENTS.md 同理:技能发现点有多个(用户全局 DSH_HOME/skills 与各项目根 .dsh/skills),
   // 全部同步——漏一处,以那处为根的会话就看不到技能。
-  const targets = [
+  // 与 AGENTS.md 同理:只放用户全局一份,多落点会在技能列表里重复出现
+  const realSkills = path.join(realDshHomeDir(), 'skills');
+  const legacySkillTargets = [
     path.join(D, '.dsh', 'skills'),
-    path.join(realDshHomeDir(), 'skills'),
     path.join(workspaceRootDir(), '.dsh', 'skills'),
     path.join(D, 'workspace', '.dsh', 'skills')
   ];
+  for (const legacy of legacySkillTargets) {
+    try {
+      const marker = path.join(path.dirname(legacy), '.skills-sync');
+      if (fs.existsSync(marker)) {
+        fs.rmSync(legacy, { recursive: true, force: true });
+        fs.rmSync(marker, { force: true });
+        log(`技能旧落点已清理: ${legacy}`);
+      }
+    } catch (e) { log(`技能清理跳过 ${legacy}: ${e.message}`); }
+  }
+  const targets = [realSkills];
   try {
     const fp = fingerprint(src);
     let synced = 0;
